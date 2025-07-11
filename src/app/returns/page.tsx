@@ -12,7 +12,7 @@ import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/compon
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag } from "lucide-react";
 import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput } from '@/types';
-import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, saveSaleRecordAction } from '@/app/actions/saleActions';
+import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, handleProcessReturn } from '@/app/actions/saleActions';
 import { getDiscountSetsAction, getTaxRateAction } from '@/app/actions/settingsActions';
 import { updateProductStockAction, getAllProductsAction as fetchAllProductsForServerLogic } from '@/app/actions/productActions';
 import { useToast } from "@/hooks/use-toast";
@@ -361,236 +361,34 @@ export default function ReturnsPage() {
   };
 
 
-  const handleProcessReturn = async () => {
-    if (!currentUser?.id) {
-        toast({ title: "Authentication Error", description: "You must be logged in to process a return.", variant: "destructive" });
-        return;
-    }
-    const pristineOriginal = foundSaleState.pristineOriginalSale;
-    if (!pristineOriginal || !pristineOriginal.id) {
-        toast({ title: "Error", description: "Pristine original sale record not loaded correctly.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-    }
-    
-    const currentActiveSaleState = foundSaleState.latestAdjustedOrOriginal || pristineOriginal;
-    
-    if (itemsToReturnUiList.every(item => item.returnQuantity === 0)) {
-        toast({ title: "No Items Selected", description: "Please specify quantities for items to return.", variant: "destructive" });
+  const processReturnHandler = async () => {
+    if (!currentUser?.id || !foundSaleState.pristineOriginalSale || !foundSaleState.latestAdjustedOrOriginal) {
+        toast({ title: "Error", description: "Required user or sale context is missing.", variant: "destructive" });
         return;
     }
     setIsLoading(true);
-    setLastProcessedReturn(null);
-
-    const stockUpdateClientPayload: { productId: string; newStock: number }[] = [];
-    let totalRefundFromThisTransaction = 0;
-    const itemsKeptForAdjustedBill: SaleRecordItem[] = []; 
-    const itemsBeingReturnedInThisTransaction: SaleRecordItem[] = [];
-    
-    const stockUpdatePromises = [];
-
-    for (const itemFromSaleContext of currentActiveSaleState.items) {
-        const uiEntry = itemsToReturnUiList.find(uiItem => uiItem.productId === itemFromSaleContext.productId);
-        const quantityToReturn = uiEntry?.returnQuantity || 0;
-        const quantityKept = itemFromSaleContext.quantity - quantityToReturn;
-
-        if (quantityToReturn > 0) {
-            const productDetails = allProducts.find(p => p.id === itemFromSaleContext.productId);
-            if(productDetails && !productDetails.isService) {
-              stockUpdatePromises.push(updateProductStockAction(itemFromSaleContext.productId, quantityToReturn, currentUser.id));
-            }
-            
-            const refundPerUnit = itemFromSaleContext.effectivePricePaidPerUnit; 
-            const refundForThisItemLine = refundPerUnit * quantityToReturn;
-            totalRefundFromThisTransaction += refundForThisItemLine;
-            itemsBeingReturnedInThisTransaction.push({
-                ...itemFromSaleContext, quantity: quantityToReturn,
-                priceAtSale: itemFromSaleContext.priceAtSale, 
-                effectivePricePaidPerUnit: refundPerUnit, 
-                totalDiscountOnLine: 0,
-            });
-        }
-        if (quantityKept > 0) {
-            itemsKeptForAdjustedBill.push({
-                ...itemFromSaleContext, 
-                quantity: quantityKept,
-            });
-        }
-    }
-
-    try {
-        const returnTransactionRecordInput: SaleRecordInput = {
-            recordType: 'RETURN_TRANSACTION',
-            billNumber: `RTN-${pristineOriginal.billNumber}-${Date.now().toString().slice(-5)}`,
-            date: new Date().toISOString(),
-            customerName: pristineOriginal.customerName, customerId: pristineOriginal.customerId,
-            isCreditSale: false,
-            items: itemsBeingReturnedInThisTransaction.map(i => ({...i, units: i.units || {baseUnit: 'pcs', derivedUnits: []}})),
-            subtotalOriginal: itemsBeingReturnedInThisTransaction.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0),
-            totalItemDiscountAmount: 0,
-            totalCartDiscountAmount: 0,
-            netSubtotal: totalRefundFromThisTransaction,
-            appliedDiscountSummary: [],
-            activeDiscountSetId: pristineOriginal.activeDiscountSetId,
-            taxRate: 0,
-            taxAmount: 0,
-            totalAmount: totalRefundFromThisTransaction,
-            paymentMethod: 'REFUND', status: 'RETURN_TRANSACTION_COMPLETED',
-            originalSaleRecordId: pristineOriginal.id,
-            returnedItemsLog: [],
-        };
-
-        const returnTxnSaveResult = await saveSaleRecordAction(returnTransactionRecordInput, currentUser.id);
-        if (!returnTxnSaveResult.success || !returnTxnSaveResult.data) {
-            throw new Error(returnTxnSaveResult.error || "Failed to save return transaction record.");
-        }
-        const actualReturnTransactionId = returnTxnSaveResult.data.id;
-
-        const newReturnLogEntriesForThisTxWithActualId: ReturnedItemDetailInput[] = [];
-        for (const itemFromSaleContext of currentActiveSaleState.items) {
-            const uiEntry = itemsToReturnUiList.find(uiItem => uiItem.productId === itemFromSaleContext.productId);
-            const quantityToReturn = uiEntry?.returnQuantity || 0;
-            if (quantityToReturn > 0) {
-                const refundPerUnit = itemFromSaleContext.effectivePricePaidPerUnit;
-                const refundForThisItemLine = refundPerUnit * quantityToReturn;
-                const unitsForLog: UnitDefinition = itemFromSaleContext.units || { baseUnit: "unknown", derivedUnits: [] };
-                newReturnLogEntriesForThisTxWithActualId.push({
-                    itemId: itemFromSaleContext.productId, name: itemFromSaleContext.name, units: unitsForLog,
-                    returnedQuantity: quantityToReturn, refundAmountPerUnit: refundPerUnit,
-                    totalRefundForThisReturnEntry: refundForThisItemLine, returnDate: new Date().toISOString(),
-                    returnTransactionId: actualReturnTransactionId, 
-                    isUndone: false,
-                });
-            }
-        }
-        
-        const activeDiscountSetForOriginalSale = pristineOriginal.activeDiscountSetId
-            ? allGlobalDiscountSets.find(ds => ds.id === pristineOriginal.activeDiscountSetId)
-            : null;
-
-        const keptItemsAsSaleItemsForCalc: SaleItem[] = itemsKeptForAdjustedBill.map(item => {
-            const productInfo = allProducts.find(p => p.id === item.productId);
-            return {
-                id: item.productId, name: item.name, price: productInfo?.sellingPrice || item.priceAtSale, stock: productInfo?.stock || 0,
-                category: productInfo?.category, imageUrl: productInfo?.imageUrl, units: productInfo?.units || item.units,
-                defaultQuantity: productInfo?.defaultQuantity || 1, isActive: productInfo?.isActive || true,
-                isService: productInfo?.isService || false, productSpecificTaxRate: productInfo?.productSpecificTaxRate,
-                costPrice: productInfo?.costPrice, quantity: item.quantity, description: productInfo?.description,
-                barcode: productInfo?.barcode, code: productInfo?.code,
-            };
-        });
-        
-        const discountResultsForKeptItems = calculateDiscountsForItems({
-            saleItems: keptItemsAsSaleItemsForCalc, activeCampaign: activeDiscountSetForOriginalSale, allProducts: allProducts,
-        });
-
-        const updatedItemsKeptForAdjustedBill = itemsKeptForAdjustedBill.map(keptItem => {
-            const productDetails = allProducts.find(p => p.id === keptItem.productId);
-            const originalSellingPrice = productDetails?.sellingPrice ?? keptItem.priceAtSale;
-            const itemDiscountInfo = discountResultsForKeptItems.itemDiscounts.get(keptItem.productId);
-            const newlyCalculatedDiscountForLine = itemDiscountInfo?.totalCalculatedDiscountForLine ?? 0;
-            let newEffectivePricePaidPerUnit = originalSellingPrice;
-            if (newlyCalculatedDiscountForLine > 0 && keptItem.quantity > 0) {
-                newEffectivePricePaidPerUnit = originalSellingPrice - (newlyCalculatedDiscountForLine / keptItem.quantity);
-            }
-            return { ...keptItem, price: originalSellingPrice, priceAtSale: originalSellingPrice, effectivePricePaidPerUnit: Math.max(0, newEffectivePricePaidPerUnit), totalDiscountOnLine: newlyCalculatedDiscountForLine };
-        });
-
-        const adjSubtotalOriginalFromKept = updatedItemsKeptForAdjustedBill.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-        const adjNetSubtotalFromKept = adjSubtotalOriginalFromKept - discountResultsForKeptItems.totalItemDiscountAmount - discountResultsForKeptItems.totalCartDiscountAmount;
-        const currentTaxRateForAdjusted = pristineOriginal.taxRate ?? globalTaxRateFromStore;
-        
-        let adjTaxAmount = 0;
-         updatedItemsKeptForAdjustedBill.forEach(item => {
-            const productDetails = allProducts.find(p => p.id === item.productId);
-            if (!productDetails) return;
-            const itemNetValueBeforeDiscount = item.priceAtSale * item.quantity;
-            const itemDiscount = item.totalDiscountOnLine;
-            const netValueAfterItemDiscount = itemNetValueBeforeDiscount - itemDiscount;
-            
-            let itemProportionalCartDiscount = 0;
-            const subtotalNetOfItemDiscountsForCalc = adjSubtotalOriginalFromKept - discountResultsForKeptItems.totalItemDiscountAmount;
-            if (subtotalNetOfItemDiscountsForCalc > 0 && discountResultsForKeptItems.totalCartDiscountAmount > 0) {
-                itemProportionalCartDiscount = (netValueAfterItemDiscount / subtotalNetOfItemDiscountsForCalc) * discountResultsForKeptItems.totalCartDiscountAmount;
-            }
-            const finalItemValueForTax = netValueAfterItemDiscount - itemProportionalCartDiscount;
-            const taxRateForItem = productDetails.productSpecificTaxRate ?? currentTaxRateForAdjusted;
-            adjTaxAmount += Math.max(0, finalItemValueForTax) * taxRateForItem;
-        });
-        adjTaxAmount = Math.max(0, adjTaxAmount);
-
-        const adjTotalAmount = adjNetSubtotalFromKept + adjTaxAmount; 
-        const existingReturnLogsForMaster = (currentActiveSaleState.returnedItemsLog || []).filter(log => Array.isArray(log) ? false : !log.isUndone); 
-        const combinedReturnLogsForMasterSale = [...existingReturnLogsForMaster, ...newReturnLogEntriesForThisTxWithActualId];
-        
-        const adjustedSaleRecordInput: SaleRecordInput = {
-            id: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.id : undefined,
-            billNumber: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.billNumber : `${pristineOriginal.billNumber}-ADJ-${Date.now().toString().slice(-4)}`,
-            recordType: 'SALE', status: 'ADJUSTED_ACTIVE',
-            isCreditSale: pristineOriginal.isCreditSale || false, date: new Date().toISOString(),
-            customerName: pristineOriginal.customerName, customerId: pristineOriginal.customerId,
-            items: updatedItemsKeptForAdjustedBill.map(i => ({...i, units: i.units || {baseUnit: 'pcs', derivedUnits: []}})), 
-            subtotalOriginal: adjSubtotalOriginalFromKept,
-            totalItemDiscountAmount: discountResultsForKeptItems.totalItemDiscountAmount, totalCartDiscountAmount: discountResultsForKeptItems.totalCartDiscountAmount,
-            netSubtotal: adjNetSubtotalFromKept, appliedDiscountSummary: discountResultsForKeptItems.fullAppliedDiscountSummary,
-            activeDiscountSetId: pristineOriginal.activeDiscountSetId,
-            taxRate: currentTaxRateForAdjusted, taxAmount: adjTaxAmount, totalAmount: adjTotalAmount,
-            paymentMethod: pristineOriginal.paymentMethod, amountPaidByCustomer: pristineOriginal.amountPaidByCustomer, 
-            changeDueToCustomer: pristineOriginal.changeDueToCustomer, 
-            returnedItemsLog: combinedReturnLogsForMasterSale,
-            originalSaleRecordId: pristineOriginal.id,
-            creditOutstandingAmount: pristineOriginal.isCreditSale ? Math.max(0, adjTotalAmount - (pristineOriginal.amountPaidByCustomer || 0)) : null,
-            creditPaymentStatus: pristineOriginal.isCreditSale ? ( (Math.max(0, adjTotalAmount - (pristineOriginal.amountPaidByCustomer || 0))) <= 0.009 ? 'FULLY_PAID' : ((pristineOriginal.amountPaidByCustomer || 0) > 0 || totalRefundFromThisTransaction > 0 ? 'PARTIALLY_PAID' : 'PENDING') ) : null,
-            creditLastPaymentDate: pristineOriginal.creditLastPaymentDate, 
-            paymentInstallments: pristineOriginal.paymentInstallments,
-        };
-        
-        const adjSaveResult = await saveSaleRecordAction(adjustedSaleRecordInput, currentUser.id);
-        if (!adjSaveResult.success || !adjSaveResult.data) {
-          throw new Error(adjSaveResult.error || "Failed to save adjusted sale record.");
-        }
-
-        const stockUpdateResults = await Promise.all(stockUpdatePromises);
-        stockUpdateResults.forEach((serverStockUpdate, index) => {
-            const returnedItemInfo = itemsBeingReturnedInThisTransaction[index]; 
-            if (serverStockUpdate.success && serverStockUpdate.data) {
-                stockUpdateClientPayload.push({ productId: returnedItemInfo.productId, newStock: serverStockUpdate.data.stock });
-            } else {
-                console.warn(`Failed to update stock on server for ${returnedItemInfo.name}: ${serverStockUpdate.error}`);
-                 const clientProduct = allProducts.find(p => p.id === returnedItemInfo.productId);
-                 if (clientProduct && !clientProduct.isService) { stockUpdateClientPayload.push({ productId: returnedItemInfo.productId, newStock: clientProduct.stock + returnedItemInfo.quantity }); }
-            }
-        });
-        if (stockUpdateClientPayload.length > 0) { dispatch(_internalUpdateMultipleProductStock(stockUpdateClientPayload)); }
-
-
-        setLastProcessedReturn({ returnTransactionRecord: returnTxnSaveResult.data, currentAdjustedSaleAfterReturn: adjSaveResult.data });
-        
+    const result = await handleProcessReturn(currentUser.id, foundSaleState.pristineOriginalSale, foundSaleState.latestAdjustedOrOriginal, itemsToReturnUiList);
+    if (result.success && result.data) {
+        setLastProcessedReturn(result.data);
         setFoundSaleState({
-            pristineOriginalSale: pristineOriginal,
-            latestAdjustedOrOriginal: adjSaveResult.data,
+            pristineOriginalSale: foundSaleState.pristineOriginalSale,
+            latestAdjustedOrOriginal: result.data.currentAdjustedSaleAfterReturn,
         });
         setItemsToReturnUiList(
-            adjSaveResult.data.items.filter(item => item.quantity > 0).map(item => ({ ...item, returnQuantity: 0 }))
+            result.data.currentAdjustedSaleAfterReturn.items.filter(item => item.quantity > 0).map(item => ({ ...item, returnQuantity: 0 }))
         );
-        
         fetchSalesHistoryPage(1);
         
-        toast({ title: "Return Processed Successfully", description: `Total refund: Rs. ${totalRefundFromThisTransaction.toFixed(2)}. Adjusted Bill: ${adjSaveResult.data.billNumber}. Return Txn: ${returnTxnSaveResult.data.billNumber}.`, duration: 7000 });
+        toast({ title: "Return Processed Successfully", description: `New adjusted bill created: ${result.data.currentAdjustedSaleAfterReturn.billNumber}.`, duration: 7000 });
         
         const newAccordionValues = ['original-sale-details', 'adjusted-sale-details', 'return-history', 'items-for-return'];
         setAccordionValue(newAccordionValues);
-
-    } catch (error) {
-        console.error("Error processing return:", error);
-        toast({ title: "Return Error", description: `Could not process the return. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
-        if (pristineOriginal?.billNumber) {
-            await refreshSaleContextAfterUpdate(pristineOriginal.billNumber, currentActiveSaleState?.id);
-        }
-    } finally {
-        setIsLoading(false);
+    } else {
+        toast({ title: "Return Error", description: result.error || "Failed to process return.", variant: "destructive" });
     }
+    setIsLoading(false);
   };
+
 
   const handleAttemptUndoReturnItem = (logEntry: ReturnedItemDetail) => {
     const masterSaleForUndoContext = foundSaleState.latestAdjustedOrOriginal || foundSaleState.pristineOriginalSale;
@@ -874,7 +672,7 @@ export default function ReturnsPage() {
               {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && (<div className="mt-4 p-3 border border-dashed border-primary/50 rounded-md bg-primary/10 flex-shrink-0"><h4 className="text-md font-medium text-primary mb-2 flex items-center"><FileText className="mr-2 h-5 w-5" /> Last Return Transaction Details</h4><p className="text-xs text-muted-foreground">Return Txn Bill No: <span className="font-semibold text-foreground">{lastProcessedReturn.returnTransactionRecord.billNumber}</span></p><p className="text-xs text-muted-foreground">Total Refunded (This Txn): <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.returnTransactionRecord.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Current Adjusted Bill ({lastProcessedReturn.currentAdjustedSaleAfterReturn.billNumber}) Total: <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.currentAdjustedSaleAfterReturn.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Original Sale Bill ({pristineOriginalSaleForDisplay?.billNumber}) Status: <span className="font-semibold text-foreground">{latestAdjustedSaleForDisplay?.status.replace(/_/g, ' ')}</span></p></div>)}
                <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
                   {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<Button variant="outline" onClick={handlePrintCombinedReceipt} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"><Printer className="mr-2 h-4 w-4" /> Print Combined Receipt</Button>)}
-                  <Button type="button" onClick={handleProcessReturn} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
+                  <Button type="button" onClick={processReturnHandler} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
               </div>
           </div>
           

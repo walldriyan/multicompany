@@ -90,7 +90,6 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
       appliedDiscountSummary: parsedAppliedDiscountSummary,
       activeDiscountSetId: record.activeDiscountSetId || null,
       taxRate: typeof record.taxRate === 'number' ? record.taxRate : 0,
-      taxAmount: typeof record.taxAmount === 'number' ? record.taxAmount : 0,
       totalAmount: typeof record.totalAmount === 'number' ? record.totalAmount : 0,
       paymentMethod: paymentMethodValidated,
       amountPaidByCustomer: typeof record.amountPaidByCustomer === 'number' ? record.amountPaidByCustomer : null,
@@ -642,6 +641,143 @@ export async function getInstallmentsForSaleAction(
     }
 }
 
+export async function handleProcessReturn(
+  userId: string,
+  pristineOriginal: SaleRecordType,
+  currentActiveSaleState: SaleRecordType,
+  itemsToReturnUiList: (SaleRecordItem & { returnQuantity: number })[]
+): Promise<{ success: boolean; error?: string; data?: { returnTransactionRecord: SaleRecordType; currentAdjustedSaleAfterReturn: SaleRecordType } }> {
+    if (!userId) return { success: false, error: 'User not authenticated.' };
+    
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            // Fetch necessary data within the transaction for consistency
+            const allProducts = await tx.product.findMany();
+            const allDiscountSets = await tx.discountSet.findMany({ include: { productConfigurations: true } });
+            const taxRateResult = await tx.appConfig.findUnique({ where: { id: 'taxRate' } });
+            const globalTaxRate = taxRateResult?.value && typeof (taxRateResult.value as any).rate === 'number' ? (taxRateResult.value as any).rate : 0;
+
+            const itemsBeingReturnedThisTxn: SaleRecordItem[] = [];
+            let totalRefundAmountThisTxn = 0;
+
+            for (const item of currentActiveSaleState.items) {
+                const returnInfo = itemsToReturnUiList.find(i => i.productId === item.productId);
+                const qtyToReturn = returnInfo?.returnQuantity || 0;
+                if (qtyToReturn > 0) {
+                    const refundPerUnit = item.effectivePricePaidPerUnit;
+                    const totalRefundForLine = refundPerUnit * qtyToReturn;
+                    totalRefundAmountThisTxn += totalRefundForLine;
+                    itemsBeingReturnedThisTxn.push({ ...item, quantity: qtyToReturn, effectivePricePaidPerUnit: refundPerUnit, totalDiscountOnLine: 0 });
+                }
+            }
+
+            const returnTransactionRecord: SaleRecordInput = {
+                recordType: 'RETURN_TRANSACTION',
+                billNumber: `RTN-${pristineOriginal.billNumber}-${Date.now().toString().slice(-5)}`,
+                date: new Date().toISOString(),
+                customerId: pristineOriginal.customerId,
+                items: itemsBeingReturnedThisTxn.map(i => ({...i, units: i.units || {baseUnit: 'pcs', derivedUnits:[]}})),
+                subtotalOriginal: itemsBeingReturnedThisTxn.reduce((s, i) => s + (i.priceAtSale * i.quantity), 0),
+                totalItemDiscountAmount: 0, totalCartDiscountAmount: 0, netSubtotal: totalRefundAmountThisTxn,
+                appliedDiscountSummary: [], activeDiscountSetId: pristineOriginal.activeDiscountSetId,
+                taxRate: 0, taxAmount: 0, totalAmount: totalRefundAmountThisTxn,
+                paymentMethod: 'REFUND', status: 'RETURN_TRANSACTION_COMPLETED',
+                originalSaleRecordId: pristineOriginal.id,
+                returnedItemsLog: []
+            };
+
+            const savedReturnTxn = await saveSaleRecordAction(returnTransactionRecord, userId);
+            if (!savedReturnTxn.success || !savedReturnTxn.data) throw new Error(savedReturnTxn.error || "Failed to save return transaction record.");
+            
+            // --- Recalculate Adjusted Bill ---
+            const itemsKept: SaleRecordItem[] = [];
+            for (const item of currentActiveSaleState.items) {
+                const returnInfo = itemsToReturnUiList.find(i => i.productId === item.productId);
+                const qtyToReturn = returnInfo?.returnQuantity || 0;
+                const qtyKept = item.quantity - qtyToReturn;
+                if (qtyKept > 0) itemsKept.push({ ...item, quantity: qtyKept });
+            }
+
+            const activeDiscountSet = pristineOriginal.activeDiscountSetId ? allDiscountSets.find(ds => ds.id === pristineOriginal.activeDiscountSetId) : null;
+            const discountResults = calculateDiscountsForItems({ saleItems: itemsKept as SaleItem[], activeCampaign: activeDiscountSet, allProducts });
+
+            const newItemsJson: SaleRecordItemInput[] = itemsKept.map(item => {
+                const discInfo = discountResults.itemDiscounts.get(item.productId);
+                const lineDiscount = discInfo?.totalCalculatedDiscountForLine ?? 0;
+                const effPrice = item.quantity > 0 ? item.priceAtSale - (lineDiscount / item.quantity) : item.priceAtSale;
+                return { ...item, units: item.units, totalDiscountOnLine: lineDiscount, effectivePricePaidPerUnit: Math.max(0, effPrice) };
+            });
+
+            const newSubtotalOriginal = newItemsJson.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
+            const newNetSubtotal = newSubtotalOriginal - discountResults.totalItemDiscountAmount - discountResults.totalCartDiscountAmount;
+
+            let newTaxAmount = 0;
+            newItemsJson.forEach(item => {
+                const product = allProducts.find(p => p.id === item.productId);
+                if (!product) return;
+                const itemTaxRate = product.productSpecificTaxRate ?? globalTaxRate;
+                const proportionalCartDiscount = discountResults.totalCartDiscountAmount > 0 && (newSubtotalOriginal - discountResults.totalItemDiscountAmount > 0)
+                    ? ( (item.priceAtSale * item.quantity - item.totalDiscountOnLine) / (newSubtotalOriginal - discountResults.totalItemDiscountAmount) ) * discountResults.totalCartDiscountAmount
+                    : 0;
+                const taxableAmount = (item.priceAtSale * item.quantity) - item.totalDiscountOnLine - proportionalCartDiscount;
+                newTaxAmount += Math.max(0, taxableAmount) * itemTaxRate;
+            });
+            
+            const newTotalAmount = newNetSubtotal + newTaxAmount;
+            
+            const existingReturnLogs = (currentActiveSaleState.returnedItemsLog || []).filter(log => Array.isArray(log) ? false : !log.isUndone);
+            const newReturnLogEntries: ReturnedItemDetailInput[] = itemsBeingReturnedThisTxn.map(item => ({
+                itemId: item.productId, name: item.name, returnedQuantity: item.quantity,
+                units: item.units, refundAmountPerUnit: item.effectivePricePaidPerUnit,
+                totalRefundForThisReturnEntry: item.effectivePricePaidPerUnit * item.quantity,
+                returnDate: savedReturnTxn.data!.date, returnTransactionId: savedReturnTxn.data!.id,
+                isUndone: false
+            }));
+
+            const finalAdjustedSaleInput: SaleRecordInput = {
+                id: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.id : undefined,
+                billNumber: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.billNumber : `${pristineOriginal.billNumber}-ADJ-${Date.now().toString().slice(-4)}`,
+                recordType: 'SALE', status: 'ADJUSTED_ACTIVE', isCreditSale: pristineOriginal.isCreditSale, date: new Date().toISOString(),
+                customerId: pristineOriginal.customerId,
+                items: newItemsJson,
+                subtotalOriginal: newSubtotalOriginal,
+                totalItemDiscountAmount: discountResults.totalItemDiscountAmount, totalCartDiscountAmount: discountResults.totalCartDiscountAmount,
+                netSubtotal: newNetSubtotal, appliedDiscountSummary: discountResults.fullAppliedDiscountSummary,
+                activeDiscountSetId: pristineOriginal.activeDiscountSetId,
+                taxRate: globalTaxRate, taxAmount: newTaxAmount, totalAmount: newTotalAmount,
+                paymentMethod: pristineOriginal.paymentMethod, amountPaidByCustomer: pristineOriginal.amountPaidByCustomer, changeDueToCustomer: pristineOriginal.changeDueToCustomer,
+                returnedItemsLog: [...existingReturnLogs, ...newReturnLogEntries],
+                originalSaleRecordId: pristineOriginal.id,
+                creditOutstandingAmount: pristineOriginal.isCreditSale ? Math.max(0, newTotalAmount - (pristineOriginal.amountPaidByCustomer || 0)) : null,
+                creditPaymentStatus: pristineOriginal.isCreditSale ? ( (Math.max(0, newTotalAmount - (pristineOriginal.amountPaidByCustomer || 0))) <= 0.009 ? 'FULLY_PAID' : ((pristineOriginal.amountPaidByCustomer || 0) > 0 ? 'PARTIALLY_PAID' : 'PENDING') ) : null,
+                creditLastPaymentDate: pristineOriginal.creditLastPaymentDate, paymentInstallments: pristineOriginal.paymentInstallments
+            };
+            
+            const savedAdjustedSale = await saveSaleRecordAction(finalAdjustedSaleInput, userId);
+            if (!savedAdjustedSale.success || !savedAdjustedSale.data) throw new Error(savedAdjustedSale.error || "Failed to save adjusted sale record.");
+
+            for (const item of itemsBeingReturnedThisTxn) {
+                const product = allProducts.find(p => p.id === item.productId);
+                if (product && !product.isService) {
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: item.quantity }, updatedByUserId: userId }
+                    });
+                }
+            }
+            
+            return { returnTransactionRecord: savedReturnTxn.data, currentAdjustedSaleAfterReturn: savedAdjustedSale.data };
+        }, { timeout: 15000 });
+
+        return { success: true, data: result };
+
+    } catch (error) {
+        console.error("Error in handleProcessReturn transaction:", error);
+        return { success: false, error: error instanceof Error ? error.message : "An unexpected error occurred during return processing." };
+    }
+}
+
+
 export async function undoReturnItemAction(
   input: { masterSaleRecordId: string; returnedItemDetailId: string; },
   userId: string,
@@ -833,5 +969,3 @@ export async function undoReturnItemAction(
     return { success: false, error: errorMessage };
   }
 }
-
-    
