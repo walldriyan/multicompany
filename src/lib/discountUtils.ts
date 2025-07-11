@@ -169,17 +169,24 @@ export function calculateDiscountsForItems(
           const buyProductQtyInCart = tempItemQuantities.get(rule.buyProductId) || 0;
 
           if (buyProductQtyInCart >= rule.buyQuantity) {
-              const getProductQtyInCart = tempItemQuantities.get(rule.getProductId) || 0;
+              const getProductDetails = allProducts.find(p => p.id === rule.getProductId);
+              if (!getProductDetails) return;
+
+              let getProductQtyInCart;
+              // If buying and getting the same product, we need to consider available quantity carefully
+              if (rule.buyProductId === rule.getProductId) {
+                  getProductQtyInCart = buyProductQtyInCart;
+              } else {
+                  getProductQtyInCart = tempItemQuantities.get(rule.getProductId) || 0;
+              }
               if (getProductQtyInCart <= 0) return;
 
               const timesRuleCanApply = rule.isRepeatable ? Math.floor(buyProductQtyInCart / rule.buyQuantity) : 1;
               const maxDiscountableQty = timesRuleCanApply * rule.getQuantity;
+              
               const actualDiscountableQty = Math.min(getProductQtyInCart, maxDiscountableQty);
 
               if (actualDiscountableQty > 0) {
-                  const getProductDetails = allProducts.find(p => p.id === rule.getProductId);
-                  if (!getProductDetails) return;
-
                   let discountPerUnit;
                   if (rule.discountType === 'percentage') {
                     discountPerUnit = getProductDetails.sellingPrice * (rule.discountValue / 100);
@@ -197,14 +204,18 @@ export function calculateDiscountsForItems(
                   };
 
                   existingDiscount.totalCalculatedDiscountForLine += totalDiscountFromThisRule;
-                  existingDiscount.ruleName = (existingDiscount.ruleName ? existingDiscount.ruleName + ', ' : '') + `Buy ${rule.buyQuantity} Get ${rule.getQuantity}`;
+                  const buyProduct = allProducts.find(p=>p.id===rule.buyProductId);
+                  const getProduct = allProducts.find(p=>p.id===rule.getProductId);
+                  const ruleNameString = `Buy ${rule.buyQuantity} of ${buyProduct?.name || '...'} Get ${rule.getQuantity} of ${getProduct?.name || '...'}`;
+                  
+                  existingDiscount.ruleName = (existingDiscount.ruleName ? existingDiscount.ruleName + ', ' : '') + ruleNameString;
                   existingDiscount.perUnitEquivalentAmount = existingDiscount.totalCalculatedDiscountForLine / getProductQtyInCart;
 
                   itemLevelDiscountsMap.set(rule.getProductId, existingDiscount);
                   
                   detailedAppliedDiscountSummary.push({
                       discountCampaignName: activeCampaign.name,
-                      sourceRuleName: `Buy ${rule.buyQuantity} of ${allProducts.find(p=>p.id===rule.buyProductId)?.name || 'item'} Get ${rule.getQuantity} of ${getProductDetails.name}`,
+                      sourceRuleName: ruleNameString,
                       totalCalculatedDiscount: totalDiscountFromThisRule,
                       ruleType: 'buy_get_free',
                       productIdAffected: rule.getProductId,
