@@ -166,14 +166,19 @@ export function calculateDiscountsForItems(
   // 2. Evaluate "Buy & Get" Rules
   if (activeCampaign.buyGetRulesJson && activeCampaign.buyGetRulesJson.length > 0) {
       activeCampaign.buyGetRulesJson.forEach(rule => {
-          const buyProductQtyInCart = tempItemQuantities.get(rule.buyProductId) || 0;
+          let buyProductQtyInCart = tempItemQuantities.get(rule.buyProductId) || 0;
+          const buyProductDiscountedByOtherRules = itemLevelDiscountsMap.get(rule.buyProductId);
+          // If the 'buy' item itself is discounted, it might not be eligible to trigger a BOGO.
+          // For now, we allow it. For stricter rules, uncomment the below:
+          // if (buyProductDiscountedByOtherRules && buyProductDiscountedByOtherRules.totalCalculatedDiscountForLine > 0) {
+          //   return; 
+          // }
 
           if (buyProductQtyInCart >= rule.buyQuantity) {
               const getProductDetails = allProducts.find(p => p.id === rule.getProductId);
               if (!getProductDetails) return;
 
               let getProductQtyInCart;
-              // If buying and getting the same product, we need to consider available quantity carefully
               if (rule.buyProductId === rule.getProductId) {
                   getProductQtyInCart = buyProductQtyInCart;
               } else {
@@ -284,3 +289,5 @@ export function calculateDiscountsForItems(
     fullAppliedDiscountSummary: detailedAppliedDiscountSummary,
   };
 }
+
+    
