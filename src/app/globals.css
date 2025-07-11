@@ -3,78 +3,93 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif; /* Ensure Inter is primary */
 }
 
 @layer base {
   :root {
-    --background: 0 0% 94.1%; /* Light Gray */
-    --foreground: 210 29% 24.1%; /* Midnight Blue */
-    --card: 0 0% 100%;
-    --card-foreground: 210 29% 24.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 29% 24.1%;
-    --primary: 210 29% 24.1%; /* Midnight Blue */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 207 70.4% 52.9%; /* Sky Blue */
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 0 0% 16%; /* #282828 */
+    --foreground: 0 0% 95%; /* Light grey/white for text */
+
+    --card: 0 0% 20%; /* #333333 */
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 20%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 217 100% 72%; /* #70a1ff Sky Blue - For interactive elements */
+    --primary-foreground: 217 100% 15%; /* Darker blue for text on sky blue buttons */
+
+    --secondary: 0 0% 25%; /* Slightly lighter dark grey */
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 60%; /* Lighter grey for muted text */
+
+    --accent: 217 100% 72%; /* Sky Blue */
+    --accent-foreground: 217 100% 15%;
+
+    --destructive: 0 62.8% 30.6%; /* Default dark theme destructive */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 207 70.4% 52.9%; /* Sky Blue */
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+
+    --border: 0 0% 30%; /* Border color */
+    --input: 0 0% 22%; /* Input background - slightly different from card */
+    --ring: 217 100% 72%; /* Sky Blue for focus rings */
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --background: 210 29% 10%; /* Darker Midnight Blue */
-    --foreground: 0 0% 94.1%; /* Light Gray */
-    --card: 210 29% 12%;
-    --card-foreground: 0 0% 94.1%;
-    --popover: 210 29% 12%;
-    --popover-foreground: 0 0% 94.1%;
-    --primary: 0 0% 94.1%; /* Light Gray for primary text */
-    --primary-foreground: 210 29% 10%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 207 70.4% 52.9%; /* Sky Blue */
-    --accent-foreground: 0 0% 10%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 210 29% 20%;
-    --input: 210 29% 20%;
-    --ring: 207 70.4% 52.9%; /* Sky Blue */
+
+    /* Chart colors - retain from original but ensure they fit dark theme */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Sidebar variables - adjusted for consistency if sidebar is used, otherwise less critical for this POS */
+    --sidebar-background: 0 0% 18%; /* Slightly different from main card for visual separation */
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 217 100% 72%; /* Sky Blue */
+    --sidebar-primary-foreground: 217 100% 15%;
+    --sidebar-accent: 0 0% 28%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 35%;
+    --sidebar-ring: 217 100% 72%;
+  }
+
+  .dark {
+    --background: 0 0% 16%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 20%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 20%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 217 100% 72%;
+    --primary-foreground: 217 100% 15%;
+    --secondary: 0 0% 25%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 217 100% 72%;
+    --accent-foreground: 217 100% 15%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 30%;
+    --input: 0 0% 22%;
+    --ring: 217 100% 72%;
+    
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 0 0% 18%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 217 100% 72%;
+    --sidebar-primary-foreground: 217 100% 15%;
+    --sidebar-accent: 0 0% 28%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 35%;
+    --sidebar-ring: 217 100% 72%;
   }
 }
 
@@ -84,5 +99,7 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    /* Apply dark theme by default */
+    @apply dark;
   }
 }

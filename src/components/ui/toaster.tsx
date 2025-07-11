@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useToast } from "@/hooks/use-toast"
@@ -29,7 +30,7 @@ export function Toaster() {
           </Toast>
         )
       })}
-      <ToastViewport />
+      <ToastViewport className="sm:left-0 sm:right-auto sm:bottom-0 sm:top-auto" />
     </ToastProvider>
   )
 }

@@ -1,15 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
-declare global {
-  // allow global `var` declarations
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
-}
+// This is the simplest way to instantiate Prisma Client.
+// It ensures that a new client is created each time this module is imported,
+// which resolves the issue where the seed script was connecting to a stale or incorrect database instance.
+const prisma = new PrismaClient();
 
-export const prisma =
-  global.prisma ||
-  new PrismaClient({
-    log: ['query'],
-  });
-
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+export default prisma;
