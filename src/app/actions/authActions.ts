@@ -9,7 +9,7 @@ import { seedPermissionsAction } from './permissionActions';
 
 // Helper function to serialize the user object for Redux, converting Date objects to strings
 const serializeUserForRedux = (userWithDates: any): Omit<UserType, 'passwordHash'> => {
-  const { passwordHash, role, createdAt, updatedAt, ...rest } = userWithDates;
+  const { passwordHash, role, createdAt, updatedAt, company, ...rest } = userWithDates;
 
   const serializableRole = role ? {
     ...role,
@@ -22,11 +22,18 @@ const serializeUserForRedux = (userWithDates: any): Omit<UserType, 'passwordHash
     })) || []
   } : undefined;
 
+  const serializableCompany = company ? {
+      ...company,
+      createdAt: company.createdAt?.toISOString(),
+      updatedAt: company.updatedAt?.toISOString(),
+  } : undefined;
+
   return {
     ...rest,
     createdAt: createdAt?.toISOString(),
     updatedAt: updatedAt?.toISOString(),
     role: serializableRole,
+    company: serializableCompany,
   };
 };
 
@@ -85,7 +92,8 @@ export async function loginAction(
                 }
               }
             }
-          }
+          },
+          company: true,
         },
       });
       console.log("Default admin user created successfully via login action.");
@@ -105,7 +113,8 @@ export async function loginAction(
               }
             }
           }
-        }
+        },
+        company: true,
       },
     });
 

@@ -64,7 +64,7 @@ export default function DashboardLayout({
   const { can } = usePermissions();
 
   // Then use the `isClient` state to decide which value to use.
-  const currentUser = isClient ? currentUserFromStore : { username: "admin", role: { name: "Admin", permissions: [{ action: 'manage', subject: 'all'}] } };
+  const currentUser = isClient ? currentUserFromStore : null;
   
   const [activeView, setActiveView] = useState<DashboardView>('welcome');
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
