@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, ShoppingCartIcon, ArrowLeft, Search, DollarSign, Info, ListFilter, CreditCard } from 'lucide-react'; // Added ListFilter, CreditCard
+import { CalendarIcon, PlusCircle, Trash2, ShoppingCartIcon, ArrowLeft, Search, DollarSign, Info, ListFilter, CreditCard } from 'lucide-react';
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +24,7 @@ import { ProductSearch } from '@/components/pos/ProductSearch';
 import { getAllProductsAction } from '@/app/actions/productActions';
 import { getAllSuppliersAction, createPurchaseBillAction } from '@/app/actions/purchaseActions';
 import { useDispatch, useSelector } from 'react-redux';
-import { _internalUpdateProduct } from '@/store/slices/saleSlice';
+import { _internalUpdateProduct, _internalAddNewProduct, initializeAllProducts } from '@/store/slices/saleSlice';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
 import { Separator } from '@/components/ui/separator';
@@ -86,6 +86,7 @@ export default function PurchasesPage() {
 
       if (productsResult.success && productsResult.data) {
         setAllProducts(productsResult.data);
+        dispatch(initializeAllProducts(productsResult.data));
       } else {
         toast({ title: "Error fetching products", description: productsResult.error, variant: "destructive" });
       }
@@ -95,7 +96,7 @@ export default function PurchasesPage() {
       setIsLoadingSuppliers(false);
       setIsLoadingProducts(false);
     }
-  }, [toast]);
+  }, [toast, dispatch]);
 
   useEffect(() => {
     fetchInitialData();
@@ -113,6 +114,8 @@ export default function PurchasesPage() {
       units: product.units,
       quantityPurchased: 1,
       costPriceAtPurchase: product.costPrice || 0,
+      batchNumber: '',
+      expiryDate: null,
       currentStock: product.stock,
       currentSellingPrice: product.sellingPrice,
     });
@@ -144,34 +147,21 @@ export default function PurchasesPage() {
     setIsSubmitting(true);
     setFormError(null);
 
-    const itemsToSubmit = data.items.map(item => ({
-      productId: item.productId,
-      quantityPurchased: Number(item.quantityPurchased),
-      costPriceAtPurchase: Number(item.costPriceAtPurchase),
-    }));
-
     const dataForAction = {
         ...data,
         amountPaid: data.amountPaid ? Number(data.amountPaid) : 0,
-        items: itemsToSubmit,
     };
 
     const result = await createPurchaseBillAction(dataForAction, currentUser.id);
 
     if (result.success && result.data) {
       toast({ title: "Purchase Bill Created", description: `Bill from supplier recorded. ID: ${result.data.id}. Status: ${result.data.paymentStatus}` });
-
-      result.data.items.forEach(item => {
-        const updatedProduct = allProducts.find(p => p.id === item.productId);
-        if (updatedProduct && !updatedProduct.isService) {
-            const newStock = (updatedProduct.stock || 0) + item.quantityPurchased;
-             dispatch(_internalUpdateProduct({
-                ...updatedProduct,
-                stock: newStock,
-                costPrice: item.costPriceAtPurchase,
-            }));
-        }
-      });
+      
+      const productsResult = await getAllProductsAction();
+      if (productsResult.success && productsResult.data) {
+          dispatch(initializeAllProducts(productsResult.data));
+          setAllProducts(productsResult.data);
+      }
 
       reset({
           supplierId: null,
@@ -322,8 +312,11 @@ export default function PurchasesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-muted-foreground">Product</TableHead>
+                  <TableHead className="text-muted-foreground w-36">Batch No.</TableHead>
+                  <TableHead className="text-muted-foreground w-40">Expiry Date</TableHead>
                   <TableHead className="text-muted-foreground w-32">Qty Purchased</TableHead>
                   <TableHead className="text-muted-foreground w-36">Cost Price/Unit</TableHead>
+                  <TableHead className="text-muted-foreground w-40">New Selling Price</TableHead>
                   <TableHead className="text-muted-foreground text-right w-36">Subtotal</TableHead>
                   <TableHead className="text-muted-foreground w-16">Action</TableHead>
                 </TableRow>
@@ -333,7 +326,33 @@ export default function PurchasesPage() {
                   <TableRow key={item.fieldId}>
                     <TableCell className="text-card-foreground">
                       {item.name} <span className="text-xs text-muted-foreground">({item.units.baseUnit})</span>
-                      <p className="text-xs text-muted-foreground">Current Stock: {item.currentStock}, Sell Price: Rs. {item.currentSellingPrice?.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">Current Stock: {item.currentStock}, Current Sell Price: Rs. {item.currentSellingPrice?.toFixed(2)}</p>
+                    </TableCell>
+                     <TableCell>
+                      <Input
+                        {...register(`items.${index}.batchNumber`)}
+                        className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                        placeholder="Optional"
+                      />
+                    </TableCell>
+                    <TableCell>
+                       <Controller
+                          control={control}
+                          name={`items.${index}.expiryDate`}
+                          render={({ field }) => (
+                             <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal h-8 text-xs px-2", !field.value && "text-muted-foreground")}>
+                                  <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                                  {field.value ? format(field.value, "P") : <span>No Expiry</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={field.value} onSelect={(date) => field.onChange(date || null)} initialFocus />
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        />
                     </TableCell>
                     <TableCell>
                       <Input
@@ -345,14 +364,46 @@ export default function PurchasesPage() {
                       {errors.items?.[index]?.quantityPurchased && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.quantityPurchased?.message}</p>}
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        {...register(`items.${index}.costPriceAtPurchase`, { valueAsNumber: true })}
-                        className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
-                        min="0"
-                      />
+                      <Controller
+                          name={`items.${index}.costPriceAtPurchase`}
+                          control={control}
+                          render={({ field: { onChange, onBlur, value } }) => (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={value === undefined || value === null ? '' : String(value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                onChange(val === '' ? undefined : parseFloat(val));
+                              }}
+                              onBlur={onBlur}
+                              className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                              min="0"
+                            />
+                          )}
+                        />
                       {errors.items?.[index]?.costPriceAtPurchase && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.costPriceAtPurchase?.message}</p>}
+                    </TableCell>
+                    <TableCell>
+                      <Controller
+                          name={`items.${index}.currentSellingPrice`}
+                          control={control}
+                          render={({ field: { onChange, onBlur, value } }) => (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={value === undefined || value === null ? '' : String(value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                onChange(val === '' ? undefined : parseFloat(val));
+                              }}
+                              onBlur={onBlur}
+                              className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                              min="0"
+                            />
+                          )}
+                        />
+                      {errors.items?.[index]?.currentSellingPrice && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.currentSellingPrice?.message}</p>}
                     </TableCell>
                     <TableCell className="text-right text-card-foreground">
                       Rs. {( (Number(watchedItems?.[index]?.quantityPurchased) || 0) * (Number(watchedItems?.[index]?.costPriceAtPurchase) || 0) ).toFixed(2)}
@@ -366,7 +417,7 @@ export default function PurchasesPage() {
                 ))}
                 {fields.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
                       No products added to this purchase bill yet. Use search above.
                     </TableCell>
                   </TableRow>
@@ -480,7 +531,7 @@ export default function PurchasesPage() {
                 <Info size={12} className="inline mr-1" />
                 Bill status will be automatically set as {
                     (Number(watchedAmountPaid) || 0) >= totalBillAmount ? "PAID" :
-                    (Number(watchedAmountPaid) || 0) > 0 ? "PARTIALLY PAID" : "COMPLETED (Awaiting Payment)"
+                    (Number(watchedAmountPaid) || 0) > 0 ? "PARTIALLY_PAID" : "COMPLETED (Awaiting Payment)"
                 }.
             </p>}
           </CardContent>

@@ -33,42 +33,26 @@ export async function createPurchaseBillAction(
   userId: string
 ): Promise<{ success: boolean; data?: PurchaseBill; error?: string; fieldErrors?: Record<string, string[]> }> {
   const actionExecutionTime = new Date().toISOString();
-  console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Action invoked.`);
+  console.log(`[${actionExecutionTime}] --- START: createPurchaseBillAction ---`);
 
   if (!prisma) {
-    console.error(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] CRITICAL: prisma instance is NULL or UNDEFINED.`);
-    return { success: false, error: "Prisma client is not available at all. This is a severe server misconfiguration." };
+    const errorMsg = `[${actionExecutionTime}] ERROR: Prisma instance is NULL or UNDEFINED.`;
+    console.error(errorMsg);
+    return { success: false, error: "Prisma client is not available. This is a severe server misconfiguration." };
   }
-
-  const requiredModels = ['purchaseBill', 'product', 'party', 'purchaseBillItem', 'purchasePayment'];
-  let missingModels = [];
-  for (const model of requiredModels) {
-    if (!(prisma as any)[model]) {
-      missingModels.push(model);
-    }
-  }
-
-  if (missingModels.length > 0) {
-    const errorMessage = `Prisma client or required models (${missingModels.join(', ')}) not initialized. Please run 'npx prisma generate' and restart your server.`;
-    console.error(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Error:`, errorMessage);
-    return { success: false, error: errorMessage };
-  }
-  console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] All required Prisma models seem to be accessible on the prisma object.`);
 
   const validationResult = PurchaseBillCreateInputSchema.safeParse(purchaseData);
   if (!validationResult.success) {
     const fieldErrors = validationResult.error.flatten().fieldErrors;
-    console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Purchase Bill Validation errors:`, fieldErrors);
+    console.error(`[${actionExecutionTime}] ERROR: Validation failed. Errors:`, JSON.stringify(fieldErrors, null, 2));
     return { success: false, error: "Validation failed for purchase bill.", fieldErrors };
   }
   const validatedData = validationResult.data;
-  console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Validation successful. Data:`, JSON.stringify(validatedData));
 
   try {
     const totalAmount = validatedData.items.reduce((sum, item) => {
       return sum + (item.quantityPurchased * item.costPriceAtPurchase);
     }, 0);
-    console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Calculated totalAmount: ${totalAmount}`);
 
     const amountActuallyPaid = validatedData.amountPaid ?? 0;
     let finalPaymentStatus: PurchaseBillStatusEnum;
@@ -82,11 +66,9 @@ export async function createPurchaseBillAction(
     } else {
         finalPaymentStatus = PurchaseBillStatusEnumSchema.Enum.COMPLETED;
     }
-    console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Determined paymentStatus: ${finalPaymentStatus}`);
-
 
     const newPurchaseBill = await prisma.$transaction(async (tx) => {
-      console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Starting transaction.`);
+      console.log(`[${actionExecutionTime}] DB Transaction Started.`);
 
       const createdBill = await tx.purchaseBill.create({
         data: {
@@ -110,7 +92,7 @@ export async function createPurchaseBillAction(
         },
         include: { items: true, supplier: true, payments: true },
       });
-      console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] PurchaseBill header created with ID: ${createdBill.id}, AmountPaid: ${createdBill.amountPaid}, Status: ${createdBill.paymentStatus}`);
+      console.log(`[${actionExecutionTime}] PurchaseBill Header created. ID: ${createdBill.id}`);
 
       if (amountActuallyPaid > 0 && validatedData.initialPaymentMethod) {
         await tx.purchasePayment.create({
@@ -124,41 +106,53 @@ export async function createPurchaseBillAction(
                 recordedByUserId: userId,
             }
         });
-        console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Initial payment of ${amountActuallyPaid} via ${validatedData.initialPaymentMethod} recorded for Bill ID ${createdBill.id}.`);
+        console.log(`[${actionExecutionTime}] Initial payment of Rs. ${amountActuallyPaid.toFixed(2)} recorded.`);
       }
 
       for (const itemInput of validatedData.items) {
-        console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Processing item: ProductID ${itemInput.productId}`);
+        console.log(`[${actionExecutionTime}] Processing item: ProductID ${itemInput.productId}`);
         const product = await tx.product.findUnique({ where: { id: itemInput.productId } });
         if (!product) {
-          console.error(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Product with ID ${itemInput.productId} not found.`);
+          const errorMsg = `[${actionExecutionTime}] ERROR: Product with ID ${itemInput.productId} not found. Rolling back transaction.`;
+          console.error(errorMsg);
           throw new Error(`Product with ID ${itemInput.productId} not found during purchase.`);
         }
-        console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Found product: ${product.name}`);
 
         await tx.purchaseBillItem.updateMany({
             where: { purchaseBillId: createdBill.id, productId: itemInput.productId },
             data: { productNameAtPurchase: product.name },
         });
-        console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Updated productNameAtPurchase for ${product.name}`);
+
+        // NEW: Update selling price if it was changed on the GRN form
+        if (itemInput.currentSellingPrice !== undefined && itemInput.currentSellingPrice !== null && itemInput.currentSellingPrice !== product.sellingPrice) {
+            await tx.product.update({
+                where: { id: itemInput.productId },
+                data: { sellingPrice: itemInput.currentSellingPrice },
+            });
+            console.log(`[${actionExecutionTime}] Default selling price for ${product.name} updated to Rs. ${itemInput.currentSellingPrice.toFixed(2)}.`);
+        }
 
         if (product.isService) {
-            console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Product ${product.name} is a service. Skipping stock/cost update.`);
+            console.log(`[${actionExecutionTime}] Product ${product.name} is a service. Skipping stock update.`);
             continue;
         }
 
-        const newStock = product.stock + itemInput.quantityPurchased;
-        await tx.product.update({
-          where: { id: itemInput.productId },
-          data: {
-            stock: newStock,
-            costPrice: itemInput.costPriceAtPurchase,
-            updatedByUserId: userId,
-          },
+        // The core logic change: Create a new batch with its own selling price
+        await tx.productBatch.create({
+            data: {
+                productId: itemInput.productId,
+                purchaseBillItemId: createdBill.items.find(i => i.productId === itemInput.productId)!.id,
+                batchNumber: itemInput.batchNumber || null,
+                quantity: itemInput.quantityPurchased,
+                costPrice: itemInput.costPriceAtPurchase,
+                sellingPrice: itemInput.currentSellingPrice || product.sellingPrice, // Use new price or fallback to current
+                expiryDate: itemInput.expiryDate ? new Date(itemInput.expiryDate) : null,
+            }
         });
-        console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Updated stock for ${product.name} to ${newStock} and cost price to ${itemInput.costPriceAtPurchase}`);
+        console.log(`[${actionExecutionTime}] New batch created for ${product.name} with quantity ${itemInput.quantityPurchased}.`);
       }
 
+      console.log(`[${actionExecutionTime}] Refetching final bill.`);
       const finalBill = await tx.purchaseBill.findUnique({
           where: { id: createdBill.id },
           include: {
@@ -168,24 +162,27 @@ export async function createPurchaseBillAction(
           }
       });
        if (!finalBill) {
-           console.error(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Failed to refetch the created purchase bill.`);
+           const errorMsg = `[${actionExecutionTime}] ERROR: Failed to refetch created bill.`;
+           console.error(errorMsg);
            throw new Error("Failed to refetch the created purchase bill.");
        }
-      console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Transaction completed successfully.`);
+      console.log(`[${actionExecutionTime}] --- Transaction Succeeded. ---`);
       return finalBill;
     });
 
-    console.log(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Purchase bill creation successful. Mapped data being returned.`);
     return { success: true, data: mapPrismaPurchaseBillToType(newPurchaseBill) };
   } catch (error: any) {
-    console.error(`@@@ [Action: createPurchaseBillAction - ${actionExecutionTime}] Error creating purchase bill:`, error);
-    let errorMessage = 'Failed to create purchase bill.';
+    const errorMessage = `[${actionExecutionTime}] CRITICAL ERROR in createPurchaseBillAction: ${error.message}`;
+    console.error(errorMessage, error.stack);
+    let clientErrorMessage = 'Failed to create purchase bill.';
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        errorMessage = `Database error: ${error.message} (Code: ${error.code})`;
+        clientErrorMessage = `Database error: ${error.message} (Code: ${error.code})`;
     } else if (error instanceof Error) {
-        errorMessage = error.message;
+        clientErrorMessage = error.message;
     }
-    return { success: false, error: errorMessage };
+    return { success: false, error: clientErrorMessage };
+  } finally {
+      console.log(`[${actionExecutionTime}] --- END: createPurchaseBillAction ---`);
   }
 }
 

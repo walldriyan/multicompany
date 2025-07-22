@@ -7,6 +7,7 @@ import { SaleRecordSchema, CreditPaymentStatusEnumSchema, UndoReturnItemInputSch
 import type { SaleRecord as SaleRecordType, SaleRecordItem as SaleRecordItemType, UnitDefinition, PaymentInstallment, CreditPaymentStatus, AppliedRuleInfo, ReturnedItemDetail as ReturnedItemDetailType, SaleRecordInput, DiscountSet, SpecificDiscountRuleConfig as TypesSpecificDiscountRuleConfig, Product as ProductType, ReturnedItemDetailInput, SaleItem, SaleStatus, PaymentMethod } from '@/types';
 import { z } from 'zod';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
+import { getTaxRateAction } from './settingsActions';
 
 function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): SaleRecordType | null {
   try {
@@ -17,9 +18,10 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
     const parsedUnitsOnError: UnitDefinition = { baseUnit: "unknown_error_unit", derivedUnits: [] };
 
     let parsedAppliedDiscountSummary: AppliedRuleInfo[] = [];
-    if (record.appliedDiscountSummary === Prisma.JsonNull) {
+    if (record.appliedDiscountSummary === Prisma.JsonNull || record.appliedDiscountSummary === null) {
         parsedAppliedDiscountSummary = [];
     } else if (record.appliedDiscountSummary && typeof record.appliedDiscountSummary === 'object' && !Array.isArray(record.appliedDiscountSummary) && Object.keys(record.appliedDiscountSummary).length === 0) {
+        // Handles Prisma's representation of an empty JSON object `{}`
         parsedAppliedDiscountSummary = [];
     } else if (record.appliedDiscountSummary && Array.isArray(record.appliedDiscountSummary)) {
       try {
@@ -29,6 +31,7 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
         parsedAppliedDiscountSummary = [];
       }
     } else if (record.appliedDiscountSummary) { 
+      // Fallback for other malformed data
       console.warn(`Malformed appliedDiscountSummary data for bill ${record.billNumber} (expected array, empty object, or null): ${JSON.stringify(record.appliedDiscountSummary)}. Defaulting to empty array.`);
       parsedAppliedDiscountSummary = [];
     }
@@ -79,8 +82,11 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
           units: unitsForLog,
           quantity: typeof item.quantity === 'number' ? item.quantity : 0,
           priceAtSale: typeof item.priceAtSale === 'number' ? item.priceAtSale : 0,
+          costPriceAtSale: typeof item.costPriceAtSale === 'number' ? item.costPriceAtSale : 0,
           effectivePricePaidPerUnit: typeof item.effectivePricePaidPerUnit === 'number' ? item.effectivePricePaidPerUnit : 0,
           totalDiscountOnLine: typeof item.totalDiscountOnLine === 'number' ? item.totalDiscountOnLine : 0,
+          batchId: item.batchId || null, 
+          batchNumber: item.batchNumber || null,
         };
       }),
       subtotalOriginal: typeof record.subtotalOriginal === 'number' ? record.subtotalOriginal : 0,
@@ -90,6 +96,7 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
       appliedDiscountSummary: parsedAppliedDiscountSummary,
       activeDiscountSetId: record.activeDiscountSetId || null,
       taxRate: typeof record.taxRate === 'number' ? record.taxRate : 0,
+      taxAmount: typeof record.taxAmount === 'number' ? record.taxAmount : 0,
       totalAmount: typeof record.totalAmount === 'number' ? record.totalAmount : 0,
       paymentMethod: paymentMethodValidated,
       amountPaidByCustomer: typeof record.amountPaidByCustomer === 'number' ? record.amountPaidByCustomer : null,
@@ -101,10 +108,10 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
             const parsedUnitsResult = UnitDefinitionSchema.safeParse(log.units);
             unitsForLog = parsedUnitsResult.success ? parsedUnitsResult.data : parsedUnitsOnError;
             if (!parsedUnitsResult.success) {
-              console.warn(`ReturnedItemDetail (ID: ${log.id}, Item ID: ${log.itemId}, Bill: ${record.billNumber}) has invalid units data. Defaulting. Error: ${JSON.stringify(item.units)}`);
+              console.warn(`ReturnedItemDetail (ID: ${log.id}, Item ID: ${log.itemId}, Bill: ${record.billNumber}) has invalid units data. Defaulting. Error: ${JSON.stringify(log.units)}`);
             }
         } else {
-              console.warn(`ReturnedItemDetail (ID: ${log.id}, Item ID: ${log.itemId}, Bill: ${record.billNumber}) has missing or malformed units data. Defaulting. Original Data: ${JSON.stringify(item.units)}`);
+              console.warn(`ReturnedItemDetail (ID: ${log.id}, Item ID: ${log.itemId}, Bill: ${record.billNumber}) has missing or malformed units data. Defaulting. Original Data: ${JSON.stringify(log.units)}`);
               unitsForLog = parsedUnitsOnError;
         }
         const parsedLog = ReturnedItemDetailSchema.safeParse({ ...log, units: unitsForLog, returnDate: new Date(log.returnDate).toISOString() });
@@ -122,6 +129,7 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
               returnTransactionId: log.returnTransactionId || 'unknown_txn',
               isUndone: typeof log.isUndone === 'boolean' ? log.isUndone : false,
               processedByUserId: log.processedByUserId || 'unknown_user',
+              originalBatchId: log.originalBatchId || null,
             };
         }
         return {
@@ -144,6 +152,8 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
           createdAt: inst.createdAt ? new Date(inst.createdAt).toISOString() : undefined,
           updatedAt: inst.updatedAt ? new Date(inst.updatedAt).toISOString() : undefined,
       })),
+      customerId: record.customerId || null,
+      customer: record.customer,
       _hasReturns: _hasReturnsFlag,
     };
   } catch (mapError: any) {
@@ -157,6 +167,7 @@ export async function saveSaleRecordAction(
   saleData: SaleRecordInput,
   userId: string
 ): Promise<{ success: boolean; error?: string; data?: SaleRecordType }> {
+  console.log('[saveSaleRecordAction] --- [STEP 1] Action Invoked ---');
 
   const validationResult = SaleRecordSchema.safeParse(saleData);
   if (!validationResult.success) {
@@ -164,185 +175,138 @@ export async function saveSaleRecordAction(
     const errorMessages = Object.entries(flatErrors.fieldErrors)
       .map(([field, messages]) => `${field}: ${(messages as string[])?.join(', ')}`)
       .join('; ');
-    console.error("SaleRecord Zod validation failed on server:", flatErrors);
+    console.error("[saveSaleRecordAction] [FAIL] Zod validation failed:", JSON.stringify(flatErrors, null, 2));
     return { success: false, error: `Sale data validation failed: ${errorMessages || flatErrors.formErrors.join(', ')}` };
   }
   const validatedSaleData = validationResult.data;
   
   if (!userId) {
+     console.error("[saveSaleRecordAction] [FAIL] User not authenticated.");
      return { success: false, error: 'User is not authenticated. Cannot save sale.' };
   }
 
   try {
     const {
         id: recordIdFromInput,
-        items: saleItemsInput,
+        items: itemsFromInput, 
         returnedItemsLog: returnedItemsLogFromInput,
         paymentInstallments: paymentInstallmentsFromInput,
         ...saleRecordFields
     } = validatedSaleData;
 
+    console.log('[saveSaleRecordAction] --- [STEP 2] Starting Prisma Transaction ---');
     const result = await prisma.$transaction(async (tx) => {
-      let savedSaleRecord;
+      console.log('[saveSaleRecordAction] [TX] Transaction block entered.');
 
-      const commonDataPayload = {
-        ...saleRecordFields,
-        createdByUserId: userId,
-        billNumber: saleRecordFields.billNumber, 
-        date: new Date(saleRecordFields.date),
-        activeDiscountSetId: saleRecordFields.activeDiscountSetId, 
-        appliedDiscountSummary: (saleRecordFields.appliedDiscountSummary && Array.isArray(saleRecordFields.appliedDiscountSummary) ? saleRecordFields.appliedDiscountSummary : Prisma.JsonNull) as Prisma.JsonValue,
-        isCreditSale: saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE',
-        creditOutstandingAmount: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE') ? saleRecordFields.totalAmount - (saleRecordFields.amountPaidByCustomer || 0) : null,
-        creditPaymentStatus: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE')
-          ? ( (Math.max(0, saleRecordFields.totalAmount - (saleRecordFields.amountPaidByCustomer || 0))) <= 0.009 ? CreditPaymentStatusEnumSchema.Enum.FULLY_PAID
-              : (saleRecordFields.amountPaidByCustomer || 0) > 0 ? CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID
-              : CreditPaymentStatusEnumSchema.Enum.PENDING )
-          : null,
-        creditLastPaymentDate: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE' && (saleRecordFields.amountPaidByCustomer || 0) > 0) ? new Date(saleRecordFields.date) : null,
-        originalSaleRecordId: validatedSaleData.originalSaleRecordId, 
-      };
-      
-      const itemsToStoreInJson = (saleItemsInput || []).map(item => ({
-        productId: item.productId,
-        name: item.name,
-        category: item.category,
-        imageUrl: item.imageUrl,
-        units: (item.units || { baseUnit: "pcs", derivedUnits: [] }) as Prisma.InputJsonValue,
-        quantity: item.quantity,
-        priceAtSale: item.priceAtSale,
-        effectivePricePaidPerUnit: item.effectivePricePaidPerUnit,
-        totalDiscountOnLine: item.totalDiscountOnLine,
-      }));
-      
-      const returnedLogsToStoreAsJson = (returnedItemsLogFromInput || []).map((log, index) => {
-        const { id, units, returnDate, ...restOfLog } = log; 
-        return {
-          ...restOfLog,
-          id: id || `log_${Date.now()}_${index}`,
-          units: (units || { baseUnit: "pcs", derivedUnits: [] }) as Prisma.InputJsonValue,
-          returnDate: new Date(returnDate).toISOString(),
-          isUndone: log.isUndone === undefined ? false : log.isUndone,
-          processedByUserId: userId, 
-        };
-      });
+      if (!recordIdFromInput) {
+        console.log('[saveSaleRecordAction] [TX] Creating new SaleRecord. Processing stock deduction loop...');
+        for (const item of itemsFromInput) {
+            if (item.batchId) {
+                console.log(`[saveSaleRecordAction] [TX] Processing item: ${item.name}, Qty: ${item.quantity}, BatchID: ${item.batchId}`);
+                const batch = await tx.productBatch.findUnique({ where: { id: item.batchId } });
+                
+                if (!batch) {
+                    const errorMsg = `[FATAL] Batch ${item.batchId} for product ${item.name} not found! Rolling back transaction.`;
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
+                }
 
-      const paymentInstallmentsToCreateForPrisma = (paymentInstallmentsFromInput || []).map(inst => {
-        const {id, saleRecordId, createdAt, updatedAt, paymentDate, ...rest } = inst;
-        return { ...rest, paymentDate: new Date(paymentDate), recordedByUserId: userId };
-      });
-      
-       if (recordIdFromInput) {
-         savedSaleRecord = await tx.saleRecord.update({
-            where: { id: recordIdFromInput },
-            data: {
-              ...commonDataPayload,
-              items: itemsToStoreInJson as Prisma.JsonValue,
-              returnedItemsLog: (returnedLogsToStoreAsJson.length === 0) ? Prisma.JsonNull : returnedLogsToStoreAsJson as Prisma.JsonValue,
-            },
-            include: { paymentInstallments: true, customer: true },
-         });
-       } else {
-        const isReturnTransaction = commonDataPayload.recordType === 'RETURN_TRANSACTION';
-        if (!isReturnTransaction && commonDataPayload.status !== 'ADJUSTED_ACTIVE') {
-            const existingBill = await tx.saleRecord.findFirst({
-                where: { billNumber: commonDataPayload.billNumber }
-            });
-            if (existingBill) {
-                throw new Error(`A sale record with bill number '${commonDataPayload.billNumber}' already exists. BillNumber must be unique for original sales.`);
+                console.log(`[saveSaleRecordAction] [TX] Batch found. Available Qty: ${batch.quantity}. Required Qty: ${item.quantity}`);
+                if (batch.quantity < item.quantity) {
+                    const errorMsg = `[FATAL] Insufficient stock for ${item.name} in batch ${batch.batchNumber}. Required: ${item.quantity}, Available: ${batch.quantity}. Rolling back transaction.`;
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
+                }
+                
+                console.log(`[saveSaleRecordAction] [TX] Updating batch ${item.batchId}. Decrementing quantity by ${item.quantity}.`);
+                await tx.productBatch.update({
+                    where: { id: item.batchId },
+                    data: { quantity: { decrement: item.quantity } },
+                });
+                console.log(`[saveSaleRecordAction] [TX] Batch ${item.batchId} updated successfully.`);
             }
         }
-        
+        console.log('[saveSaleRecordAction] [TX] Stock deduction loop finished.');
+
+        const commonDataPayload = {
+            ...saleRecordFields, createdByUserId: userId,
+            billNumber: saleRecordFields.billNumber, date: new Date(saleRecordFields.date),
+            activeDiscountSetId: saleRecordFields.activeDiscountSetId, 
+            appliedDiscountSummary: (saleRecordFields.appliedDiscountSummary && Array.isArray(saleRecordFields.appliedDiscountSummary) ? saleRecordFields.appliedDiscountSummary : Prisma.JsonNull) as Prisma.JsonValue,
+            isCreditSale: saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE',
+            creditOutstandingAmount: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE') ? saleRecordFields.totalAmount - (saleRecordFields.amountPaidByCustomer || 0) : null,
+            creditPaymentStatus: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE')
+              ? ( (Math.max(0, saleRecordFields.totalAmount - (saleRecordFields.amountPaidByCustomer || 0))) <= 0.009 ? CreditPaymentStatusEnumSchema.Enum.FULLY_PAID
+                  : (saleRecordFields.amountPaidByCustomer || 0) > 0 ? CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID
+                  : CreditPaymentStatusEnumSchema.Enum.PENDING )
+              : null,
+            creditLastPaymentDate: (saleRecordFields.paymentMethod === 'credit' && saleRecordFields.recordType === 'SALE' && (saleRecordFields.amountPaidByCustomer || 0) > 0) ? new Date(saleRecordFields.date) : null,
+            originalSaleRecordId: validatedSaleData.originalSaleRecordId, 
+        };
+      
+        const itemsToStoreInJson: any[] = validatedSaleData.items.map(item => ({
+             ...item, costPriceAtSale: item.costPriceAtSale || 0,
+             units: (item.units || { baseUnit: "pcs", derivedUnits: [] }) as Prisma.InputJsonValue,
+        }));
+
+        const returnedLogsToStoreAsJson = (returnedItemsLogFromInput || []).map((log, index) => {
+            const { id, units, returnDate, ...restOfLog } = log; 
+            return {
+              ...restOfLog, id: id || `log_${Date.now()}_${index}`,
+              units: (units || { baseUnit: "pcs", derivedUnits: [] }) as Prisma.InputJsonValue,
+              returnDate: new Date(returnDate).toISOString(), isUndone: log.isUndone === undefined ? false : log.isUndone,
+              processedByUserId: userId, originalBatchId: log.originalBatchId
+            };
+        });
+
+        const paymentInstallmentsToCreateForPrisma = (paymentInstallmentsFromInput || []).map(inst => {
+            const {id, saleRecordId, createdAt, updatedAt, paymentDate, ...rest } = inst;
+            return { ...rest, paymentDate: new Date(paymentDate), recordedByUserId: userId };
+        });
+
         const createDataPayload: Prisma.SaleRecordCreateInput = {
-          ...commonDataPayload,
-          items: itemsToStoreInJson as Prisma.JsonValue,
+          ...commonDataPayload, items: itemsToStoreInJson as Prisma.JsonValue,
           returnedItemsLog: (returnedLogsToStoreAsJson.length === 0) ? Prisma.JsonNull : returnedLogsToStoreAsJson as Prisma.JsonValue,
           paymentInstallments: paymentInstallmentsToCreateForPrisma.length > 0 ? { create: paymentInstallmentsToCreateForPrisma } : undefined,
         };
-
-        savedSaleRecord = await tx.saleRecord.create({
+        
+        console.log('[saveSaleRecordAction] [TX] Executing Prisma create for SaleRecord...');
+        const savedSaleRecord = await tx.saleRecord.create({
           data: createDataPayload,
-          include: { paymentInstallments: true, customer: true },
-        });
-      }
-
-      if (savedSaleRecord.recordType === 'SALE' && validatedSaleData.status === 'COMPLETED_ORIGINAL' && !validatedSaleData.originalSaleRecordId) {
-          for (const item of saleItemsInput) {
-              const productToUpdate = await tx.product.findUnique({
-                  where: { id: item.productId },
-                  select: { isService: true, stock: true },
-              });
-
-              if (productToUpdate && !productToUpdate.isService) {
-                  const newStock = productToUpdate.stock - item.quantity;
-                  if (newStock < 0) {
-                      throw new Error(`Insufficient stock for ${item.name}. Required: ${item.quantity}, Available: ${productToUpdate.stock}. Transaction rolled back.`);
-                  }
-                  await tx.product.update({
-                      where: { id: item.productId },
-                      data: {
-                          stock: newStock,
-                          updatedByUserId: userId,
-                      },
-                  });
-              }
-          }
-      }
-      
-      if (savedSaleRecord.recordType === 'SALE' &&
-          savedSaleRecord.isCreditSale &&
-          savedSaleRecord.amountPaidByCustomer &&
-          savedSaleRecord.amountPaidByCustomer > 0 &&
-          validatedSaleData.status === 'COMPLETED_ORIGINAL' 
-        ) {
-            await tx.paymentInstallment.create({
-              data: {
-                saleRecordId: savedSaleRecord.id,
-                amountPaid: savedSaleRecord.amountPaidByCustomer,
-                method: (commonDataPayload.paymentMethod && commonDataPayload.paymentMethod !== 'REFUND' && commonDataPayload.paymentMethod !== 'credit')
-                        ? commonDataPayload.paymentMethod.toUpperCase()
-                        : 'CREDIT_INITIAL',
-                paymentDate: new Date(savedSaleRecord.date),
-                notes: 'Initial payment made at point of sale.',
-                recordedByUserId: userId,
-              },
-            });
-      }
-
-      const finalFetchedSaleRecord = await tx.saleRecord.findUniqueOrThrow({
-          where: { id: savedSaleRecord.id },
           include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
-      });
-      return finalFetchedSaleRecord;
+        });
+        console.log(`[saveSaleRecordAction] [TX] SaleRecord created successfully. ID: ${savedSaleRecord.id}`);
+        return savedSaleRecord;
+      } else {
+        console.log('[saveSaleRecordAction] [TX] This is an update action. Skipping stock deduction and creation logic.');
+        // This part is for potential future updates, not currently used by POS
+        return tx.saleRecord.findUniqueOrThrow({ where: {id: recordIdFromInput}});
+      }
     }, {
-      timeout: 10000, 
+      timeout: 15000, 
     });
 
+    console.log('[saveSaleRecordAction] --- [STEP 3] Transaction Committed. Mapping final result... ---');
     const resultData = mapPrismaSaleToRecordType(result);
     if (!resultData) {
       throw new Error("Failed to map saved sale record to type.");
     }
+    console.log('[saveSaleRecordAction] --- [STEP 4] END (SUCCESS) ---');
     return { success: true, data: resultData };
 
   } catch (error) {
-    console.error('Error saving sale record to DB:', error);
+    console.error('[saveSaleRecordAction] --- [FAIL] CRITICAL ERROR in outer catch block ---', error);
     let detailedError = 'Failed to save sale record.';
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
        detailedError = `Database error (Code: ${error.code}): ${error.message}`;
        if (error.code === 'P2002' && error.meta?.target) {
          const targetFields = error.meta.target as string[];
          if (targetFields.includes('billNumber')) {
-           detailedError = `A sale record with bill number '${validatedSaleData.billNumber}' already exists. BillNumber must be unique for original sales.`;
+           detailedError = `A sale record with bill number '${validatedSaleData.billNumber}' already exists. BillNumber must be unique.`;
          } else {
            detailedError = `A unique constraint violation occurred on: ${targetFields.join(', ')}.`;
          }
       }
-       if (error.code === 'P2025') {
-         detailedError = "Record to update or delete not found.";
-       }
-       if (error.code === 'P2028') {
-         detailedError = `Transaction timed out. The operation took too long. Please try again. Details: ${error.message}`;
-       }
     } else if (error instanceof Error) {
       detailedError = error.message;
     }
@@ -394,7 +358,7 @@ export async function getSaleContextByBillNumberAction(
     });
 
     const hasReturns = (latestAdjustedSale?.returnedItemsLog || pristineOriginalDbRecord?.returnedItemsLog) ? 
-        ((latestAdjustedSale?.returnedItemsLog || pristineOriginalDbRecord.returnedItemsLog) as any[]).filter(log => !log.isUndone).length > 0
+        (((latestAdjustedSale?.returnedItemsLog || pristineOriginalDbRecord.returnedItemsLog) as any[]) || []).filter(log => !log.isUndone).length > 0
         : false;
 
     const mappedPristineOriginal = mapPrismaSaleToRecordType(pristineOriginalDbRecord, hasReturns);
@@ -641,143 +605,6 @@ export async function getInstallmentsForSaleAction(
     }
 }
 
-export async function handleProcessReturn(
-  userId: string,
-  pristineOriginal: SaleRecordType,
-  currentActiveSaleState: SaleRecordType,
-  itemsToReturnUiList: (SaleRecordItem & { returnQuantity: number })[]
-): Promise<{ success: boolean; error?: string; data?: { returnTransactionRecord: SaleRecordType; currentAdjustedSaleAfterReturn: SaleRecordType } }> {
-    if (!userId) return { success: false, error: 'User not authenticated.' };
-    
-    try {
-        const result = await prisma.$transaction(async (tx) => {
-            // Fetch necessary data within the transaction for consistency
-            const allProducts = await tx.product.findMany();
-            const allDiscountSets = await tx.discountSet.findMany({ include: { productConfigurations: true } });
-            const taxRateResult = await tx.appConfig.findUnique({ where: { id: 'taxRate' } });
-            const globalTaxRate = taxRateResult?.value && typeof (taxRateResult.value as any).rate === 'number' ? (taxRateResult.value as any).rate : 0;
-
-            const itemsBeingReturnedThisTxn: SaleRecordItem[] = [];
-            let totalRefundAmountThisTxn = 0;
-
-            for (const item of currentActiveSaleState.items) {
-                const returnInfo = itemsToReturnUiList.find(i => i.productId === item.productId);
-                const qtyToReturn = returnInfo?.returnQuantity || 0;
-                if (qtyToReturn > 0) {
-                    const refundPerUnit = item.effectivePricePaidPerUnit;
-                    const totalRefundForLine = refundPerUnit * qtyToReturn;
-                    totalRefundAmountThisTxn += totalRefundForLine;
-                    itemsBeingReturnedThisTxn.push({ ...item, quantity: qtyToReturn, effectivePricePaidPerUnit: refundPerUnit, totalDiscountOnLine: 0 });
-                }
-            }
-
-            const returnTransactionRecord: SaleRecordInput = {
-                recordType: 'RETURN_TRANSACTION',
-                billNumber: `RTN-${pristineOriginal.billNumber}-${Date.now().toString().slice(-5)}`,
-                date: new Date().toISOString(),
-                customerId: pristineOriginal.customerId,
-                items: itemsBeingReturnedThisTxn.map(i => ({...i, units: i.units || {baseUnit: 'pcs', derivedUnits:[]}})),
-                subtotalOriginal: itemsBeingReturnedThisTxn.reduce((s, i) => s + (i.priceAtSale * i.quantity), 0),
-                totalItemDiscountAmount: 0, totalCartDiscountAmount: 0, netSubtotal: totalRefundAmountThisTxn,
-                appliedDiscountSummary: [], activeDiscountSetId: pristineOriginal.activeDiscountSetId,
-                taxRate: 0, taxAmount: 0, totalAmount: totalRefundAmountThisTxn,
-                paymentMethod: 'REFUND', status: 'RETURN_TRANSACTION_COMPLETED',
-                originalSaleRecordId: pristineOriginal.id,
-                returnedItemsLog: []
-            };
-
-            const savedReturnTxn = await saveSaleRecordAction(returnTransactionRecord, userId);
-            if (!savedReturnTxn.success || !savedReturnTxn.data) throw new Error(savedReturnTxn.error || "Failed to save return transaction record.");
-            
-            // --- Recalculate Adjusted Bill ---
-            const itemsKept: SaleRecordItem[] = [];
-            for (const item of currentActiveSaleState.items) {
-                const returnInfo = itemsToReturnUiList.find(i => i.productId === item.productId);
-                const qtyToReturn = returnInfo?.returnQuantity || 0;
-                const qtyKept = item.quantity - qtyToReturn;
-                if (qtyKept > 0) itemsKept.push({ ...item, quantity: qtyKept });
-            }
-
-            const activeDiscountSet = pristineOriginal.activeDiscountSetId ? allDiscountSets.find(ds => ds.id === pristineOriginal.activeDiscountSetId) : null;
-            const discountResults = calculateDiscountsForItems({ saleItems: itemsKept as SaleItem[], activeCampaign: activeDiscountSet, allProducts });
-
-            const newItemsJson: SaleRecordItemInput[] = itemsKept.map(item => {
-                const discInfo = discountResults.itemDiscounts.get(item.productId);
-                const lineDiscount = discInfo?.totalCalculatedDiscountForLine ?? 0;
-                const effPrice = item.quantity > 0 ? item.priceAtSale - (lineDiscount / item.quantity) : item.priceAtSale;
-                return { ...item, units: item.units, totalDiscountOnLine: lineDiscount, effectivePricePaidPerUnit: Math.max(0, effPrice) };
-            });
-
-            const newSubtotalOriginal = newItemsJson.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-            const newNetSubtotal = newSubtotalOriginal - discountResults.totalItemDiscountAmount - discountResults.totalCartDiscountAmount;
-
-            let newTaxAmount = 0;
-            newItemsJson.forEach(item => {
-                const product = allProducts.find(p => p.id === item.productId);
-                if (!product) return;
-                const itemTaxRate = product.productSpecificTaxRate ?? globalTaxRate;
-                const proportionalCartDiscount = discountResults.totalCartDiscountAmount > 0 && (newSubtotalOriginal - discountResults.totalItemDiscountAmount > 0)
-                    ? ( (item.priceAtSale * item.quantity - item.totalDiscountOnLine) / (newSubtotalOriginal - discountResults.totalItemDiscountAmount) ) * discountResults.totalCartDiscountAmount
-                    : 0;
-                const taxableAmount = (item.priceAtSale * item.quantity) - item.totalDiscountOnLine - proportionalCartDiscount;
-                newTaxAmount += Math.max(0, taxableAmount) * itemTaxRate;
-            });
-            
-            const newTotalAmount = newNetSubtotal + newTaxAmount;
-            
-            const existingReturnLogs = (currentActiveSaleState.returnedItemsLog || []).filter(log => Array.isArray(log) ? false : !log.isUndone);
-            const newReturnLogEntries: ReturnedItemDetailInput[] = itemsBeingReturnedThisTxn.map(item => ({
-                itemId: item.productId, name: item.name, returnedQuantity: item.quantity,
-                units: item.units, refundAmountPerUnit: item.effectivePricePaidPerUnit,
-                totalRefundForThisReturnEntry: item.effectivePricePaidPerUnit * item.quantity,
-                returnDate: savedReturnTxn.data!.date, returnTransactionId: savedReturnTxn.data!.id,
-                isUndone: false
-            }));
-
-            const finalAdjustedSaleInput: SaleRecordInput = {
-                id: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.id : undefined,
-                billNumber: currentActiveSaleState.id !== pristineOriginal.id ? currentActiveSaleState.billNumber : `${pristineOriginal.billNumber}-ADJ-${Date.now().toString().slice(-4)}`,
-                recordType: 'SALE', status: 'ADJUSTED_ACTIVE', isCreditSale: pristineOriginal.isCreditSale, date: new Date().toISOString(),
-                customerId: pristineOriginal.customerId,
-                items: newItemsJson,
-                subtotalOriginal: newSubtotalOriginal,
-                totalItemDiscountAmount: discountResults.totalItemDiscountAmount, totalCartDiscountAmount: discountResults.totalCartDiscountAmount,
-                netSubtotal: newNetSubtotal, appliedDiscountSummary: discountResults.fullAppliedDiscountSummary,
-                activeDiscountSetId: pristineOriginal.activeDiscountSetId,
-                taxRate: globalTaxRate, taxAmount: newTaxAmount, totalAmount: newTotalAmount,
-                paymentMethod: pristineOriginal.paymentMethod, amountPaidByCustomer: pristineOriginal.amountPaidByCustomer, changeDueToCustomer: pristineOriginal.changeDueToCustomer,
-                returnedItemsLog: [...existingReturnLogs, ...newReturnLogEntries],
-                originalSaleRecordId: pristineOriginal.id,
-                creditOutstandingAmount: pristineOriginal.isCreditSale ? Math.max(0, newTotalAmount - (pristineOriginal.amountPaidByCustomer || 0)) : null,
-                creditPaymentStatus: pristineOriginal.isCreditSale ? ( (Math.max(0, newTotalAmount - (pristineOriginal.amountPaidByCustomer || 0))) <= 0.009 ? 'FULLY_PAID' : ((pristineOriginal.amountPaidByCustomer || 0) > 0 ? 'PARTIALLY_PAID' : 'PENDING') ) : null,
-                creditLastPaymentDate: pristineOriginal.creditLastPaymentDate, paymentInstallments: pristineOriginal.paymentInstallments
-            };
-            
-            const savedAdjustedSale = await saveSaleRecordAction(finalAdjustedSaleInput, userId);
-            if (!savedAdjustedSale.success || !savedAdjustedSale.data) throw new Error(savedAdjustedSale.error || "Failed to save adjusted sale record.");
-
-            for (const item of itemsBeingReturnedThisTxn) {
-                const product = allProducts.find(p => p.id === item.productId);
-                if (product && !product.isService) {
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { stock: { increment: item.quantity }, updatedByUserId: userId }
-                    });
-                }
-            }
-            
-            return { returnTransactionRecord: savedReturnTxn.data, currentAdjustedSaleAfterReturn: savedAdjustedSale.data };
-        }, { timeout: 15000 });
-
-        return { success: true, data: result };
-
-    } catch (error) {
-        console.error("Error in handleProcessReturn transaction:", error);
-        return { success: false, error: error instanceof Error ? error.message : "An unexpected error occurred during return processing." };
-    }
-}
-
-
 export async function undoReturnItemAction(
   input: { masterSaleRecordId: string; returnedItemDetailId: string; },
   userId: string,
@@ -785,7 +612,7 @@ export async function undoReturnItemAction(
   if (!userId) {
       return { success: false, error: 'User is not authenticated. Cannot undo return.' };
   }
-  const validationResult = UndoReturnItemInputSchema.omit({originalSaleId: true}).extend({masterSaleRecordId: z.string()}).safeParse(input);
+  const validationResult = UndoReturnItemInputSchema.safeParse(input);
   if (!validationResult.success) {
     return { success: false, error: "Invalid input for undoing return: " + validationResult.error.flatten().formErrors.join(', ') };
   }
@@ -806,7 +633,12 @@ export async function undoReturnItemAction(
         ? await tx.saleRecord.findUniqueOrThrow({ where: { id: masterRecord.originalSaleRecordId } })
         : masterRecord;
 
-      const currentLogs = (masterRecord.returnedItemsLog as unknown as ReturnedItemDetailType[]) || [];
+      // Safely access returnedItemsLog
+      const currentLogsFromDb = masterRecord.returnedItemsLog;
+      const currentLogs: ReturnedItemDetail[] = (currentLogsFromDb !== null && currentLogsFromDb !== Prisma.JsonNull && Array.isArray(currentLogsFromDb))
+        ? (currentLogsFromDb as any[]).map(log => ReturnedItemDetailSchema.parse({...log, units: UnitDefinitionSchema.parse(log.units || {baseUnit:'pcs'}), returnDate: new Date(log.returnDate).toISOString()}))
+        : [];
+      
       let logToUndo: ReturnedItemDetail | undefined;
       
       const updatedLogs = currentLogs.map(log => {
@@ -820,12 +652,17 @@ export async function undoReturnItemAction(
 
       if (!logToUndo) throw new Error("Return log entry to undo not found.");
 
-      const productOfUndoneItem = await tx.product.findUnique({ where: { id: logToUndo.itemId } });
-      if (productOfUndoneItem && !productOfUndoneItem.isService) {
-        await tx.product.update({
-            where: { id: logToUndo.itemId },
-            data: { stock: { decrement: logToUndo.returnedQuantity }, updatedByUserId: userId }
-        });
+      const batchToDecrement = logToUndo.originalBatchId ?
+          await tx.productBatch.findUnique({where: {id: logToUndo.originalBatchId}}) :
+          await tx.productBatch.findFirst({ where: { productId: logToUndo.itemId, batchNumber: "RETURNED_STOCK" } });
+
+      if (batchToDecrement && batchToDecrement.quantity >= logToUndo.returnedQuantity) {
+          await tx.productBatch.update({
+              where: { id: batchToDecrement.id },
+              data: { quantity: { decrement: logToUndo.returnedQuantity } }
+          });
+      } else {
+         console.warn(`Could not find sufficient quantity in batch for product ${logToUndo.itemId} to undo the return. Stock might be inconsistent.`);
       }
       
       const activeReturnLogsAfterUndo = updatedLogs.filter(log => !log.isUndone);
@@ -835,25 +672,33 @@ export async function undoReturnItemAction(
            await tx.saleRecord.delete({ where: { id: masterRecord.id } });
         }
         
+        await tx.saleRecord.update({
+            where: { id: pristineOriginalSale.id },
+            data: { status: 'COMPLETED_ORIGINAL', returnedItemsLog: Prisma.JsonNull }
+        });
+
         return tx.saleRecord.findUniqueOrThrow({
             where: { id: pristineOriginalSale.id },
             include: { paymentInstallments: true, customer: true, createdBy: {select: {username: true}} }
         });
 
       } else {
-        const allProductsForCalc = await tx.product.findMany();
+        const allProductsForCalc = await tx.product.findMany({ include: { batches: true }});
         const allDiscountSetsForCalc = await tx.discountSet.findMany({ include: { productConfigurations: true } });
         
         const pristineItems: SaleRecordItemType[] = (pristineOriginalSale.items !== Prisma.JsonNull && Array.isArray(pristineOriginalSale.items)) ? pristineOriginalSale.items as any : [];
 
-        let itemsKeptForAdjustedBill: SaleRecordItemType[] = pristineItems.map(originalItem => {
-            let quantityStillReturnedForThisProduct = 0;
+        const itemsKeptForAdjustedBill: SaleRecordItemType[] = [];
+        pristineItems.forEach(originalItem => {
+            let quantityStillReturnedForThisLineItem = 0;
             activeReturnLogsAfterUndo.forEach(log => {
-                if (log.itemId === originalItem.productId) { quantityStillReturnedForThisProduct += log.returnedQuantity; }
+                if (log.itemId === originalItem.productId && log.originalBatchId === originalItem.batchId) { quantityStillReturnedForThisLineItem += log.returnedQuantity; }
             });
-            const keptQuantity = originalItem.quantity - quantityStillReturnedForThisProduct;
-            return { ...originalItem, quantity: keptQuantity };
-        }).filter(item => item.quantity > 0);
+            const keptQuantity = originalItem.quantity - quantityStillReturnedForThisLineItem;
+            if (keptQuantity > 0) {
+                 itemsKeptForAdjustedBill.push({ ...originalItem, quantity: keptQuantity });
+            }
+        });
 
         const activeDiscountSetForOriginalSale = pristineOriginalSale.activeDiscountSetId
           ? allDiscountSetsForCalc.find(ds => ds.id === pristineOriginalSale.activeDiscountSetId)
@@ -861,23 +706,26 @@ export async function undoReturnItemAction(
 
         const keptItemsAsSaleItemsForCalc: SaleItem[] = itemsKeptForAdjustedBill.map(item => {
           const productInfo = allProductsForCalc.find(p => p.id === item.productId);
+          const batchInfo = productInfo?.batches?.find(b => b.id === item.batchId);
           return {
             id: item.productId,
             name: item.name,
-            price: productInfo?.sellingPrice || item.priceAtSale,
+            price: batchInfo?.sellingPrice || productInfo?.sellingPrice || item.priceAtSale,
             stock: productInfo?.stock || 0,
             category: productInfo?.category,
             imageUrl: productInfo?.imageUrl,
-            units: (productInfo?.units as UnitDefinition | undefined) || item.units,
+            units: (productInfo?.units as UnitDefinition) || item.units,
             defaultQuantity: productInfo?.defaultQuantity || 1,
             isActive: productInfo?.isActive || true,
             isService: productInfo?.isService || false,
             productSpecificTaxRate: productInfo?.productSpecificTaxRate,
-            costPrice: productInfo?.costPrice,
+            costPrice: item.costPriceAtSale,
             quantity: item.quantity,
             description: productInfo?.description,
             barcode: productInfo?.barcode,
             code: productInfo?.code,
+            sellingPrice: batchInfo?.sellingPrice || productInfo?.sellingPrice || item.priceAtSale,
+            saleItemId: `sale-item-${item.productId}`, 
           };
         });
         
@@ -888,37 +736,41 @@ export async function undoReturnItemAction(
         });
 
         const updatedItemsKeptForAdjustedBill = itemsKeptForAdjustedBill.map(keptItem => {
-          const productDetails = allProductsForCalc.find(p => p.id === keptItem.productId);
-          const originalSellingPrice = productDetails?.sellingPrice ?? keptItem.priceAtSale;
-          const itemDiscountInfo = discountResultsForKeptItems.itemDiscounts.get(keptItem.productId);
-          const newlyCalculatedDiscountForLine = itemDiscountInfo?.totalCalculatedDiscountForLine ?? 0;
-          let newEffectivePricePaidPerUnit = originalSellingPrice;
-          if (newlyCalculatedDiscountForLine > 0 && keptItem.quantity > 0) {
-            newEffectivePricePaidPerUnit = originalSellingPrice - (newlyCalculatedDiscountForLine / keptItem.quantity);
-          }
-          return { ...keptItem, price: originalSellingPrice, priceAtSale: originalSellingPrice, effectivePricePaidPerUnit: Math.max(0, newEffectivePricePaidPerUnit), totalDiscountOnLine: newlyCalculatedDiscountForLine };
+            const productDetails = allProductsForCalc.find(p => p.id === keptItem.productId);
+            const batchDetails = productDetails?.batches?.find(b => b.id === keptItem.batchId);
+            const originalSellingPrice = batchDetails?.sellingPrice ?? productDetails?.sellingPrice ?? keptItem.priceAtSale;
+            const itemDiscountInfo = discountResultsForKeptItems.itemDiscounts.get(keptItem.productId);
+            const calculatedDiscountForLine = itemDiscountInfo?.totalCalculatedDiscountForLine ?? 0;
+            let effectivePricePaidPerUnit = originalSellingPrice;
+            if (calculatedDiscountForLine > 0 && keptItem.quantity > 0) {
+              effectivePricePaidPerUnit = originalSellingPrice - (calculatedDiscountForLine / keptItem.quantity);
+            }
+            return { ...keptItem, price: originalSellingPrice, priceAtSale: originalSellingPrice, effectivePricePaidPerUnit: Math.max(0, effectivePricePaidPerUnit), totalDiscountOnLine: calculatedDiscountForLine };
         });
-
-        const adjSubtotalOriginalFromKept = updatedItemsKeptForAdjustedBill.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-        const adjNetSubtotalFromKept = adjSubtotalOriginalFromKept - discountResultsForKeptItems.totalItemDiscountAmount - discountResultsForKeptItems.totalCartDiscountAmount;
-        const currentTaxRateForAdjusted = pristineOriginalSale.taxRate ?? 0;
         
+        const adjSubtotalOriginalFromKept = updatedItemsKeptForAdjustedBill.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
+        const adjTotalItemDiscount = discountResultsForKeptItems.totalItemDiscountAmount;
+        const adjTotalCartDiscountAmount = discountResultsForKeptItems.totalCartDiscountAmount;
+        const adjNetSubtotalFromKept = adjSubtotalOriginalFromKept - adjTotalItemDiscount - adjTotalCartDiscountAmount;
+        
+        const taxRateResult = await getTaxRateAction();
+        if (!taxRateResult.success || taxRateResult.data === undefined) { throw new Error("Failed to fetch global tax rate for recalculation."); }
+        const globalTaxRate = taxRateResult.data.value;
+
+        const currentTaxRateForAdjusted = (pristineOriginalSale.taxRate as number) ?? 0;
         let adjTaxAmount = 0;
         updatedItemsKeptForAdjustedBill.forEach(item => {
           const productDetails = allProductsForCalc.find(p => p.id === item.productId);
           if (!productDetails) return;
-          const itemNetValueBeforeDiscount = item.priceAtSale * item.quantity;
-          const itemDiscount = item.totalDiscountOnLine || 0;
-          const itemNetValueAfterItemDiscount = itemNetValueBeforeDiscount - itemDiscount;
-          
-          let itemProportionalCartDiscount = 0;
-          const subtotalNetOfItemDiscountsForCalc = adjSubtotalOriginalFromKept - discountResultsForKeptItems.totalItemDiscountAmount;
-          if (subtotalNetOfItemDiscountsForCalc > 0 && discountResultsForKeptItems.totalCartDiscountAmount > 0) {
-            itemProportionalCartDiscount = (itemNetValueAfterItemDiscount / subtotalNetOfItemDiscountsForCalc) * discountResultsForKeptItems.totalCartDiscountAmount;
+          const itemNetValueAfterItemDiscount = (item.priceAtSale * item.quantity) - (item.totalDiscountOnLine || 0);
+          const subtotalNetOfItemDiscountsForCalc = adjSubtotalOriginalFromKept - adjTotalItemDiscount;
+          let itemProportionalCartDiscount = 0; // Fix: Initialize inside loop
+          if (subtotalNetOfItemDiscountsForCalc > 0 && adjTotalCartDiscountAmount > 0) {
+            itemProportionalCartDiscount = (itemNetValueAfterItemDiscount / subtotalNetOfItemDiscountsForCalc) * adjTotalCartDiscountAmount;
           }
           const finalItemValueForTax = itemNetValueAfterItemDiscount - itemProportionalCartDiscount;
-          const taxRateForItem = productDetails.productSpecificTaxRate ?? currentTaxRateForAdjusted;
-          adjTaxAmount += Math.max(0, finalItemValueForTax) * taxRateForItem;
+          const taxRateForItemAsDecimal = ((productDetails.productSpecificTaxRate ?? globalTaxRate * 100) || currentTaxRateForAdjusted) / 100;
+          adjTaxAmount += Math.max(0, finalItemValueForTax) * taxRateForItemAsDecimal;
         });
 
         const adjTotalAmount = adjNetSubtotalFromKept + Math.max(0, adjTaxAmount);
@@ -927,20 +779,22 @@ export async function undoReturnItemAction(
           date: new Date(), 
           items: updatedItemsKeptForAdjustedBill.map(i => ({...i, units: (i.units || {baseUnit: 'pcs', derivedUnits: []})})) as Prisma.JsonValue,
           subtotalOriginal: adjSubtotalOriginalFromKept, 
-          totalItemDiscountAmount: discountResultsForKeptItems.totalItemDiscountAmount,
-          totalCartDiscountAmount: discountResultsForKeptItems.totalCartDiscountAmount, 
+          totalItemDiscountAmount: adjTotalItemDiscount,
+          totalCartDiscountAmount: adjTotalCartDiscountAmount, 
           netSubtotal: adjNetSubtotalFromKept,
           appliedDiscountSummary: discountResultsForKeptItems.fullAppliedDiscountSummary as Prisma.JsonValue | Prisma.DbNull, 
           taxRate: currentTaxRateForAdjusted, taxAmount: adjTaxAmount, totalAmount: adjTotalAmount,
           status: 'ADJUSTED_ACTIVE',
           returnedItemsLog: updatedLogs as Prisma.JsonValue,
+          activeDiscountSetId: pristineOriginalSale.activeDiscountSetId,
         };
 
         if (masterRecord.isCreditSale) {
-            dataToUpdateOnMaster.creditOutstandingAmount = Math.max(0, adjTotalAmount - (masterRecord.amountPaidByCustomer || 0));
+            const amountPaidByCustomer = (masterRecord.amountPaidByCustomer as number) || 0;
+            dataToUpdateOnMaster.creditOutstandingAmount = Math.max(0, adjTotalAmount - amountPaidByCustomer);
             dataToUpdateOnMaster.creditPaymentStatus = 
-              ( (Math.max(0, adjTotalAmount - (masterRecord.amountPaidByCustomer || 0))) <= 0.009 ? 'FULLY_PAID'
-              : (((masterRecord.amountPaidByCustomer || 0) > 0 || activeReturnLogsAfterUndo.length > 0) ? 'PARTIALLY_PAID'
+              ( (Math.max(0, adjTotalAmount - amountPaidByCustomer)) <= 0.009 ? 'FULLY_PAID'
+              : ((amountPaidByCustomer > 0 || activeReturnLogsAfterUndo.length > 0) ? 'PARTIALLY_PAID'
               : 'PENDING') );
         }
 
@@ -954,7 +808,7 @@ export async function undoReturnItemAction(
       }
     });
 
-    const mappedData = mapPrismaSaleToRecordType(updatedOrPristineSaleRecord, (updatedOrPristineSaleRecord.returnedItemsLog as any[])?.some(log => !log.isUndone));
+    const mappedData = mapPrismaSaleToRecordType(updatedOrPristineSaleRecord, ((updatedOrPristineSaleRecord.returnedItemsLog as any[]) || []).some(log => !log.isUndone));
     if (!mappedData) throw new Error("Failed to map updated sale record after undoing item.");
     return { success: true, data: mappedData };
 
@@ -969,3 +823,5 @@ export async function undoReturnItemAction(
     return { success: false, error: errorMessage };
   }
 }
+
+    

@@ -1,8 +1,22 @@
-import { PrismaClient } from '@prisma/client';
+// src/lib/prisma.ts
+import { PrismaClient } from '@prisma/client'
 
-// This is the simplest way to instantiate Prisma Client.
-// It ensures that a new client is created each time this module is imported,
-// which resolves the issue where the seed script was connecting to a stale or incorrect database instance.
-const prisma = new PrismaClient();
+// This is the recommended approach for instantiating PrismaClient in a Next.js application.
+// It prevents creating too many instances of PrismaClient in development due to hot-reloading.
+// See: https://www.prisma.io/docs/orm/more/help-and-troubleshooting/help-articles/nextjs-prisma-client-dev-practices
 
-export default prisma;
+const prismaClientSingleton = () => {
+  return new PrismaClient()
+}
+
+type PrismaClientSingleton = ReturnType<typeof prismaClientSingleton>
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClientSingleton | undefined
+}
+
+const prisma = globalForPrisma.prisma ?? prismaClientSingleton()
+
+export default prisma
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma

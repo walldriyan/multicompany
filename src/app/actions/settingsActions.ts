@@ -2,8 +2,8 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { DiscountSetValidationSchema, TaxRateValidationSchema } from '@/lib/zodSchemas';
-import type { DiscountSet, SpecificDiscountRuleConfig, ProductDiscountConfiguration, DiscountSetFormData, UnitDefinition as TypesUnitDefinition } from '@/types';
+import { DiscountSetValidationSchema, TaxRateValidationSchema, UnitDefinitionSchema } from '@/lib/zodSchemas';
+import type { DiscountSet, SpecificDiscountRuleConfig, ProductDiscountConfiguration, DiscountSetFormData, UnitDefinition as TypesUnitDefinition, Product as ProductType } from '@/types';
 import { Prisma } from '@prisma/client';
 
 const TAX_RATE_CONFIG_KEY = 'taxRate';
@@ -12,7 +12,13 @@ function mapPrismaDiscountSetToType(
   dbSet: Prisma.DiscountSetGetPayload<{ 
     include: { 
       productConfigurations: { 
-        include: { product: true } 
+        include: { 
+          product: {
+            include: {
+              batches: true
+            }
+          } 
+        } 
       } 
     } 
   }>
@@ -29,39 +35,52 @@ function mapPrismaDiscountSetToType(
     defaultLineItemQuantityRuleJson: dbSet.defaultLineItemQuantityRuleJson as SpecificDiscountRuleConfig | null,
     defaultSpecificQtyThresholdRuleJson: dbSet.defaultSpecificQtyThresholdRuleJson as SpecificDiscountRuleConfig | null,
     defaultSpecificUnitPriceThresholdRuleJson: dbSet.defaultSpecificUnitPriceThresholdRuleJson as SpecificDiscountRuleConfig | null,
-    buyGetRulesJson: dbSet.buyGetRulesJson as any, // Cast to any as Prisma doesn't know the new shape
+    buyGetRulesJson: dbSet.buyGetRulesJson as any,
     createdByUserId: dbSet.createdByUserId,
     updatedByUserId: dbSet.updatedByUserId,
-    productConfigurations: dbSet.productConfigurations.map(pc => ({
-      id: pc.id,
-      discountSetId: pc.discountSetId,
-      productId: pc.productId,
-      product: pc.product ? {
-        id: pc.product.id,
-        name: pc.product.name,
-        code: pc.product.code,
-        category: pc.product.category,
-        barcode: pc.product.barcode,
-        units: pc.product.units as TypesUnitDefinition,
-        sellingPrice: pc.product.sellingPrice,
-        costPrice: pc.product.costPrice,
-        stock: pc.product.stock,
-        defaultQuantity: pc.product.defaultQuantity,
-        isActive: pc.product.isActive,
-        isService: pc.product.isService,
-        productSpecificTaxRate: pc.product.productSpecificTaxRate,
-        description: pc.product.description,
-        imageUrl: pc.product.imageUrl,
-        createdByUserId: pc.product.createdByUserId,
-        updatedByUserId: pc.product.updatedByUserId,
-      } : undefined,
-      productNameAtConfiguration: pc.productNameAtConfiguration,
-      isActiveForProductInCampaign: pc.isActiveForProductInCampaign,
-      lineItemValueRuleJson: pc.lineItemValueRuleJson as SpecificDiscountRuleConfig | null,
-      lineItemQuantityRuleJson: pc.lineItemQuantityRuleJson as SpecificDiscountRuleConfig | null,
-      specificQtyThresholdRuleJson: pc.specificQtyThresholdRuleJson as SpecificDiscountRuleConfig | null,
-      specificUnitPriceThresholdRuleJson: pc.specificUnitPriceThresholdRuleJson as SpecificDiscountRuleConfig | null,
-    })),
+    productConfigurations: dbSet.productConfigurations.map(pc => {
+      let mappedProduct: ProductType | undefined = undefined;
+      if (pc.product) {
+        const batches = pc.product.batches || [];
+        const totalStock = batches.reduce((sum: number, batch: any) => sum + batch.quantity, 0);
+        const totalCostValue = batches.reduce((sum: number, batch: any) => sum + (batch.costPrice * batch.quantity), 0);
+        const averageCostPrice = totalStock > 0 ? totalCostValue / totalStock : 0;
+        
+        mappedProduct = {
+          id: pc.product.id,
+          name: pc.product.name,
+          code: pc.product.code,
+          category: pc.product.category,
+          barcode: pc.product.barcode,
+          units: pc.product.units as TypesUnitDefinition,
+          sellingPrice: pc.product.sellingPrice,
+          costPrice: averageCostPrice,
+          stock: totalStock,
+          batches: pc.product.batches,
+          defaultQuantity: pc.product.defaultQuantity,
+          isActive: pc.product.isActive,
+          isService: pc.product.isService,
+          productSpecificTaxRate: pc.product.productSpecificTaxRate,
+          description: pc.product.description,
+          imageUrl: pc.product.imageUrl,
+          createdByUserId: pc.product.createdByUserId,
+          updatedByUserId: pc.product.updatedByUserId,
+        };
+      }
+      
+      return {
+        id: pc.id,
+        discountSetId: pc.discountSetId,
+        productId: pc.productId,
+        product: mappedProduct,
+        productNameAtConfiguration: pc.productNameAtConfiguration,
+        isActiveForProductInCampaign: pc.isActiveForProductInCampaign,
+        lineItemValueRuleJson: pc.lineItemValueRuleJson as SpecificDiscountRuleConfig | null,
+        lineItemQuantityRuleJson: pc.lineItemQuantityRuleJson as SpecificDiscountRuleConfig | null,
+        specificQtyThresholdRuleJson: pc.specificQtyThresholdRuleJson as SpecificDiscountRuleConfig | null,
+        specificUnitPriceThresholdRuleJson: pc.specificUnitPriceThresholdRuleJson as SpecificDiscountRuleConfig | null,
+      };
+    }),
   };
 }
 
@@ -76,7 +95,11 @@ export async function getDiscountSetsAction(): Promise<{
       include: {
         productConfigurations: {
           include: {
-            product: { select: { id: true, name: true, sellingPrice: true, units: true, category:true, code: true, barcode: true, costPrice: true, stock: true, defaultQuantity: true, isActive:true, isService: true, productSpecificTaxRate:true, description:true, imageUrl:true, createdByUserId: true, updatedByUserId: true } } 
+            product: { 
+              include: {
+                batches: true // Fetch batches to calculate stock and cost
+              }
+            } 
           }
         }
       }
@@ -197,7 +220,7 @@ export async function saveDiscountSetAction(
       
       const finalDiscountSet = await tx.discountSet.findUniqueOrThrow({
         where: { id: currentDiscountSet.id },
-        include: { productConfigurations: { include: { product: true } } },
+        include: { productConfigurations: { include: { product: { include: { batches: true } } } } },
       });
       return finalDiscountSet;
     });
@@ -250,8 +273,9 @@ export async function saveTaxRateAction(
   taxRateValue: number,
   userId: string
 ): Promise<{ success: boolean; data?: { value: number }; error?: string }> {
-  if (typeof taxRateValue !== 'number' || taxRateValue < 0 || taxRateValue > 1) {
-     return { success: false, error: 'Invalid tax rate value. Must be between 0 and 1 (e.g., 0.05 for 5%).' };
+  // The rate is now a percentage from 0-100
+  if (typeof taxRateValue !== 'number' || taxRateValue < 0 || taxRateValue > 100) {
+     return { success: false, error: 'Invalid tax rate value. Must be between 0 and 100.' };
   }
 
   try {
@@ -277,7 +301,7 @@ export async function toggleDiscountSetActivationAction(
     const updatedSet = await prisma.discountSet.update({
       where: { id },
       data: { isActive, updatedByUserId: userId },
-      include: { productConfigurations: { include: { product: true } } }
+      include: { productConfigurations: { include: { product: { include: { batches: true } } } } }
     });
     return { success: true, data: mapPrismaDiscountSetToType(updatedSet) };
   } catch (error: any) {

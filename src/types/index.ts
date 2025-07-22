@@ -1,4 +1,5 @@
 
+
 export interface BuyGetRule {
     buyProductId: string;
     buyQuantity: number;
@@ -30,6 +31,22 @@ export interface SpecificDiscountRuleConfig {
   applyFixedOnce?: boolean;
 }
 
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  batchNumber?: string | null;
+  quantity: number;
+  costPrice: number;
+  sellingPrice: number; // NEW: Batch-specific selling price
+  expiryDate?: string | null; 
+  createdAt?: string;
+  purchaseBillItemId?: string | null;
+  // Optional fields populated from related PurchaseBill
+  purchaseDate?: string;
+  user?: string;
+  productNameAtPurchase?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -37,9 +54,10 @@ export interface Product {
   category?: string | null;
   barcode?: string | null;
   units: UnitDefinition;
-  sellingPrice: number;
-  costPrice?: number | null;
-  stock: number;
+  sellingPrice: number; // This now acts as the *default* selling price
+  stock: number; 
+  costPrice?: number | null; 
+  batches?: ProductBatch[];
   defaultQuantity: number;
   isActive: boolean;
   isService: boolean;
@@ -51,11 +69,16 @@ export interface Product {
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
   productDiscountConfigurations?: ProductDiscountConfiguration[];
+  companyId: string; // Multi-company support
 }
 
 export interface SaleItem extends Product {
+  saleItemId: string; // Unique ID for this item *in this specific sale*
   quantity: number;
+  selectedBatchId?: string | null;
+  selectedBatchNumber?: string | null;
 }
+
 
 export interface DiscountSet {
   id: string;
@@ -75,6 +98,7 @@ export interface DiscountSet {
   updatedByUserId?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  companyId: string; // Multi-company support
 }
 
 export interface ProductDiscountConfiguration {
@@ -124,7 +148,11 @@ export interface SaleRecordItem {
   priceAtSale: number; 
   effectivePricePaidPerUnit: number; 
   totalDiscountOnLine: number; 
+  costPriceAtSale: number;
+  batchId?: string | null; // NEW: Track which batch was sold
+  batchNumber?: string | null; // NEW: Store batch number for display
 }
+
 
 export interface ReturnedItemDetail {
   id: string;
@@ -140,7 +168,9 @@ export interface ReturnedItemDetail {
   processedByUserId: string;
   undoneAt?: string | null;
   undoneByUserId?: string | null;
+  originalBatchId?: string | null; // NEW: Track which batch is being returned
 }
+
 
 export type PaymentMethod = 'cash' | 'credit' | 'REFUND';
 export type SaleStatus = 'COMPLETED_ORIGINAL' | 'ADJUSTED_ACTIVE' | 'RETURN_TRANSACTION_COMPLETED';
@@ -197,17 +227,19 @@ export interface SaleRecord {
   createdByUserId: string;
   createdBy?: { username: string; }; // Added for reports
   _hasReturns?: boolean;
+  companyId: string; // Multi-company support
 }
 
 export interface ProductFormData { 
+    id?: string;
     name: string;
     code?: string | null;
     category?: string | null;
     barcode?: string | null;
     units: UnitDefinition;
     sellingPrice: number;
+    stock?: number | null;
     costPrice?: number | null;
-    stock: number;
     defaultQuantity?: number;
     isActive?: boolean;
     isService?: boolean;
@@ -216,7 +248,7 @@ export interface ProductFormData {
     imageUrl?: string | null;
 }
 
-export type ProductCreateInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'productDiscountConfigurations' | 'createdByUserId' | 'updatedByUserId'>;
+export type ProductCreateInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'productDiscountConfigurations' | 'createdByUserId' | 'updatedByUserId' | 'stock' | 'costPrice' | 'batches'>;
 export type ProductUpdateInput = Partial<ProductCreateInput>;
 
 export type PartyTypeEnum = 'CUSTOMER' | 'SUPPLIER';
@@ -232,10 +264,12 @@ export interface Party {
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
   createdAt?: string; 
-  updatedAt?: string; 
+  updatedAt?: string;
+  companyId: string; // Multi-company support
 }
 
 export interface PartyFormData {
+  id?: string;
   name: string;
   phone?: string | null;
   email?: string | null;
@@ -269,41 +303,44 @@ export interface PurchaseBillItem {
   quantityPurchased: number;
   costPriceAtPurchase: number;
   subtotal: number;
+  batch?: ProductBatch | null;
+  purchaseBill?: PurchaseBill;
 }
 
 export interface PurchaseBill {
   id: string;
-  supplierBillNumber?: string | null;
-  purchaseDate: string; 
   supplierId: string;
   supplier?: Party;
+  supplierBillNumber?: string | null;
+  purchaseDate: string;
   items: PurchaseBillItem[];
+  notes?: string | null;
   totalAmount: number;
   amountPaid: number;
   paymentStatus: PurchaseBillStatusEnum;
-  notes?: string | null;
-  createdByUserId: string;
-  createdBy?: { username: string; }; // Added for reports
-  createdAt?: string; 
-  updatedAt?: string; 
   payments?: PurchasePayment[];
-}
-
-export interface PurchaseBillItemFormData {
-  productId: string;
-  name: string; 
-  units: UnitDefinition; 
-  quantityPurchased: number;
-  costPriceAtPurchase: number;
-  currentStock?: number; 
-  currentSellingPrice?: number; 
+  createdByUserId: string;
+  createdBy?: { username: string; };
+  createdAt?: string;
+  updatedAt?: string;
+  companyId: string; // Multi-company support
 }
 
 export interface PurchaseBillFormData {
   supplierId: string | null;
   supplierBillNumber?: string | null;
   purchaseDate: Date; 
-  items: PurchaseBillItemFormData[];
+  items: {
+    productId: string;
+    name: string;
+    units: UnitDefinition;
+    quantityPurchased: number;
+    costPriceAtPurchase: number;
+    batchNumber?: string | null;
+    expiryDate?: Date | null;
+    currentStock?: number;
+    currentSellingPrice?: number; // This is the new field
+  }[];
   notes?: string | null;
   amountPaid?: number | null;
   initialPaymentMethod?: PurchasePaymentMethodEnum | null;
@@ -358,6 +395,7 @@ export interface User {
   updatedAt?: string; 
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
+  companyId?: string | null; // Multi-company support
 }
 
 export interface UserFormData {
@@ -367,6 +405,7 @@ export interface UserFormData {
   confirmPassword?: string; 
   roleId: string;
   isActive: boolean;
+  companyId?: string | null; // Multi-company support
 }
 
 export type PermissionCreateInput = Omit<Permission, 'id' | 'createdAt' | 'updatedAt'>;
@@ -384,24 +423,27 @@ export interface CompanyProfileFormData {
     website?: string | null;
     taxId?: string | null;
     logoUrl?: string | null;
+    createdByUserId?: string | null;
     updatedByUserId?: string | null;
 }
 
 export type SaleRecordItemInput = Omit<SaleRecordItem, 'price'> & { price: number | null };
 
-export type SaleRecordInput = Omit<SaleRecord, 'id' | 'items' | 'returnedItemsLog' | 'paymentInstallments' | '_hasReturns' | 'createdByUserId' | 'customer' | 'createdBy' > & {
+export type SaleRecordInput = Omit<SaleRecord, 'id' | 'items' | 'returnedItemsLog' | 'paymentInstallments' | '_hasReturns' | 'createdByUserId' | 'customer' | 'createdBy' | 'companyId'> & {
   id?: string;
   items: SaleRecordItemInput[];
   returnedItemsLog?: ReturnedItemDetailInput[] | null;
   paymentInstallments?: Omit<PaymentInstallment, 'id' | 'saleRecordId' | 'createdAt' | 'updatedAt' | 'recordedByUserId'>[];
 };
 
-export type ReturnedItemDetailInput = Omit<ReturnedItemDetail, 'id' | 'returnDate' | 'processedByUserId' | 'undoneAt' | 'undoneByUserId'> & {
+export type ReturnedItemDetailInput = Omit<ReturnedItemDetail, 'id' | 'returnDate' | 'processedByUserId' | 'undoneAt' | 'undoneByUserId' | 'originalBatchId'> & {
   returnDate: string;
+  originalBatchId?: string | null;
 };
 
+
 export type UndoReturnItemInput = {
-  originalSaleId: string;
+  masterSaleRecordId: string;
   returnedItemDetailId: string;
 };
 
@@ -417,6 +459,7 @@ export interface StockAdjustmentLog {
   adjustedAt: Date;
   userId: string;
   user?: { username: string; }; // Added for reports
+  companyId: string; // Multi-company support
 }
 
 export interface StockAdjustmentFormData {
@@ -466,6 +509,7 @@ export interface FinancialTransaction {
   user?: { username: string; }; // Added for reports
   createdAt?: string;
   updatedAt?: string;
+  companyId: string; // Multi-company support
 }
 
 export interface FinancialTransactionFormData {
@@ -498,6 +542,7 @@ export interface CashRegisterShift {
   };
   createdAt?: string;
   updatedAt?: string;
+  companyId: string; // Multi-company support
 }
 
 export interface CashRegisterShiftFormData {

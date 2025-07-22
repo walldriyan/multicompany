@@ -1,7 +1,7 @@
 
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import type { Product, SaleItem, DiscountSet, SpecificDiscountRuleConfig, AppliedRuleInfo, ProductDiscountConfiguration, UnitDefinition } from '@/types';
+import type { Product, SaleItem, DiscountSet, SpecificDiscountRuleConfig, AppliedRuleInfo, ProductDiscountConfiguration, UnitDefinition, ProductBatch } from '@/types';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
 
 interface SaleState {
@@ -20,6 +20,8 @@ const initialState: SaleState = {
   taxRate: 0.00,
   discountSetsLoaded: false,
 };
+
+let saleItemIdCounter = 0;
 
 export const saleSlice = createSlice({
   name: 'sale',
@@ -77,36 +79,49 @@ export const saleSlice = createSlice({
       state.taxRate = action.payload;
     },
 
-    addProductToSale: (state, action: PayloadAction<{product: Product}>) => {
-      const productToAdd = action.payload.product;
+    addProductToSale: (state, action: PayloadAction<{product: Product, batch?: ProductBatch}>) => {
+      const { product: productToAdd, batch: selectedBatch } = action.payload;
       const dbProduct = state.allProducts.find(p => p.id === productToAdd.id);
 
-      if (!dbProduct || !dbProduct.isActive || (dbProduct.stock <= 0 && !dbProduct.isService)) return;
+      if (!dbProduct || !dbProduct.isActive) return;
 
-      const existingItem = state.saleItems.find(item => item.id === productToAdd.id);
+      const stockLimit = selectedBatch ? selectedBatch.quantity : dbProduct.stock;
+      if (!dbProduct.isService && stockLimit <= 0) return;
 
-      if (existingItem) {
-         if (dbProduct.isService || existingItem.quantity < dbProduct.stock) {
+      const existingItemIndex = state.saleItems.findIndex(item => 
+        item.id === productToAdd.id && item.selectedBatchId === selectedBatch?.id
+      );
+
+      if (existingItemIndex !== -1) {
+         const existingItem = state.saleItems[existingItemIndex];
+         if (dbProduct.isService || existingItem.quantity < stockLimit) {
             existingItem.quantity += (dbProduct.defaultQuantity || 1);
           }
       } else {
-         if (dbProduct.isService || dbProduct.stock > 0) {
+         if (dbProduct.isService || stockLimit > 0) {
+           saleItemIdCounter += 1;
            state.saleItems.push({
              ...dbProduct,
-             price: dbProduct.sellingPrice,
+             saleItemId: `sale-item-${Date.now()}-${saleItemIdCounter}`,
+             price: selectedBatch?.sellingPrice ?? dbProduct.sellingPrice,
              quantity: dbProduct.defaultQuantity || 1,
+             selectedBatchId: selectedBatch?.id,
+             selectedBatchNumber: selectedBatch?.batchNumber
             });
          }
       }
     },
-    updateItemQuantity: (state, action: PayloadAction<{ itemId: string; newQuantity: number }>) => {
-      const { itemId, newQuantity } = action.payload;
-      const itemIndex = state.saleItems.findIndex(item => item.id === itemId);
+    updateItemQuantity: (state, action: PayloadAction<{ saleItemId: string; newQuantity: number }>) => {
+      const { saleItemId, newQuantity } = action.payload;
+      const itemIndex = state.saleItems.findIndex(item => item.saleItemId === saleItemId);
 
       if (itemIndex !== -1) {
         const item = state.saleItems[itemIndex];
-        const dbProduct = state.allProducts.find(p => p.id === itemId);
-        const stockLimit = dbProduct ? dbProduct.stock : item.stock;
+        const dbProduct = state.allProducts.find(p => p.id === item.id);
+        if(!dbProduct) return;
+        
+        const batchInStore = item.selectedBatchId ? dbProduct.batches?.find(b => b.id === item.selectedBatchId) : null;
+        const stockLimit = batchInStore ? batchInStore.quantity : dbProduct.stock;
 
         if (newQuantity <= 0) {
           state.saleItems.splice(itemIndex, 1);
@@ -117,9 +132,9 @@ export const saleSlice = createSlice({
         }
       }
     },
-    removeItemFromSale: (state, action: PayloadAction<{ itemId: string }>) => {
-      const { itemId } = action.payload;
-      state.saleItems = state.saleItems.filter(item => item.id !== itemId);
+    removeItemFromSale: (state, action: PayloadAction<{ saleItemId: string }>) => {
+      const { saleItemId } = action.payload;
+      state.saleItems = state.saleItems.filter(item => item.saleItemId !== saleItemId);
     },
     clearSale: (state) => {
       state.saleItems = [];
@@ -216,11 +231,10 @@ export const selectCalculatedDiscounts = createSelector(
 );
 
 export const selectSaleSubtotalOriginal = createSelector(
-    [selectSaleItems, selectAllProducts],
-    (saleItems, allProducts) => {
+    [selectSaleItems],
+    (saleItems) => {
         return saleItems.reduce((sum, saleItem) => {
-            const productDetails = allProducts.find(p => p.id === saleItem.id);
-            const itemPrice = productDetails ? productDetails.sellingPrice : 0;
+            const itemPrice = saleItem.price || 0;
             return sum + itemPrice * saleItem.quantity;
         }, 0);
     }
@@ -244,7 +258,7 @@ export const selectCalculatedTax = createSelector(
             const productDetails = allProducts.find(p => p.id === item.id);
             if (!productDetails) return;
 
-            const itemOriginalPrice = productDetails.sellingPrice;
+            const itemOriginalPrice = item.price;
             const itemOriginalLineValue = itemOriginalPrice * item.quantity;
 
             let itemLevelDiscountForLine = calculatedDiscounts.itemDiscounts.get(item.id)?.totalCalculatedDiscountForLine || 0;
@@ -257,9 +271,9 @@ export const selectCalculatedTax = createSelector(
             }
 
             const itemNetValueBeforeTax = netValueAfterItemDiscount - itemProportionalCartDiscount;
-
-            const taxRateForItem = productDetails.productSpecificTaxRate ?? globalTaxRate;
-            totalTax += Math.max(0, itemNetValueBeforeTax) * taxRateForItem;
+            
+            const productTaxRateDecimal = (productDetails.productSpecificTaxRate ?? globalTaxRate * 100) / 100;
+            totalTax += Math.max(0, itemNetValueBeforeTax) * productTaxRateDecimal;
         });
 
         return Math.max(0, totalTax);

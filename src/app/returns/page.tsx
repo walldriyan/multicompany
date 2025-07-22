@@ -12,7 +12,8 @@ import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/compon
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag } from "lucide-react";
 import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput } from '@/types';
-import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, handleProcessReturn } from '@/app/actions/saleActions';
+import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, saveSaleRecordAction } from '@/app/actions/saleActions';
+import { processFullReturnWithRecalculationAction } from '@/app/actions/returnActions';
 import { getDiscountSetsAction, getTaxRateAction } from '@/app/actions/settingsActions';
 import { updateProductStockAction, getAllProductsAction as fetchAllProductsForServerLogic } from '@/app/actions/productActions';
 import { useToast } from "@/hooks/use-toast";
@@ -161,16 +162,17 @@ export default function ReturnsPage() {
     }
   }, [fetchSalesHistoryPage, currentPage, currentUser]);
 
-  const refreshSaleContextAfterUpdate = useCallback(async (billNumber: string, clickedAdjustedSaleId?: string | null) => {
-    if (!currentUser?.id) return;
+  const refreshSaleContextAfterUpdate = useCallback(async (billNumber: string, clickedAdjustedSaleId?: string | null): Promise<FoundSaleContextState | null> => {
+    if (!currentUser?.id) return null;
     setIsLoading(true);
     try {
         const contextResult = await getSaleContextByBillNumberAction(billNumber, currentUser.id, clickedAdjustedSaleId);
         if (contextResult.success && contextResult.data) {
-            setFoundSaleState({
+            const newState = {
                 pristineOriginalSale: contextResult.data.pristineOriginalSale,
                 latestAdjustedOrOriginal: contextResult.data.latestAdjustedOrOriginal,
-            });
+            };
+            setFoundSaleState(newState);
             const saleForUi = contextResult.data.latestAdjustedOrOriginal || contextResult.data.pristineOriginalSale;
             if (saleForUi) {
                 setItemsToReturnUiList(
@@ -179,15 +181,18 @@ export default function ReturnsPage() {
             } else {
                 setItemsToReturnUiList([]);
             }
+            return newState;
         } else {
             toast({ title: "Error Refreshing Context", description: contextResult.error || "Could not reload sale details.", variant: "destructive" });
             setFoundSaleState({ pristineOriginalSale: null, latestAdjustedOrOriginal: null });
             setItemsToReturnUiList([]);
+            return null;
         }
     } catch (error) {
         toast({ title: "Error Refreshing Context", description: "An unexpected error occurred during refresh.", variant: "destructive" });
         setFoundSaleState({ pristineOriginalSale: null, latestAdjustedOrOriginal: null });
         setItemsToReturnUiList([]);
+        return null;
     } finally {
         setIsLoading(false);
     }
@@ -361,32 +366,77 @@ export default function ReturnsPage() {
   };
 
 
-  const processReturnHandler = async () => {
-    if (!currentUser?.id || !foundSaleState.pristineOriginalSale || !foundSaleState.latestAdjustedOrOriginal) {
-        toast({ title: "Error", description: "Required user or sale context is missing.", variant: "destructive" });
+  const handleProcessReturn = async () => {
+    if (!currentUser?.id) {
+        toast({ title: "Authentication Error", description: "You must be logged in to process a return.", variant: "destructive" });
         return;
     }
-    setIsLoading(true);
-    const result = await handleProcessReturn(currentUser.id, foundSaleState.pristineOriginalSale, foundSaleState.latestAdjustedOrOriginal, itemsToReturnUiList);
-    if (result.success && result.data) {
-        setLastProcessedReturn(result.data);
-        setFoundSaleState({
-            pristineOriginalSale: foundSaleState.pristineOriginalSale,
-            latestAdjustedOrOriginal: result.data.currentAdjustedSaleAfterReturn,
-        });
-        setItemsToReturnUiList(
-            result.data.currentAdjustedSaleAfterReturn.items.filter(item => item.quantity > 0).map(item => ({ ...item, returnQuantity: 0 }))
-        );
-        fetchSalesHistoryPage(1);
-        
-        toast({ title: "Return Processed Successfully", description: `New adjusted bill created: ${result.data.currentAdjustedSaleAfterReturn.billNumber}.`, duration: 7000 });
-        
-        const newAccordionValues = ['original-sale-details', 'adjusted-sale-details', 'return-history', 'items-for-return'];
-        setAccordionValue(newAccordionValues);
-    } else {
-        toast({ title: "Return Error", description: result.error || "Failed to process return.", variant: "destructive" });
+    const pristineOriginal = foundSaleState.pristineOriginalSale;
+    const currentActiveSaleState = foundSaleState.latestAdjustedOrOriginal || pristineOriginal;
+    
+    if (!pristineOriginal || !currentActiveSaleState) {
+        toast({ title: "Error", description: "Original sale context is missing.", variant: "destructive" });
+        return;
     }
-    setIsLoading(false);
+
+    const itemsToActuallyReturn = itemsToReturnUiList
+        .filter(item => item.returnQuantity > 0)
+        .map(item => ({
+            productId: item.productId,
+            returnQuantity: item.returnQuantity,
+            effectivePricePaidPerUnit: item.effectivePricePaidPerUnit,
+            name: item.name,
+            units: item.units,
+            priceAtSale: item.priceAtSale,
+            originalBatchId: item.batchId,
+        }));
+
+    if (itemsToActuallyReturn.length === 0) {
+        toast({ title: "No Items Selected", description: "Please specify quantities for items to return.", variant: "destructive" });
+        return;
+    }
+
+    setIsLoading(true);
+    setLastProcessedReturn(null);
+
+    try {
+        const result = await processFullReturnWithRecalculationAction({
+            pristineOriginalSaleId: pristineOriginal.id,
+            currentActiveSaleStateId: currentActiveSaleState.id,
+            itemsToReturn: itemsToActuallyReturn,
+        }, currentUser.id);
+        
+        setIsLoading(false);
+
+        if (result && result.success && result.data) {
+            const { returnTransactionId, adjustedSaleId } = result.data;
+            const refreshedContext = await refreshSaleContextAfterUpdate(pristineOriginal.billNumber, adjustedSaleId);
+            
+            const totalRefunded = itemsToActuallyReturn.reduce((sum, item) => sum + (item.effectivePricePaidPerUnit * item.returnQuantity), 0);
+            toast({ title: "Return Processed Successfully", description: `Refund of Rs. ${totalRefunded.toFixed(2)} processed. Bill updated.`, duration: 7000 });
+            
+            if (refreshedContext?.latestAdjustedOrOriginal && refreshedContext?.pristineOriginalSale) {
+                const returnTxn = refreshedContext.latestAdjustedOrOriginal.returnedItemsLog?.find(log => log.returnTransactionId === returnTransactionId);
+                 setLastProcessedReturn({
+                    returnTransactionRecord: { ...refreshedContext.latestAdjustedOrOriginal, items: itemsToActuallyReturn, totalAmount: totalRefunded } as SaleRecord, // Simplified for receipt
+                    currentAdjustedSaleAfterReturn: refreshedContext.latestAdjustedOrOriginal,
+                });
+            }
+            
+            fetchSalesHistoryPage(1); 
+            setAccordionValue(['original-sale-details', 'adjusted-sale-details', 'return-history']);
+        } else {
+            const errorMessage = result?.error || "Could not process the return.";
+            toast({ title: "Return Error", description: errorMessage, variant: "destructive" });
+            if (pristineOriginal.billNumber) {
+                await refreshSaleContextAfterUpdate(pristineOriginal.billNumber);
+            }
+        }
+    } catch (error) {
+        setIsLoading(false);
+        const errorMessage = error instanceof Error ? error.message : "An unexpected client-side error occurred.";
+        toast({ title: "Critical Error", description: errorMessage, variant: "destructive" });
+    }
   };
 
 
@@ -494,16 +544,19 @@ export default function ReturnsPage() {
     const totalItemDiscountFromRecord = saleRecord.totalItemDiscountAmount || 0;
     const totalCartDiscountFromRecord = saleRecord.totalCartDiscountAmount || 0;
     const netSubtotalFromRecord = saleRecord.netSubtotal || 0;
-    const taxAmountFromRecord = saleRecord.taxAmount || 0;
-    const finalTotalFromRecord = saleRecord.totalAmount || 0;
+    
+    // Correctly use the taxAmount from the record, as it's pre-calculated on the server
+    const taxAmountForDisplay = saleRecord.taxAmount || 0;
+    const finalTotalForDisplay = saleRecord.totalAmount || 0;
+
     return (
       <div className="pl-2 text-xs">
         <div>Subtotal ({title}, Orig. Prices): Rs. {subtotalOriginalFromRecord.toFixed(2)}</div>
         {totalItemDiscountFromRecord > 0 && (<div className={isAdjustedSummary ? "text-green-500" : "text-sky-400"}>Total Item Disc. ({isAdjustedSummary ? "Re-evaluated" : "Original"}): -Rs. {totalItemDiscountFromRecord.toFixed(2)}</div>)}
         {totalCartDiscountFromRecord > 0 && (<div className={isAdjustedSummary ? "text-green-500" : "text-sky-400"}>Total Cart Disc. ({isAdjustedSummary ? "Re-evaluated" : "Original"}): -Rs. {totalCartDiscountFromRecord.toFixed(2)}</div>)}
         <div>Net Subtotal (After relevant discounts): Rs. {netSubtotalFromRecord.toFixed(2)}</div>
-        <div>Tax ({ (saleRecord.taxRate * 100).toFixed(saleRecord.taxRate === 0 ? 0 : (saleRecord.taxRate * 100 % 1 === 0 ? 0 : 2)) }%): Rs. {taxAmountFromRecord.toFixed(2)}</div>
-        <div className="font-bold">Total ({isAdjustedSummary ? "Net Bill" : "Paid"}): Rs. {finalTotalFromRecord.toFixed(2)}</div>
+        <div>Tax ({ (saleRecord.taxRate).toFixed(saleRecord.taxRate === 0 ? 0 : (saleRecord.taxRate % 1 === 0 ? 0 : 2)) }%): Rs. {taxAmountForDisplay.toFixed(2)}</div>
+        <div className="font-bold">Total ({isAdjustedSummary ? "Net Bill" : "Paid"}): Rs. {finalTotalForDisplay.toFixed(2)}</div>
       </div>
     );
   };
@@ -672,7 +725,7 @@ export default function ReturnsPage() {
               {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && (<div className="mt-4 p-3 border border-dashed border-primary/50 rounded-md bg-primary/10 flex-shrink-0"><h4 className="text-md font-medium text-primary mb-2 flex items-center"><FileText className="mr-2 h-5 w-5" /> Last Return Transaction Details</h4><p className="text-xs text-muted-foreground">Return Txn Bill No: <span className="font-semibold text-foreground">{lastProcessedReturn.returnTransactionRecord.billNumber}</span></p><p className="text-xs text-muted-foreground">Total Refunded (This Txn): <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.returnTransactionRecord.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Current Adjusted Bill ({lastProcessedReturn.currentAdjustedSaleAfterReturn.billNumber}) Total: <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.currentAdjustedSaleAfterReturn.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Original Sale Bill ({pristineOriginalSaleForDisplay?.billNumber}) Status: <span className="font-semibold text-foreground">{latestAdjustedSaleForDisplay?.status.replace(/_/g, ' ')}</span></p></div>)}
                <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
                   {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<Button variant="outline" onClick={handlePrintCombinedReceipt} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"><Printer className="mr-2 h-4 w-4" /> Print Combined Receipt</Button>)}
-                  <Button type="button" onClick={processReturnHandler} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
+                  <Button type="button" onClick={handleProcessReturn} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
               </div>
           </div>
           
@@ -702,6 +755,6 @@ export default function ReturnsPage() {
     </div>
   );
 }
-    
 
-    
+
+

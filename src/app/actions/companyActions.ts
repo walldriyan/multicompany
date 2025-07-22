@@ -13,36 +13,26 @@ const writeFileAsync = promisify(fs.writeFile);
 const mkdirAsync = promisify(fs.mkdir);
 const unlinkAsync = promisify(fs.unlink);
 
-
-const COMPANY_PROFILE_UNIQUE_ID = "main_profile";
 const LOGO_UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/company-logos');
 
-export async function getCompanyProfileAction(): Promise<{
+export async function getAllCompanyProfilesAction(): Promise<{
   success: boolean;
-  data?: CompanyProfileFormData;
+  data?: CompanyProfileFormData[];
   error?: string;
 }> {
   try {
-    let profile = await prisma.companyProfile.findUnique({
-      where: { id: COMPANY_PROFILE_UNIQUE_ID },
+    const profiles = await prisma.companyProfile.findMany({
+      orderBy: { name: 'asc' },
     });
-
-    if (!profile) {
-      profile = await prisma.companyProfile.create({
-        data: {
-          id: COMPANY_PROFILE_UNIQUE_ID,
-          name: 'My Company', // Default name
-        }
-      });
-    }
-    return { success: true, data: profile as CompanyProfileFormData };
+    return { success: true, data: profiles as CompanyProfileFormData[] };
   } catch (error: any) {
-    console.error('Error fetching company profile:', error);
-    return { success: false, error: 'Failed to fetch company profile.' };
+    console.error('Error fetching all company profiles:', error);
+    return { success: false, error: 'Failed to fetch company profiles.' };
   }
 }
 
-export async function upsertCompanyProfileAction(
+
+export async function saveCompanyProfileAction(
   formData: FormData,
   userId: string
 ): Promise<{ success: boolean; data?: CompanyProfileFormData; error?: string, fieldErrors?: Record<string, string[]> }> {
@@ -50,6 +40,7 @@ export async function upsertCompanyProfileAction(
   if (!userId) {
     return { success: false, error: 'User is not authenticated. Cannot update company profile.' };
   }
+  console.log("[ACTION START] saveCompanyProfileAction invoked by user:", userId);
 
   const rawDataFromForm: Record<string, any> = {};
   formData.forEach((value, key) => {
@@ -60,87 +51,137 @@ export async function upsertCompanyProfileAction(
   
   const logoFile = formData.get('logoFile') as File | null;
   const clearLogo = formData.get('clearLogo') === 'true';
+  console.log(`[DATA PREP] Logo File present: ${!!logoFile}, Clear Logo flag: ${clearLogo}`);
 
+  // Handle ID from form for updates
+  const profileId = formData.get('id') as string | null;
+  if (profileId && profileId !== 'undefined' && profileId !== 'null') {
+    rawDataFromForm.id = profileId;
+  } else {
+    delete rawDataFromForm.id;
+  }
+  
   if (logoFile) {
     rawDataFromForm.logoUrl = '';
   }
   
-  if (rawDataFromForm.id === 'undefined' || rawDataFromForm.id === 'null' || !rawDataFromForm.id) {
-    delete rawDataFromForm.id; 
-  }
-  
+  console.log("[VALIDATION] Raw text data being sent to Zod:", rawDataFromForm);
   const validationResult = CompanyProfileSchema.safeParse(rawDataFromForm);
+  
   if (!validationResult.success) {
-    console.error("Zod validation failed for company profile text data:", validationResult.error.flatten().fieldErrors);
-    return { success: false, error: "Validation failed for text fields. Please check the errors below.", fieldErrors: validationResult.error.flatten().fieldErrors };
+    console.error("[VALIDATION FAIL] Zod validation failed:", validationResult.error.flatten().fieldErrors);
+    return { success: false, error: "Validation failed. Please check the errors below.", fieldErrors: validationResult.error.flatten().fieldErrors };
   }
   const validatedTextData = validationResult.data;
-  console.log("Validated text data for upsert (after Zod):", validatedTextData);
+  console.log("[VALIDATION SUCCESS] Zod validation passed. Validated data:", validatedTextData);
 
-  const { id, logoUrl: currentDbLogoUrlFromZod, ...dataToUpsert } = validatedTextData; 
+  const { id: validatedId, logoUrl: currentDbLogoUrlFromZod, ...dataToSave } = validatedTextData;
 
   let newLogoPath: string | null | undefined = currentDbLogoUrlFromZod;
 
   try {
+    console.log("[FILE SYSTEM] Ensuring logo directory exists:", LOGO_UPLOAD_DIR);
     await mkdirAsync(LOGO_UPLOAD_DIR, { recursive: true });
 
-    const existingProfileFromServer = await prisma.companyProfile.findUnique({
-      where: { id: COMPANY_PROFILE_UNIQUE_ID },
-      select: { logoUrl: true }
-    });
-    const oldLogoPathOnServer = existingProfileFromServer?.logoUrl ? path.join(process.cwd(), 'public', existingProfileFromServer.logoUrl) : null;
+    let oldLogoPathOnServer: string | null = null;
+    if (profileId) {
+        const existingProfileFromServer = await prisma.companyProfile.findUnique({
+            where: { id: profileId },
+            select: { logoUrl: true }
+        });
+        oldLogoPathOnServer = existingProfileFromServer?.logoUrl ? path.join(process.cwd(), 'public', existingProfileFromServer.logoUrl) : null;
+        console.log("[FILE SYSTEM] Old logo path from DB:", oldLogoPathOnServer || "None");
+    }
+
 
     if (clearLogo) {
+        console.log("[FILE SYSTEM] 'clearLogo' is true. Deleting old logo if it exists.");
         newLogoPath = null;
         if (oldLogoPathOnServer && fs.existsSync(oldLogoPathOnServer)) {
             try {
                 await unlinkAsync(oldLogoPathOnServer);
-                console.log("Old logo deleted (due to clearLogo):", oldLogoPathOnServer);
+                console.log("[FILE SYSTEM] Successfully deleted old logo:", oldLogoPathOnServer);
             } catch (unlinkError) {
-                console.error("Error deleting old logo (on clearLogo):", unlinkError);
+                console.error("[FILE SYSTEM ERROR] Error deleting old logo (on clearLogo):", unlinkError);
             }
         }
     } else if (logoFile) {
+      console.log(`[FILE SYSTEM] New logo file detected: ${logoFile.name}. Processing...`);
       const fileBuffer = Buffer.from(await logoFile.arrayBuffer());
       const fileExtension = path.extname(logoFile.name);
       const uniqueFilename = `logo-${Date.now()}${fileExtension}`;
       const filePathOnServer = path.join(LOGO_UPLOAD_DIR, uniqueFilename);
       
+      console.log(`[FILE SYSTEM] Writing new logo to: ${filePathOnServer}`);
       await writeFileAsync(filePathOnServer, fileBuffer);
       newLogoPath = `/uploads/company-logos/${uniqueFilename}`; 
+      console.log(`[FILE SYSTEM] New logo path set to: ${newLogoPath}`);
 
       if (oldLogoPathOnServer && oldLogoPathOnServer !== path.join(process.cwd(), 'public', newLogoPath) && fs.existsSync(oldLogoPathOnServer)) {
+         console.log("[FILE SYSTEM] New logo uploaded. Deleting old logo:", oldLogoPathOnServer);
          try {
             await unlinkAsync(oldLogoPathOnServer);
-            console.log("Old logo deleted (replaced by new):", oldLogoPathOnServer);
+            console.log("[FILE SYSTEM] Successfully deleted old logo (replaced by new).");
          } catch (unlinkError) {
-            console.error("Error deleting old logo (on new upload):", unlinkError);
+            console.error("[FILE SYSTEM ERROR] Error deleting old logo (on new upload):", unlinkError);
          }
       }
     }
 
     const finalData = {
-      ...dataToUpsert,
+      ...dataToSave,
       logoUrl: newLogoPath, 
-      name: dataToUpsert.name || "My Company",
+      name: dataToSave.name || "My Company",
       updatedByUserId: userId,
     };
     
-    console.log("Data being sent to Prisma upsert:", finalData);
-    const updatedProfile = await prisma.companyProfile.upsert({
-      where: { id: COMPANY_PROFILE_UNIQUE_ID },
-      update: finalData,
-      create: {
-        id: COMPANY_PROFILE_UNIQUE_ID,
-        ...finalData,
-      },
-    });
-    return { success: true, data: updatedProfile as CompanyProfileFormData };
+    let savedProfile: CompanyProfileFormData;
+
+    if (profileId) { // This is an update
+      console.log("[DB] Updating existing profile with ID:", profileId);
+      savedProfile = await prisma.companyProfile.update({
+        where: { id: profileId },
+        data: finalData,
+      });
+    } else { // This is a create
+       console.log("[DB] Creating new profile.");
+       savedProfile = await prisma.companyProfile.create({
+         data: { ...finalData, createdByUserId: userId }
+       });
+    }
+    
+    console.log("[DB SUCCESS] Prisma operation successful. Profile saved:", savedProfile);
+    return { success: true, data: savedProfile as CompanyProfileFormData };
+
   } catch (error: any) {
-    console.error('Error updating company profile in DB:', error);
+    console.error('[ACTION FAIL] Critical error in saveCompanyProfileAction:', error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       return { success: false, error: `Database error: ${error.message}` };
     }
-    return { success: false, error: 'Failed to update company profile. Check server logs.' };
+    return { success: false, error: error.message || 'An unexpected server error occurred.' };
+  }
+}
+
+export async function deleteCompanyProfileAction(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Also delete the associated logo file if it exists
+    const profileToDelete = await prisma.companyProfile.findUnique({ where: { id } });
+    if (profileToDelete?.logoUrl) {
+      const logoPath = path.join(process.cwd(), 'public', profileToDelete.logoUrl);
+      if (fs.existsSync(logoPath)) {
+        await unlinkAsync(logoPath);
+        console.log(`[DELETE] Deleted logo file: ${logoPath}`);
+      }
+    }
+
+    await prisma.companyProfile.delete({ where: { id } });
+    console.log(`[DELETE] Deleted company profile with ID: ${id}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error deleting company profile ${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return { success: false, error: 'Company profile to delete not found.' };
+    }
+    return { success: false, error: 'Failed to delete company profile.' };
   }
 }

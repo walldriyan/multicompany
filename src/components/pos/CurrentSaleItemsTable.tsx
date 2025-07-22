@@ -46,11 +46,11 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
   };
   
   const incrementQuantity = (item: SaleItem) => {
-    onQuantityChange(item.id, item.quantity + 1);
+    onQuantityChange(item.saleItemId, item.quantity + 1);
   };
 
   const decrementQuantity = (item: SaleItem) => {
-    onQuantityChange(item.id, item.quantity - 1);
+    onQuantityChange(item.saleItemId, item.quantity - 1);
   };
 
   const getDiscountDisplayForItem = (itemId: string) => {
@@ -90,7 +90,7 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
             const { displayQuantity, displayUnit } = getDisplayQuantityAndUnit(item.quantity, item.units);
 
             return (
-            <TableRow key={item.id} className="hover:bg-muted/20">
+            <TableRow key={item.saleItemId} className="hover:bg-muted/20">
               <TableCell className="font-medium text-foreground align-middle">{item.name}</TableCell>
               <TableCell className="text-right text-foreground align-middle">
                 Rs. {originalUnitPrice.toFixed(2)} <span className="text-xs text-muted-foreground">/{item.units.baseUnit}</span>
@@ -108,10 +108,10 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
                       type="number"
                       step="any"
                       value={item.quantity.toString()}
-                      onChange={(e) => handleQuantityInput(item.id, e.target.value)}
+                      onChange={(e) => handleQuantityInput(item.saleItemId, e.target.value)}
                       onBlur={(e) => { 
                           const val = parseFloat(e.target.value);
-                          if(isNaN(val)) onQuantityChange(item.id, item.quantity); // revert if invalid
+                          if(isNaN(val)) onQuantityChange(item.saleItemId, item.quantity); // revert if invalid
                       }}
                       className="w-20 h-8 text-center bg-input border-border focus:ring-primary text-sm p-1"
                       min="0" 
@@ -148,7 +148,7 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onRemoveItem(item.id)}
+                  onClick={() => onRemoveItem(item.saleItemId)}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
                   aria-label="Remove item"
                 >

@@ -34,6 +34,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Switch } from '@/components/ui/switch';
 
 
@@ -174,7 +175,7 @@ export default function ProductManagementPage() {
     setIsSubmitting(false);
   };
 
-  const handleProductFormSubmit = async (data: ProductFormData): Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}> => {
+  const handleProductFormSubmit = async (data: ProductFormData, productId?: string): Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}> => {
     if (!currentUser?.id) {
       const errorMsg = "User not authenticated. Cannot save product.";
       setProductFormError(errorMsg);
@@ -186,27 +187,20 @@ export default function ProductManagementPage() {
     setProductFormFieldErrors(undefined);
     
     let result;
-    const productId = editingProduct?.id;
     const isUpdating = !!productId;
 
-    const productDataForAction: ProductFormData = {
-        ...data,
-        costPrice: data.costPrice === undefined || data.costPrice === null || isNaN(Number(data.costPrice)) ? null : Number(data.costPrice),
-        productSpecificTaxRate: data.productSpecificTaxRate === undefined || data.productSpecificTaxRate === null || isNaN(Number(data.productSpecificTaxRate)) ? null : Number(data.productSpecificTaxRate),
-    };
-
     if (isUpdating) {
-      result = await updateProductAction(productId!, productDataForAction, currentUser.id);
+      result = await updateProductAction(productId!, data, currentUser.id);
       if (result.success && result.data) {
         dispatch(_internalUpdateProduct(result.data));
         toast({ title: 'Product Updated', description: `"${result.data.name}" has been updated.` });
         setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
-        setEditingProduct(null); 
+        setEditingProduct(result.data); // Keep editing form open with new data
         setProductFormError(null);
         setProductFormFieldErrors(undefined);
       }
     } else {
-      result = await createProductAction(productDataForAction, currentUser.id);
+      result = await createProductAction(data, currentUser.id);
       if (result.success && result.data) {
         dispatch(_internalAddNewProduct(result.data));
         toast({ title: 'Product Created', description: `"${result.data.name}" has been added.` });
@@ -243,8 +237,8 @@ export default function ProductManagementPage() {
         <header className="mb-6 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center space-x-3">
              <Button asChild variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground self-start sm:self-center">
-                <Link href="/">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to POS
+                <Link href="/dashboard">
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
                 </Link>
              </Button>
             <h1 className="text-2xl md:text-3xl font-bold text-primary">
@@ -397,47 +391,54 @@ export default function ProductManagementPage() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="mt-4 border-t border-border/30 pt-6">
-            <div className="w-full">
-              <h3 className="text-xl font-semibold text-card-foreground mb-4">Inventory Financial Snapshot (Filtered)</h3>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="p-4 bg-muted/30 rounded-lg text-center">
-                    <p className="text-sm text-muted-foreground">Total Unique Products</p>
-                    <p className="text-2xl font-bold">{summary.totalProducts}</p>
-                </div>
-                <div className="p-4 bg-muted/30 rounded-lg text-center">
-                    <p className="text-sm text-muted-foreground">Total Units in Stock</p>
-                    <p className="text-2xl font-bold">{summary.totalUnits.toLocaleString()}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-4">
-                    <h4 className="text-md font-semibold text-red-300 mb-2">Inventory Investment (Cost Basis)</h4>
-                    <div className="flex justify-between items-center text-2xl">
-                        <span className="text-muted-foreground text-lg">Total Cost:</span>
-                        <span className="font-bold text-red-400">Rs. {summary.totalCost.toFixed(2)}</span>
+          <CardFooter className="mt-4 border-t border-border/30 pt-2">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1" className="border-b-0">
+                <AccordionTrigger className="text-xl font-semibold text-card-foreground hover:no-underline [&>svg]:text-primary p-4 rounded-lg data-[state=open]:bg-primary/10">
+                  <Sigma className="mr-3 h-5 w-5 text-primary" />
+                  Inventory Financial Snapshot (Filtered)
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="w-full pt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="p-4 bg-muted/30 rounded-lg text-center">
+                          <p className="text-sm text-muted-foreground">Total Unique Products</p>
+                          <p className="text-2xl font-bold">{summary.totalProducts}</p>
+                      </div>
+                      <div className="p-4 bg-muted/30 rounded-lg text-center">
+                          <p className="text-sm text-muted-foreground">Total Units in Stock</p>
+                          <p className="text-2xl font-bold">{summary.totalUnits.toLocaleString()}</p>
+                      </div>
                     </div>
-                 </div>
-                 <div className="rounded-lg border border-green-500/30 bg-green-950/20 p-4">
-                    <h4 className="text-md font-semibold text-green-300 mb-2">Inventory Value (Retail Basis)</h4>
-                    <div className="flex justify-between items-center text-2xl">
-                        <span className="text-muted-foreground text-lg">Total Retail Value:</span>
-                        <span className="font-bold text-green-400">Rs. {summary.totalValue.toFixed(2)}</span>
-                    </div>
-                 </div>
-              </div>
-              
-              <div className="mt-6 pt-4 border-t-2 border-primary/50">
-                <div className="flex justify-between items-center text-xl">
-                    <span className="font-bold text-primary flex items-center"><Sigma className="mr-2 h-5 w-5"/> Gross Potential Profit</span>
-                    <span className="font-bold text-primary text-2xl">Rs. {summary.potentialProfit.toFixed(2)}</span>
-                </div>
-                <p className="text-xs text-right text-muted-foreground mt-1">(Retail Value - Cost Value)</p>
-              </div>
 
-            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-4">
+                          <h4 className="text-md font-semibold text-red-300 mb-2">Inventory Investment (Cost Basis)</h4>
+                          <div className="flex justify-between items-center text-2xl">
+                              <span className="text-muted-foreground text-lg">Total Cost:</span>
+                              <span className="font-bold text-red-400">Rs. {summary.totalCost.toFixed(2)}</span>
+                          </div>
+                      </div>
+                      <div className="rounded-lg border border-green-500/30 bg-green-950/20 p-4">
+                          <h4 className="text-md font-semibold text-green-300 mb-2">Inventory Value (Retail Basis)</h4>
+                          <div className="flex justify-between items-center text-2xl">
+                              <span className="text-muted-foreground text-lg">Total Retail Value:</span>
+                              <span className="font-bold text-green-400">Rs. {summary.totalValue.toFixed(2)}</span>
+                          </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-4 border-t-2 border-primary/50">
+                      <div className="flex justify-between items-center text-xl">
+                          <span className="font-bold text-primary flex items-center"><Sigma className="mr-2 h-5 w-5"/> Gross Potential Profit</span>
+                          <span className="font-bold text-primary text-2xl">Rs. {summary.potentialProfit.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-right text-muted-foreground mt-1">(Retail Value - Cost Value)</p>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardFooter>
         </Card>
 

@@ -63,7 +63,6 @@ export async function loginAction(
                 permissionId: p.id,
               })),
             },
-            // createdByUserId is optional, so we can omit it for the root role
           },
         });
       }
@@ -75,7 +74,7 @@ export async function loginAction(
           passwordHash,
           roleId: adminRole.id,
           isActive: true,
-          // createdByUserId is optional, not needed for root user
+          // companyId is not needed for the super admin
         },
         include: {
            role: {
@@ -93,26 +92,6 @@ export async function loginAction(
       
       return { success: true, user: serializeUserForRedux(adminUser) };
     }
-
-    // Check for any open shift before proceeding with normal login
-    const openShift = await prisma.cashRegisterShift.findFirst({
-        where: { status: 'OPEN' },
-        include: { user: { select: { id: true, username: true } } }
-    });
-
-    if (openShift) {
-        const userTryingToLogin = await prisma.user.findUnique({
-            where: { username: username }
-        });
-
-        if (userTryingToLogin?.id !== openShift.userId) {
-            return { 
-                success: false, 
-                error: `Login blocked. User '${openShift.user.username}' has an open shift that must be closed first.` 
-            };
-        }
-    }
-
 
     // Normal Login
     const user = await prisma.user.findUnique({
@@ -132,6 +111,24 @@ export async function loginAction(
 
     if (!user) {
         return { success: false, error: 'Invalid username or password.' };
+    }
+
+    // For non-super-admins, check for an open shift within their company
+    if (user.companyId) {
+        const openShiftInCompany = await prisma.cashRegisterShift.findFirst({
+            where: { 
+                companyId: user.companyId,
+                status: 'OPEN' 
+            },
+            include: { user: { select: { id: true, username: true } } }
+        });
+
+        if (openShiftInCompany && user.id !== openShiftInCompany.userId) {
+            return { 
+                success: false, 
+                error: `Login blocked. User '${openShiftInCompany.user.username}' has an open shift that must be closed first.` 
+            };
+        }
     }
     
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);

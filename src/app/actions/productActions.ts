@@ -2,65 +2,99 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { ProductCreateInputSchema, ProductUpdateInputSchema, UnitDefinitionSchema } from '@/lib/zodSchemas';
-import type { Product as ProductType, ProductCreateInput, ProductUpdateInput, UnitDefinition, ProductDiscountConfiguration as ProductDiscountConfigurationType } from '@/types';
+import { ProductFormDataSchema } from '@/lib/zodSchemas';
+import type { Product as ProductType, UnitDefinition, ProductFormData, ProductBatch } from '@/types';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
-// Helper to map Prisma Product to our ProductType
-function mapPrismaProductToType(
-  prismaProduct: any,
-): ProductType {
 
-  let parsedUnits: UnitDefinition;
-  if (prismaProduct.units === null || typeof prismaProduct.units !== 'object' || Array.isArray(prismaProduct.units)) {
-      console.warn(`Product ID ${prismaProduct.id} ('${prismaProduct.name}') has missing or invalid units data. Defaulting units.`);
-      parsedUnits = { baseUnit: 'pcs', derivedUnits: [] };
-  } else {
-    try {
-      parsedUnits = UnitDefinitionSchema.parse(prismaProduct.units);
-    } catch (zodError: any) {
-      console.warn(`Product ID ${prismaProduct.id} ('${prismaProduct.name}') Zod error on units. Defaulting. Error: ${zodError.message}. Data: ${JSON.stringify(prismaProduct.units)}`);
-      parsedUnits = { baseUnit: 'pcs', derivedUnits: [] };
+// Helper to map Prisma Product to our ProductType, including calculated fields
+function mapPrismaProductToType(
+  product: Prisma.ProductGetPayload<{
+    include: {
+      productDiscountConfigurations: true,
+      batches: {
+        include: {
+          purchaseBillItem: {
+            include: {
+              purchaseBill: {
+                include: {
+                  createdBy: {
+                    select: {
+                      username: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  }>
+): ProductType {
+  const totalStock = product.batches.reduce((sum, batch) => sum + batch.quantity, 0);
+  const totalCostValue = product.batches.reduce((sum, batch) => sum + (batch.costPrice * batch.quantity), 0);
+  const averageCostPrice = totalStock > 0 ? totalCostValue / totalStock : 0;
+
+  const sortedBatches = product.batches.sort((a, b) => {
+    const dateA = a.purchaseBillItem?.purchaseBill?.purchaseDate ? new Date(a.purchaseBillItem.purchaseBill.purchaseDate).getTime() : new Date(a.createdAt).getTime();
+    const dateB = b.purchaseBillItem?.purchaseBill?.purchaseDate ? new Date(b.purchaseBillItem.purchaseBill.purchaseDate).getTime() : new Date(b.createdAt).getTime();
+    return dateB - dateA;
+  });
 
   return {
-    id: prismaProduct.id,
-    name: prismaProduct.name,
-    code: prismaProduct.code,
-    category: prismaProduct.category,
-    barcode: prismaProduct.barcode,
-    units: parsedUnits,
-    sellingPrice: prismaProduct.sellingPrice,
-    costPrice: prismaProduct.costPrice,
-    stock: prismaProduct.stock,
-    defaultQuantity: prismaProduct.defaultQuantity,
-    isActive: prismaProduct.isActive,
-    isService: prismaProduct.isService,
-    productSpecificTaxRate: prismaProduct.productSpecificTaxRate,
-    description: prismaProduct.description,
-    imageUrl: prismaProduct.imageUrl,
-    createdAt: prismaProduct.createdAt?.toISOString(),
-    updatedAt: prismaProduct.updatedAt?.toISOString(),
-    createdByUserId: prismaProduct.createdByUserId,
-    updatedByUserId: prismaProduct.updatedByUserId,
-    productDiscountConfigurations: prismaProduct.productDiscountConfigurations?.map((pdc: any) => ({
-      ...pdc,
-      createdAt: pdc.createdAt instanceof Date ? pdc.createdAt.toISOString() : pdc.createdAt,
-      updatedAt: pdc.updatedAt instanceof Date ? pdc.updatedAt.toISOString() : pdc.updatedAt,
-    })) as ProductDiscountConfigurationType[] | undefined,
+    id: product.id,
+    name: product.name,
+    code: product.code,
+    category: product.category,
+    barcode: product.barcode,
+    units: product.units as UnitDefinition,
+    sellingPrice: product.sellingPrice,
+    stock: totalStock, // Calculated from batches
+    costPrice: averageCostPrice, // Calculated from batches
+    batches: sortedBatches.map(b => {
+      const batchTyped: ProductBatch = {
+        id: b.id,
+        productId: b.productId,
+        batchNumber: b.batchNumber,
+        quantity: b.quantity,
+        costPrice: b.costPrice,
+        sellingPrice: b.sellingPrice,
+        expiryDate: b.expiryDate ? b.expiryDate.toISOString() : null,
+        createdAt: b.createdAt ? b.createdAt.toISOString() : undefined,
+        purchaseBillItemId: b.purchaseBillItemId,
+        purchaseDate: b.purchaseBillItem?.purchaseBill?.purchaseDate 
+                        ? new Date(b.purchaseBillItem.purchaseBill.purchaseDate).toISOString() 
+                        : (b.createdAt ? b.createdAt.toISOString() : undefined),
+        user: b.purchaseBillItem?.purchaseBill?.createdBy?.username || 'N/A',
+        productNameAtPurchase: b.purchaseBillItem?.productNameAtPurchase,
+      };
+      return batchTyped;
+    }),
+    defaultQuantity: product.defaultQuantity,
+    isActive: product.isActive,
+    isService: product.isService,
+    productSpecificTaxRate: product.productSpecificTaxRate,
+    description: product.description,
+    imageUrl: product.imageUrl,
+    createdAt: product.createdAt?.toISOString(),
+    updatedAt: product.updatedAt?.toISOString(),
+    createdByUserId: product.createdByUserId,
+    updatedByUserId: product.updatedByUserId,
+    productDiscountConfigurations: product.productDiscountConfigurations,
   };
 }
 
+
 export async function createProductAction(
-  productData: unknown,
+  productData: ProductFormData,
   userId: string | null
 ): Promise<{ success: boolean; data?: ProductType; error?: string, fieldErrors?: Record<string, string[]> }> {
   if (!prisma || !prisma.product) {
     return { success: false, error: "Prisma client or Product model not initialized. Please run 'npx prisma generate'." };
   }
-  const validationResult = ProductCreateInputSchema.safeParse(productData);
+  const validationResult = ProductFormDataSchema.safeParse(productData);
   if (!validationResult.success) {
     const fieldErrors = validationResult.error.flatten().fieldErrors;
     console.log("Validation errors (create product):", fieldErrors);
@@ -68,27 +102,70 @@ export async function createProductAction(
   }
   const validatedProductData = validationResult.data;
 
-  const { ...restOfProductData } = validatedProductData;
+  // Destructure to separate the initial stock and cost price which will go into a batch
+  const { stock: initialStock, costPrice: initialCostPrice, sellingPrice, ...restOfProductData } = validatedProductData;
   const unitsToStore = restOfProductData.units as Prisma.JsonValue;
 
   try {
-    const newProduct = await prisma.product.create({
-      data: {
-        ...restOfProductData,
-        units: unitsToStore,
-        code: restOfProductData.code || undefined,
-        category: restOfProductData.category || undefined,
-        barcode: restOfProductData.barcode || undefined,
-        costPrice: restOfProductData.costPrice === null ? undefined : restOfProductData.costPrice,
-        productSpecificTaxRate: restOfProductData.productSpecificTaxRate === null ? undefined : restOfProductData.productSpecificTaxRate,
-        description: restOfProductData.description || undefined,
-        imageUrl: restOfProductData.imageUrl || undefined,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-      },
-      include: { productDiscountConfigurations: true }
+     const newProduct = await prisma.$transaction(async (tx) => {
+      const createdProduct = await tx.product.create({
+        data: {
+          ...restOfProductData,
+          sellingPrice: sellingPrice,
+          units: unitsToStore,
+          code: restOfProductData.code || undefined,
+          category: restOfProductData.category || undefined,
+          barcode: restOfProductData.barcode || undefined,
+          productSpecificTaxRate: restOfProductData.productSpecificTaxRate === null ? undefined : restOfProductData.productSpecificTaxRate,
+          description: restOfProductData.description || undefined,
+          imageUrl: restOfProductData.imageUrl || undefined,
+          createdByUserId: userId,
+          updatedByUserId: userId,
+        },
+      });
+
+      // If initial stock is provided, create a corresponding batch for it
+      if (initialStock && initialStock > 0 && initialCostPrice !== undefined && initialCostPrice !== null) {
+        await tx.productBatch.create({
+          data: {
+            productId: createdProduct.id,
+            batchNumber: 'INITIAL_STOCK',
+            quantity: initialStock,
+            costPrice: initialCostPrice,
+            sellingPrice: sellingPrice, // Use the product's selling price for the initial batch
+            expiryDate: null, 
+          },
+        });
+      }
+      
+      const finalProduct = await tx.product.findUniqueOrThrow({
+        where: { id: createdProduct.id },
+        include: {
+            productDiscountConfigurations: true,
+            batches: {
+              include: {
+                purchaseBillItem: {
+                  include: {
+                    purchaseBill: {
+                      include: {
+                        createdBy: {
+                          select: {
+                            username: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        }
+      });
+      return finalProduct;
     });
+
     return { success: true, data: mapPrismaProductToType(newProduct) };
+
   } catch (error: any) {
     console.error('Error creating product:', error);
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -119,7 +196,26 @@ export async function getAllProductsAction(): Promise<{
   try {
     const productsFromDB = await prisma.product.findMany({
       orderBy: { name: 'asc' },
-      include: { productDiscountConfigurations: true }
+      include: {
+        productDiscountConfigurations: true,
+        batches: {
+          include: {
+            purchaseBillItem: {
+              include: {
+                purchaseBill: {
+                  include: {
+                    createdBy: {
+                      select: {
+                        username: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
     const mappedProducts: ProductType[] = productsFromDB.map(mapPrismaProductToType);
@@ -129,7 +225,7 @@ export async function getAllProductsAction(): Promise<{
     console.error('Error in getAllProductsAction:', error);
     let errorMessage = 'Failed to fetch products.';
     let detailedErrorMessage = String(error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) errorMessage = `Database error (Code: ${error.code}).`;
+    if (error instanceof Prisma.PrismaClientKnownRequestError) errorMessage = `Database error (Code: ${error.code}). Check server logs for details. It might be a migration issue.`;
     else if (error instanceof z.ZodError) errorMessage = `Data validation error (Zod).`;
     else if (error instanceof Error) errorMessage = `Unexpected error: ${error.message}.`;
     return { success: false, error: errorMessage, detailedError: detailedErrorMessage };
@@ -145,7 +241,26 @@ export async function getProductByIdAction(
   try {
     const product = await prisma.product.findUnique({
       where: { id },
-      include: { productDiscountConfigurations: true }
+      include: {
+        productDiscountConfigurations: true,
+        batches: {
+          include: {
+            purchaseBillItem: {
+              include: {
+                purchaseBill: {
+                  include: {
+                    createdBy: {
+                      select: {
+                        username: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
     if (!product) return { success: false, error: 'Product not found.' };
 
@@ -161,13 +276,13 @@ export async function getProductByIdAction(
 
 export async function updateProductAction(
   id: string,
-  productData: unknown,
+  productData: ProductFormData,
   userId: string | null
 ): Promise<{ success: boolean; data?: ProductType; error?: string, fieldErrors?: Record<string, string[]> }> {
   if (!prisma || !prisma.product) return { success: false, error: "Prisma client or Product model not initialized." };
   if (!id) return { success: false, error: "Product ID is required for update." };
 
-  const validationResult = ProductUpdateInputSchema.safeParse(productData);
+  const validationResult = ProductFormDataSchema.safeParse(productData);
   if (!validationResult.success) {
      const fieldErrors = validationResult.error.flatten().fieldErrors;
      console.log("Validation errors (update product):", fieldErrors);
@@ -178,21 +293,65 @@ export async function updateProductAction(
   if (Object.keys(validatedProductData).length === 0) {
     return { success: false, error: "No data provided for update." };
   }
+  
+  // Separate form data into Product data and Batch data (for adjustments)
+  const { stock: stockAdjustment, costPrice: adjustmentCostPrice, sellingPrice: adjustmentSellingPrice, ...restOfProductData } = validatedProductData;
 
-  const { ...restOfProductData } = validatedProductData;
-
-  const dataToUpdate: Prisma.ProductUpdateInput = { 
+  const dataToUpdateOnProduct: Prisma.ProductUpdateInput = {
       ...restOfProductData,
+      sellingPrice: adjustmentSellingPrice, // Also update the main product's selling price
       updatedByUserId: userId,
   };
-  if (validatedProductData.units) dataToUpdate.units = validatedProductData.units as Prisma.JsonValue;
-  if (validatedProductData.hasOwnProperty('code')) dataToUpdate.code = validatedProductData.code === null ? null : validatedProductData.code;
+  if (validatedProductData.units) dataToUpdateOnProduct.units = validatedProductData.units as Prisma.JsonValue;
+  if (validatedProductData.hasOwnProperty('code')) dataToUpdateOnProduct.code = validatedProductData.code === null ? null : validatedProductData.code;
 
   try {
-    const updatedProduct = await prisma.product.update({
-        where: { id },
-        data: dataToUpdate,
-        include: { productDiscountConfigurations: true }
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+        // Step 1: Update the main product details
+        await tx.product.update({
+            where: { id },
+            data: dataToUpdateOnProduct,
+        });
+        
+        // Step 2: If stock and cost price are provided, create a new batch as a "manual adjustment"
+        if (stockAdjustment && stockAdjustment > 0 && adjustmentCostPrice !== undefined && adjustmentCostPrice !== null) {
+            await tx.productBatch.create({
+                data: {
+                    productId: id,
+                    batchNumber: `MANUAL_ADJUST_${Date.now()}`,
+                    quantity: stockAdjustment,
+                    costPrice: adjustmentCostPrice,
+                    sellingPrice: adjustmentSellingPrice, // Use the new selling price for this adjustment batch
+                }
+            });
+        }
+        
+        // Step 3: Fetch the final, updated product with all its relations to return to the client
+        const finalProduct = await tx.product.findUniqueOrThrow({
+            where: { id: id },
+            include: {
+                productDiscountConfigurations: true,
+                batches: {
+                  include: {
+                    purchaseBillItem: {
+                      include: {
+                        purchaseBill: {
+                          include: {
+                            createdBy: {
+                              select: {
+                                username: true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }
+        });
+
+        return finalProduct;
     });
 
     return { success: true, data: mapPrismaProductToType(updatedProduct) };
@@ -214,14 +373,14 @@ export async function deleteProductAction(
   if (!prisma || !prisma.product) return { success: false, error: "Prisma client or Product model not initialized." };
   if (!id) return { success: false, error: "Product ID is required for deletion." };
   try {
-    // Prisma cascading delete should handle related ProductDiscountConfiguration records (defined in schema)
+    // Prisma cascading delete should handle related records (defined in schema)
+    // This includes ProductDiscountConfiguration and now ProductBatch
     await prisma.product.delete({ where: { id } });
     return { success: true };
   } catch (error: any) {
     console.error(`Error in deleteProductAction for ID ${id}:`, error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return { success: false, error: 'Product to delete not found.' };
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-      // Check if the foreign key constraint is on ProductDiscountConfiguration
       if (error.message.includes('ProductDiscountConfiguration_productId_fkey')) {
         return { success: false, error: 'Cannot delete product. It is still part of one or more Discount Campaign configurations.' };
       }
@@ -231,6 +390,7 @@ export async function deleteProductAction(
   }
 }
 
+// THIS IS THE CORRECTED ACTION
 export async function updateProductStockAction(
   productId: string,
   changeInStock: number,
@@ -239,34 +399,74 @@ export async function updateProductStockAction(
   if (!prisma || !prisma.product) return { success: false, error: "Prisma client or Product model not initialized."};
   if (!productId) return { success: false, error: "Product ID is required." };
   if (typeof changeInStock !== 'number') return { success: false, error: "Invalid change in stock value."};
-
+  
   try {
-    const product = await prisma.product.findUnique({ where: { id: productId }, include: { productDiscountConfigurations: true }});
-    if (!product) return { success: false, error: "Product not found for stock update." };
+    return await prisma.$transaction(async (tx) => {
+        const product = await tx.product.findUnique({
+            where: { id: productId },
+            include: { batches: true },
+        });
 
-    if (product.isService) {
-        return { success: true, data: mapPrismaProductToType(product) };
-    }
+        if (!product) {
+            throw new Error("Product not found for stock update.");
+        }
+        if (product.isService) {
+             const finalProduct = await tx.product.findUniqueOrThrow({
+              where: {id: productId},
+              include: {
+                batches: { include: { purchaseBillItem: { include: { purchaseBill: { include: { createdBy: {select: {username: true}}} } } } } },
+                productDiscountConfigurations: true
+              }
+            });
+            return { success: true, data: mapPrismaProductToType(finalProduct) };
+        }
+        
+        if (changeInStock < 0) { // Subtracting stock
+            const absChange = Math.abs(changeInStock);
+            const currentTotalStock = product.batches.reduce((sum, b) => sum + b.quantity, 0);
+            if (currentTotalStock < absChange) {
+                throw new Error(`Cannot subtract ${absChange}. Only ${currentTotalStock} in stock across all batches.`);
+            }
 
-    const newStock = product.stock + changeInStock;
-    if (newStock < 0) {
-      return { success: false, error: `Stock for ${product.name} cannot be negative.` };
-    }
+            let amountToDeduct = absChange;
+            const sortedBatches = product.batches.filter(b => b.quantity > 0).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); // FIFO for manual reduction
 
-    const updatedProduct = await prisma.product.update({
-      where: { id: productId },
-      data: { 
-          stock: newStock,
-          updatedByUserId: userId,
-       },
-      include: { productDiscountConfigurations: true }
+            for (const batch of sortedBatches) {
+                if(amountToDeduct <= 0) break;
+                const deduction = Math.min(amountToDeduct, batch.quantity);
+                await tx.productBatch.update({
+                    where: { id: batch.id },
+                    data: { quantity: { decrement: deduction } },
+                });
+                amountToDeduct -= deduction;
+            }
+
+        } else { // Adding stock
+            const latestBatch = product.batches.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+            const costPriceForNewStock = latestBatch?.costPrice ?? 0;
+            const sellingPriceForNewStock = latestBatch?.sellingPrice ?? product.sellingPrice;
+             await tx.productBatch.create({
+                data: {
+                    productId: productId,
+                    batchNumber: 'MANUAL_ADJUSTMENT_ADD',
+                    quantity: changeInStock,
+                    costPrice: costPriceForNewStock,
+                    sellingPrice: sellingPriceForNewStock,
+                }
+            });
+        }
+
+        const updatedProduct = await tx.product.findUniqueOrThrow({
+            where: { id: productId },
+            include: {
+              productDiscountConfigurations: true,
+              batches: { include: { purchaseBillItem: { include: { purchaseBill: { include: { createdBy: {select: {username: true}}} } } } } }
+            },
+        });
+        return { success: true, data: mapPrismaProductToType(updatedProduct) };
     });
-    return { success: true, data: mapPrismaProductToType(updatedProduct) };
   } catch (error: any) {
-    console.error(`Error in updateProductStockAction for product ${productId}:`, error);
-    let errorMessage = "Failed to update product stock.";
-    if (error instanceof z.ZodError) errorMessage = `Product data (units) is invalid.`;
-    else if (error instanceof Error) errorMessage = error.message;
-    return { success: false, error: errorMessage };
+     console.error(`Error in updateProductStockAction for product ${productId}:`, error);
+     return { success: false, error: error.message || "Failed to update stock." };
   }
 }

@@ -8,7 +8,7 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 16%; /* #282828 */
+    --background: 0 0% 23%; /* Adjusted for a more subtle gradient */
     --foreground: 0 0% 95%; /* Light grey/white for text */
 
     --card: 0 0% 20%; /* #333333 */
@@ -56,7 +56,7 @@ body {
   }
 
   .dark {
-    --background: 0 0% 16%;
+    --background: 0 0% 22%;
     --foreground: 0 0% 95%;
     --card: 0 0% 20%;
     --card-foreground: 0 0% 95%;
@@ -64,7 +64,7 @@ body {
     --popover-foreground: 0 0% 95%;
     --primary: 217 100% 72%;
     --primary-foreground: 217 100% 15%;
-    --secondary: 0 0% 25%;
+    --secondary: 0 0% 26%;
     --secondary-foreground: 0 0% 95%;
     --muted: 0 0% 25%;
     --muted-foreground: 0 0% 60%;
@@ -82,7 +82,7 @@ body {
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 18%;
+    --sidebar-background: 0 0% 20%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 217 100% 72%;
     --sidebar-primary-foreground: 217 100% 15%;

@@ -14,7 +14,7 @@ import {
   selectAppliedDiscountSummary,
 } from '@/store/slices/saleSlice';
 import { getAllCustomersAction } from '@/app/actions/partyActions';
-import { getCompanyProfileAction } from '@/app/actions/companyActions'; // Import new action
+import { getAllCompanyProfilesAction } from '@/app/actions/companyActions'; // Import new action
 
 import {
   Dialog,
@@ -46,6 +46,7 @@ interface PaymentDialogProps {
     amountPaid?: number; // This is the actual amount collected (cash tendered or card amount paid now)
     changeDue?: number; // Only for cash
   }) => void;
+  onBackToCart?: () => void; // New prop for inline view
 }
 
 interface BillPrintProps {
@@ -167,214 +168,293 @@ const BillPrintContent = ({
     );
 };
 
-export function PaymentDialog({
-    isOpen, onOpenChange, paymentMethod, billNumber, onPaymentSuccess
-}: PaymentDialogProps) {
-  const currentSaleItemsFromStore = useSelector(selectSaleItems);
-  const taxRate = useSelector(selectTaxRate);
-  const subtotalOriginal = useSelector(selectSaleSubtotalOriginal);
-  const calculatedDiscounts = useSelector(selectCalculatedDiscounts);
-  const { totalItemDiscountAmount, totalCartDiscountAmount, itemDiscounts: calculatedItemDiscountsMap } = calculatedDiscounts;
-  const tax = useSelector(selectCalculatedTax);
-  const total = useSelector(selectSaleTotal);
-  const appliedDiscountSummary = useSelector(selectAppliedDiscountSummary);
+export function PaymentFormContent({
+    paymentMethod, billNumber, onPaymentSuccess, onBackToCart
+}: Omit<PaymentDialogProps, 'isOpen' | 'onOpenChange'>) {
+    const currentSaleItemsFromStore = useSelector(selectSaleItems);
+    const taxRate = useSelector(selectTaxRate);
+    const subtotalOriginal = useSelector(selectSaleSubtotalOriginal);
+    const calculatedDiscounts = useSelector(selectCalculatedDiscounts);
+    const { totalItemDiscountAmount, totalCartDiscountAmount, itemDiscounts: calculatedItemDiscountsMap } = calculatedDiscounts;
+    const tax = useSelector(selectCalculatedTax);
+    const total = useSelector(selectSaleTotal);
+    const appliedDiscountSummary = useSelector(selectAppliedDiscountSummary);
 
-  const [cashAmountPaidStr, setCashAmountPaidStr] = useState('');
-  const [cardAmountPaidNowStr, setCardAmountPaidNowStr] = useState(''); 
-  const [changeDue, setChangeDue] = useState(0);
-  const [isBillVisibleForPrint, setIsBillVisibleForPrint] = useState(false);
-  const amountPaidInputRef = useRef<HTMLInputElement>(null);
+    const [cashAmountPaidStr, setCashAmountPaidStr] = useState('');
+    const [cardAmountPaidNowStr, setCardAmountPaidNowStr] = useState(''); 
+    const [changeDue, setChangeDue] = useState(0);
+    const [isBillVisibleForPrint, setIsBillVisibleForPrint] = useState(false);
+    const amountPaidInputRef = useRef<HTMLInputElement>(null);
 
-  const [allCustomers, setAllCustomers] = useState<CustomerType[]>([]);
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
-  const [customerError, setCustomerError] = useState<string | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerType | null>(null);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
-  const [manualCustomerName, setManualCustomerName] = useState('');
+    const [allCustomers, setAllCustomers] = useState<CustomerType[]>([]);
+    const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+    const [customerError, setCustomerError] = useState<string | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerType | null>(null);
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
+    const [manualCustomerName, setManualCustomerName] = useState('');
 
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfileFormData | null>(null);
-  const [isLoadingCompanyProfile, setIsLoadingCompanyProfile] = useState(false);
+    const [companyProfile, setCompanyProfile] = useState<CompanyProfileFormData | null>(null);
+    const [isLoadingCompanyProfile, setIsLoadingCompanyProfile] = useState(false);
 
+     const saleRecordItemsForPrint: SaleRecordItem[] = currentSaleItemsFromStore.map(item => {
+        const originalItemPrice = item.sellingPrice ?? 0;
+        const itemDiscountDetails = calculatedItemDiscountsMap.get(item.id);
+        const totalDiscountAppliedToThisLine = itemDiscountDetails?.totalCalculatedDiscountForLine ?? 0;
+        let effectivePricePaidPerUnitValue = originalItemPrice - (item.quantity > 0 ? totalDiscountAppliedToThisLine / item.quantity : 0);
+        effectivePricePaidPerUnitValue = Math.max(0, effectivePricePaidPerUnitValue);
+        const unitsForRecord = item.units || { baseUnit: 'pcs', derivedUnits: [] };
+        return { 
+          productId: item.id, name: item.name, price: item.sellingPrice, category: item.category,
+          imageUrl: item.imageUrl, units: unitsForRecord, quantity: item.quantity, priceAtSale: originalItemPrice,
+          effectivePricePaidPerUnit: effectivePricePaidPerUnitValue, totalDiscountOnLine: totalDiscountAppliedToThisLine,
+          costPriceAtSale: item.costPrice || 0,
+        };
+      });
 
-  const saleRecordItemsForPrint: SaleRecordItem[] = currentSaleItemsFromStore.map(item => {
-    const originalItemPrice = item.sellingPrice ?? 0;
-    const itemDiscountDetails = calculatedItemDiscountsMap.get(item.id);
-    const totalDiscountAppliedToThisLine = itemDiscountDetails?.totalCalculatedDiscountForLine ?? 0;
-    let effectivePricePaidPerUnitValue = originalItemPrice;
-    if (totalDiscountAppliedToThisLine > 0 && item.quantity > 0) {
-        effectivePricePaidPerUnitValue = originalItemPrice - (totalDiscountAppliedToThisLine / item.quantity);
-    }
-    effectivePricePaidPerUnitValue = Math.max(0, effectivePricePaidPerUnitValue);
-    // Ensure units is always defined for SaleRecordItem
-    const unitsForRecord = item.units || { baseUnit: 'pcs', derivedUnits: [] };
-    return { 
-      productId: item.id, // Map SaleItem.id to SaleRecordItem.productId
-      name: item.name,
-      price: item.sellingPrice, // original price
-      category: item.category,
-      imageUrl: item.imageUrl,
-      units: unitsForRecord,
-      quantity: item.quantity,
-      priceAtSale: originalItemPrice, // price at the time of sale, before item-specific discounts
-      effectivePricePaidPerUnit: effectivePricePaidPerUnitValue, // price per unit after item-specific discount
-      totalDiscountOnLine: totalDiscountAppliedToThisLine, // total discount for this line
-    };
-  });
+    useEffect(() => {
+        const fetchInitialData = async () => {
+          setIsLoadingCustomers(true);
+          setIsLoadingCompanyProfile(true);
+          setCustomerError(null);
+          try {
+            const [customersResult, companyProfilesResult] = await Promise.all([
+              getAllCustomersAction(), getAllCompanyProfilesAction()
+            ]);
+            if (customersResult.success && customersResult.data) setAllCustomers(customersResult.data);
+            else setCustomerError(customersResult.error || "Failed to load customers.");
+            
+            if (companyProfilesResult.success && companyProfilesResult.data && companyProfilesResult.data.length > 0) {
+                 setCompanyProfile(companyProfilesResult.data[0]); // Use the first company profile
+            } else { 
+                console.warn("Could not load company profile for receipt:", companyProfilesResult.error); 
+                setCompanyProfile(null); 
+            }
 
-  useEffect(() => {
-    if (isOpen) {
-      const fetchInitialData = async () => {
-        setIsLoadingCustomers(true);
-        setIsLoadingCompanyProfile(true);
-        setCustomerError(null);
-        try {
-          const [customersResult, companyProfileResult] = await Promise.all([
-            getAllCustomersAction(),
-            getCompanyProfileAction()
-          ]);
+          } catch (error) { setCustomerError("An error occurred while fetching initial data."); console.error("Error fetching payment dialog initial data:", error); }
+          setIsLoadingCustomers(false);
+          setIsLoadingCompanyProfile(false);
+        };
+        fetchInitialData();
+        setCashAmountPaidStr(''); setCardAmountPaidNowStr(''); setChangeDue(0);
+        if (paymentMethod === 'cash') setTimeout(() => amountPaidInputRef.current?.focus(), 100);
+        setSelectedCustomer(null); setCustomerSearchTerm(''); setManualCustomerName(''); setIsBillVisibleForPrint(false);
+      }, [paymentMethod, total]);
 
-          if (customersResult.success && customersResult.data) {
-            setAllCustomers(customersResult.data);
-          } else {
-            setCustomerError(customersResult.error || "Failed to load customers.");
-          }
-
-          if (companyProfileResult.success && companyProfileResult.data) {
-            setCompanyProfile(companyProfileResult.data);
-          } else {
-            // Not treating missing company profile as a hard error for the dialog
-            console.warn("Could not load company profile for receipt:", companyProfileResult.error);
-            setCompanyProfile(null); 
-          }
-
-        } catch (error) {
-          setCustomerError("An error occurred while fetching initial data.");
-          console.error("Error fetching payment dialog initial data:", error);
-        }
-        setIsLoadingCustomers(false);
-        setIsLoadingCompanyProfile(false);
-      };
-      fetchInitialData();
-
-      setCashAmountPaidStr('');
-      setCardAmountPaidNowStr(''); 
-      setChangeDue(0);
+    useEffect(() => {
       if (paymentMethod === 'cash') {
-        setTimeout(() => amountPaidInputRef.current?.focus(), 100);
+        const paid = parseFloat(cashAmountPaidStr);
+        if (!isNaN(paid) && paid >= total) setChangeDue(paid - total);
+        else setChangeDue(0);
+      } else { setChangeDue(0); }
+    }, [cashAmountPaidStr, total, paymentMethod]);
+
+    const handleConfirmPayment = () => {
+      let finalAmountPaid = 0;
+      if (paymentMethod === 'cash') {
+        const paid = parseFloat(cashAmountPaidStr);
+        if (isNaN(paid) || paid < total) { alert("Amount paid by cash is less than total or invalid."); return; }
+        finalAmountPaid = paid;
+      } else if (paymentMethod === 'credit') {
+        finalAmountPaid = parseFloat(cardAmountPaidNowStr) || 0; 
+        if (finalAmountPaid < 0) { alert("Card payment amount cannot be negative."); return; }
       }
-      setSelectedCustomer(null);
-      setCustomerSearchTerm('');
-      setManualCustomerName('');
-      setIsBillVisibleForPrint(false);
-    }
-  }, [isOpen, paymentMethod, total]);
+      onPaymentSuccess({
+          customerName: selectedCustomer ? selectedCustomer.name : manualCustomerName || undefined,
+          customerId: selectedCustomer ? selectedCustomer.id : null,
+          amountPaid: finalAmountPaid, changeDue: paymentMethod === 'cash' ? changeDue : 0,
+      });
+    };
 
-  useEffect(() => {
-    if (paymentMethod === 'cash') {
-      const paid = parseFloat(cashAmountPaidStr);
-      if (!isNaN(paid) && paid >= total) {
-        setChangeDue(paid - total);
-      } else {
-        setChangeDue(0);
-      }
-    } else {
-      setChangeDue(0); // No change due for credit sales
-    }
-  }, [cashAmountPaidStr, total, paymentMethod]);
+    const handlePrintBill = () => {
+      setIsBillVisibleForPrint(true);
+      let actualAmountPaidForReceipt = 0;
+      if (paymentMethod === 'cash') actualAmountPaidForReceipt = parseFloat(cashAmountPaidStr) || 0;
+      if (paymentMethod === 'credit') actualAmountPaidForReceipt = parseFloat(cardAmountPaidNowStr) || 0;
+      setTimeout(() => {
+          const billContentHolder = document.getElementById('printable-bill-content-holder');
+          if (!billContentHolder) { console.error('Bill content holder not found'); setIsBillVisibleForPrint(false); return; }
+          const printContents = billContentHolder.innerHTML;
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'absolute'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+          iframe.setAttribute('title', 'Print Bill'); document.body.appendChild(iframe);
+          const doc = iframe.contentWindow?.document;
+          if (doc) {
+              doc.open();
+              const printHtml = `
+                  <html><head><title>Print Bill - ${billNumber}</title>
+                  <style>
+                      body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
+                      .receipt-container { width: 280px; margin: 0 auto; padding: 5px; } table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
+                      th, td { padding: 1px 2px; vertical-align: top; font-size: 7pt; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
+                      .font-bold { font-weight: bold; } .company-details p, .header-info p, .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
+                      .company-details h3 { font-size: 10pt; margin: 1px 0;} .item-name { word-break: break-all; max-width: 60px; }
+                      .col-price { max-width: 45px; word-break: break-all; } .col-discount { max-width: 40px; word-break: break-all; } .col-total { max-width: 50px; word-break: break-all; }
+                      hr.separator { border: none; border-top: 1px dashed black; margin: 2px 0; color: black; background-color: black; }
+                      .totals-section div, .payment-info div { display: flex; justify-content: space-between; padding: 0px 0; font-size: 8pt; }
+                      .totals-section .label, .payment-info .label { text-align: left; } .totals-section .value, .payment-info .value { text-align: right; }
+                      .thank-you { margin-top: 3px; text-align: center; font-size: 8pt; }
+                      .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; }
+                      .discount-details div { display: flex; justify-content: space-between; } .discount-details span:first-child { padding-right: 3px; }
+                      th { font-size: 7pt; white-space: normal; text-align: right; } th.item-name { text-align: left; }
+                      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important;} .receipt-container { margin: 0; padding:0; width: 100%; } table { font-size: 7pt !important; } }
+                  </style></head><body><div class="receipt-container">${printContents}</div></body></html>
+              `;
+              doc.write(printHtml); doc.close();
+              iframe.contentWindow?.focus(); iframe.contentWindow?.print();
+          }
+          setTimeout(() => { if(iframe.parentNode) document.body.removeChild(iframe); }, 500);
+          setIsBillVisibleForPrint(false);
+      }, 100);
+    };
 
-  const handleConfirmPayment = () => {
-    let finalAmountPaid = 0;
-    if (paymentMethod === 'cash') {
-      const paid = parseFloat(cashAmountPaidStr);
-      if (isNaN(paid) || paid < total) {
-        alert("Amount paid by cash is less than total or invalid.");
-        return;
-      }
-      finalAmountPaid = paid;
-    } else if (paymentMethod === 'credit') {
-      finalAmountPaid = parseFloat(cardAmountPaidNowStr) || 0; 
-      if (finalAmountPaid < 0) {
-          alert("Card payment amount cannot be negative.");
-          return;
-      }
-    }
+    const currentAmountPaidForPrint = paymentMethod === 'cash' ? (parseFloat(cashAmountPaidStr) || 0) : (parseFloat(cardAmountPaidNowStr) || 0);
+    const currentChangeDueForPrint = paymentMethod === 'cash' ? changeDue : 0;
+    
+    const filteredCustomers = useMemo(() => {
+      if (!customerSearchTerm) return allCustomers;
+      return allCustomers.filter(c =>
+        c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        (c.phone && c.phone.includes(customerSearchTerm))
+      );
+    }, [allCustomers, customerSearchTerm]);
 
-    onPaymentSuccess({
-        customerName: selectedCustomer ? selectedCustomer.name : manualCustomerName || undefined,
-        customerId: selectedCustomer ? selectedCustomer.id : null,
-        amountPaid: finalAmountPaid,
-        changeDue: paymentMethod === 'cash' ? changeDue : 0,
-    });
-    onOpenChange(false);
-  };
+    const confirmButtonDisabled = 
+      (paymentMethod === 'cash' && (parseFloat(cashAmountPaidStr) || 0) < total && total > 0) ||
+      (paymentMethod === 'credit' && (parseFloat(cardAmountPaidNowStr) || 0) < 0) || 
+      saleRecordItemsForPrint.length === 0;
 
-  const handlePrintBill = () => {
-    setIsBillVisibleForPrint(true);
-    let actualAmountPaidForReceipt = 0;
-    if (paymentMethod === 'cash') actualAmountPaidForReceipt = parseFloat(cashAmountPaidStr) || 0;
-    if (paymentMethod === 'credit') actualAmountPaidForReceipt = parseFloat(cardAmountPaidNowStr) || 0;
+    return (
+        <div className="flex flex-col h-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 h-full overflow-hidden">
+                <div className="flex flex-col border-r border-border bg-background overflow-hidden">
+                    <div className="p-4 flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-card-foreground">Order Summary</h3>
+                        {onBackToCart && (
+                            <Button variant="outline" size="sm" onClick={onBackToCart} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                                <ArrowLeft className="mr-2 h-4 w-4"/> Back to Cart
+                            </Button>
+                        )}
+                    </div>
+                    <div className="p-4 pt-0">
+                        <SaleSummary
+                            subtotalOriginal={subtotalOriginal} totalItemDiscountAmount={totalItemDiscountAmount}
+                            totalCartDiscountAmount={totalCartDiscountAmount} tax={tax} total={total}
+                            taxRate={taxRate} appliedDiscountSummary={appliedDiscountSummary}
+                            onOpenDiscountInfoDialog={() => {}} 
+                        />
+                    </div>
+                    <Separator className="bg-border" />
+                    <div className="flex flex-col flex-1 p-4 pt-2 overflow-hidden">
+                        <h3 className="text-lg font-semibold text-card-foreground mb-2">Bill Preview (Receipt Style)</h3>
+                        <ScrollArea className="flex-1 border border-border rounded-md bg-white p-1">
+                            <div className="w-[290px] p-2 mx-auto text-black font-mono text-[8pt] leading-tight print-preview-content">
+                                <style jsx>{`...`}</style>
+                                <BillPrintContent
+                                    billNumber={billNumber} saleItems={saleRecordItemsForPrint} subtotalOriginal={subtotalOriginal}
+                                    totalItemDiscountAmount={totalItemDiscountAmount} totalCartDiscountAmount={totalCartDiscountAmount}
+                                    tax={tax} total={total} taxRate={taxRate} paymentMethod={paymentMethod}
+                                    amountPaid={currentAmountPaidForPrint} changeDue={currentChangeDueForPrint}
+                                    customerName={selectedCustomer ? selectedCustomer.name : manualCustomerName}
+                                    appliedDiscountSummary={appliedDiscountSummary} calculatedItemDiscounts={calculatedItemDiscountsMap}
+                                    companyNameProp={companyProfile?.name} companyAddressProp={companyProfile?.address} companyPhoneProp={companyProfile?.phone}
+                                />
+                            </div>
+                        </ScrollArea>
+                    </div>
+                </div>
 
+                <div className="flex flex-col p-6 bg-card space-y-6 overflow-y-auto">
+                     <div>
+                        <Label className="text-sm font-medium text-card-foreground">Payment Method</Label>
+                        <p className="text-lg font-semibold text-primary">{paymentMethod === 'cash' ? 'Cash Payment' : 'Credit Sale / Card Payment'}</p>
+                    </div>
+                    <Separator className="bg-border" />
+                    <div>
+                        <Label htmlFor="customer-select-trigger" className="text-sm font-medium text-card-foreground">Customer (Optional)</Label>
+                        <Popover open={isCustomerPopoverOpen} onOpenChange={setIsCustomerPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button id="customer-select-trigger" variant="outline" role="combobox" aria-expanded={isCustomerPopoverOpen} className="w-full justify-between bg-input border-border text-card-foreground hover:bg-muted/20 mt-1">
+                                    {selectedCustomer ? selectedCustomer.name : manualCustomerName || "Select or type customer..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <div className="p-2">
+                                    <div className="relative">
+                                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input placeholder="Search customer..." value={customerSearchTerm} onChange={(e) => setCustomerSearchTerm(e.target.value)} className="pl-8 h-9 bg-background border-border focus:ring-primary" aria-label="Search customers"/>
+                                    </div>
+                                </div>
+                                {isLoadingCustomers && <p className="p-2 text-xs text-muted-foreground">Loading customers...</p>}
+                                {customerError && <p className="p-2 text-xs text-destructive">{customerError}</p>}
+                                {!isLoadingCustomers && !customerError && (
+                                    <ScrollArea className="max-h-60">
+                                        {filteredCustomers.length === 0 && customerSearchTerm && (<p className="p-2 text-xs text-muted-foreground text-center">No customer found.</p>)}
+                                        {filteredCustomers.map((customer) => (
+                                            <Button key={customer.id} variant="ghost" className="w-full justify-start h-auto py-1.5 px-2 text-left rounded-sm" onClick={() => { setSelectedCustomer(customer); setManualCustomerName(''); setIsCustomerPopoverOpen(false); }}>
+                                                <div className="flex flex-col"><span className="text-sm">{customer.name}</span>{customer.phone && <span className="text-xs text-muted-foreground">{customer.phone}</span>}</div>
+                                            </Button>
+                                        ))}
+                                    </ScrollArea>
+                                )}
+                                <div className="p-2 border-t border-border">
+                                    <Input placeholder="Or type new customer name" value={manualCustomerName} onChange={(e) => { setManualCustomerName(e.target.value); if(selectedCustomer) setSelectedCustomer(null); }} className="h-9 bg-background border-border focus:ring-primary"/>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
 
-    setTimeout(() => {
-        const billContentHolder = document.getElementById('printable-bill-content-holder');
-        if (!billContentHolder) {
-            console.error('Bill content holder not found');
-            setIsBillVisibleForPrint(false);
-            return;
-        }
-        const printContents = billContentHolder.innerHTML;
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
-        iframe.setAttribute('title', 'Print Bill'); document.body.appendChild(iframe);
-        const doc = iframe.contentWindow?.document;
-        if (doc) {
-            doc.open();
-            const printHtml = `
-                <html><head><title>Print Bill - ${billNumber}</title>
-                <style>
-                    body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
-                    .receipt-container { width: 280px; margin: 0 auto; padding: 5px; } table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
-                    th, td { padding: 1px 2px; vertical-align: top; font-size: 7pt; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
-                    .font-bold { font-weight: bold; } .company-details p, .header-info p, .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
-                    .company-details h3 { font-size: 10pt; margin: 1px 0;} .item-name { word-break: break-all; max-width: 60px; }
-                    .col-price { max-width: 45px; word-break: break-all; } .col-discount { max-width: 40px; word-break: break-all; } .col-total { max-width: 50px; word-break: break-all; }
-                    hr.separator { border: none; border-top: 1px dashed black; margin: 2px 0; color: black; background-color: black; }
-                    .totals-section div, .payment-info div { display: flex; justify-content: space-between; padding: 0px 0; font-size: 8pt; }
-                    .totals-section .label, .payment-info .label { text-align: left; } .totals-section .value, .payment-info .value { text-align: right; }
-                    .thank-you { margin-top: 3px; text-align: center; font-size: 8pt; }
-                    .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; }
-                    .discount-details div { display: flex; justify-content: space-between; } .discount-details span:first-child { padding-right: 3px; }
-                    th { font-size: 7pt; white-space: normal; text-align: right; } th.item-name { text-align: left; }
-                    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important;} .receipt-container { margin: 0; padding:0; width: 100%; } table { font-size: 7pt !important; } }
-                </style></head><body><div class="receipt-container">${printContents}</div></body></html>
-            `;
-            doc.write(printHtml); doc.close();
-            iframe.contentWindow?.focus(); iframe.contentWindow?.print();
-        }
-        setTimeout(() => { if(iframe.parentNode) document.body.removeChild(iframe); }, 500);
-        setIsBillVisibleForPrint(false);
-    }, 100); // Increased delay slightly
-  };
+                    {paymentMethod === 'cash' && (<>
+                        <div>
+                            <Label htmlFor="cashAmountPaid" className="text-sm font-medium text-card-foreground">Amount Paid by Customer (Cash)</Label>
+                            <Input id="cashAmountPaid" ref={amountPaidInputRef} type="number" value={cashAmountPaidStr} onChange={(e) => setCashAmountPaidStr(e.target.value)} placeholder="e.g., 5000" className="bg-input border-border focus:ring-primary text-card-foreground text-lg mt-1" min="0"/>
+                        </div>
+                        <div>
+                            <Label className="text-sm font-medium text-card-foreground">Change Due</Label>
+                            <p className={`text-2xl font-bold ${changeDue > 0 ? 'text-green-400' : 'text-card-foreground'}`}>Rs. {changeDue.toFixed(2)}</p>
+                        </div>
+                    </>)}
 
-  const currentAmountPaidForPrint = paymentMethod === 'cash' ? (parseFloat(cashAmountPaidStr) || 0) : (parseFloat(cardAmountPaidNowStr) || 0);
-  const currentChangeDueForPrint = paymentMethod === 'cash' ? changeDue : 0;
-
-  const filteredCustomers = useMemo(() => {
-    if (!customerSearchTerm) return allCustomers;
-    return allCustomers.filter(c =>
-      c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-      (c.phone && c.phone.includes(customerSearchTerm))
+                    {paymentMethod === 'credit' && (<>
+                        <div>
+                            <Label htmlFor="cardAmountPaidNow" className="text-sm font-medium text-card-foreground">Amount Paid by Card Now (Optional)</Label>
+                            <Input id="cardAmountPaidNow" type="number" value={cardAmountPaidNowStr} onChange={(e) => setCardAmountPaidNowStr(e.target.value)} placeholder={`Full amount: Rs. ${total.toFixed(2)}`} className="bg-input border-border focus:ring-primary text-card-foreground text-lg mt-1" min="0"/>
+                            <p className="text-xs text-muted-foreground mt-1">Enter the amount charged to the card now. If less than total, the rest becomes credit. Leave blank or 0 if entire amount is on credit.</p>
+                        </div>
+                    </>)}
+                    
+                    <div className="text-2xl font-bold text-primary mt-auto"><span>Total to Pay: Rs. {total.toFixed(2)}</span></div>
+                    
+                    <div className="flex w-full justify-between items-center pt-4 border-t border-border">
+                         <Button variant="outline" onClick={handlePrintBill} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" disabled={saleRecordItemsForPrint.length === 0 || isLoadingCompanyProfile}>
+                            <Printer className="mr-2 h-4 w-4" /> {isLoadingCompanyProfile ? 'Loading...' : 'Print Bill'}
+                         </Button>
+                        <Button onClick={handleConfirmPayment} className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-6" disabled={confirmButtonDisabled}>
+                            <CheckCircle className="mr-2 h-5 w-5" /> Confirm Payment
+                        </Button>
+                    </div>
+                </div>
+            </div>
+             {isBillVisibleForPrint && (
+                <div id="printable-bill-content-holder" style={{ display: 'none' }}>
+                    <BillPrintContent
+                        billNumber={billNumber} saleItems={saleRecordItemsForPrint} subtotalOriginal={subtotalOriginal}
+                        totalItemDiscountAmount={totalItemDiscountAmount} totalCartDiscountAmount={totalCartDiscountAmount}
+                        tax={tax} total={total} taxRate={taxRate} paymentMethod={paymentMethod}
+                        amountPaid={currentAmountPaidForPrint} changeDue={currentChangeDueForPrint}
+                        customerName={selectedCustomer ? selectedCustomer.name : manualCustomerName}
+                        appliedDiscountSummary={appliedDiscountSummary} calculatedItemDiscounts={calculatedItemDiscountsMap}
+                        companyNameProp={companyProfile?.name} companyAddressProp={companyProfile?.address} companyPhoneProp={companyProfile?.phone}
+                    />
+                </div>
+            )}
+        </div>
     );
-  }, [allCustomers, customerSearchTerm]);
+}
 
-  const confirmButtonDisabled = 
-    (paymentMethod === 'cash' && (parseFloat(cashAmountPaidStr) || 0) < total && total > 0) ||
-    (paymentMethod === 'credit' && (parseFloat(cardAmountPaidNowStr) || 0) < 0) || 
-    saleRecordItemsForPrint.length === 0;
-
+export function PaymentDialog({ isOpen, onOpenChange, paymentMethod, billNumber, onPaymentSuccess, onBackToCart }: PaymentDialogProps) {
   if (!isOpen) return null;
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden sm:rounded-2xl">
@@ -389,206 +469,15 @@ export function PaymentDialog({
             Finalize the sale for {paymentMethod === 'cash' ? 'Cash' : 'Credit'} payment. Bill: {billNumber}
           </DialogDescription>
         </DialogHeader>
-
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-0 overflow-hidden">
-          <div className="flex flex-col border-r border-border bg-background overflow-hidden">
-            <div className="p-4">
-                <h3 className="text-lg font-semibold text-card-foreground mb-2">Order Summary</h3>
-                 <SaleSummary
-                    subtotalOriginal={subtotalOriginal}
-                    totalItemDiscountAmount={totalItemDiscountAmount}
-                    totalCartDiscountAmount={totalCartDiscountAmount}
-                    tax={tax}
-                    total={total}
-                    taxRate={taxRate}
-                    appliedDiscountSummary={appliedDiscountSummary}
-                    onOpenDiscountInfoDialog={() => {}} 
-                 />
-            </div>
-            <Separator className="bg-border" />
-            <div className="flex flex-col flex-1 p-4 pt-2 overflow-hidden">
-              <h3 className="text-lg font-semibold text-card-foreground mb-2">Bill Preview (Receipt Style)</h3>
-              <ScrollArea className="flex-1 border border-border rounded-md bg-white p-1">
-                <div className="w-[290px] p-2 mx-auto text-black font-mono text-[8pt] leading-tight print-preview-content">
-                  <style jsx>{`
-                    .print-preview-content hr.separator { border: none; border-top: 1px dashed #333; margin: 3px 0; }
-                    .print-preview-content table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
-                    .print-preview-content th, .print-preview-content td { padding: 1px 2px; vertical-align: top; font-size: 7pt; }
-                    .print-preview-content .text-left { text-align: left; } .print-preview-content .text-right { text-align: right; } .print-preview-content .text-center { text-align: center; }
-                    .print-preview-content .font-bold { font-weight: bold; }
-                    .print-preview-content .company-details p, .print-preview-content .header-info p, .print-preview-content .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
-                    .print-preview-content .company-details h3 { font-size: 10pt; margin: 1px 0;}
-                    .print-preview-content .item-name { word-break: break-all; max-width: 60px; }
-                    .print-preview-content .col-price { max-width: 45px; word-break: break-all; } .print-preview-content .col-discount { max-width: 40px; word-break: break-all; } .print-preview-content .col-total { max-width: 50px; word-break: break-all; }
-                    .print-preview-content .totals-section div, .print-preview-content .payment-info div { display: flex; justify-content: space-between; padding: 0px 0; font-size: 8pt; }
-                    .print-preview-content .totals-section .label, .print-preview-content .payment-info .label { text-align: left; } .print-preview-content .totals-section .value, .print-preview-content .payment-info .value { text-align: right; }
-                    .print-preview-content .thank-you { margin-top: 3px; text-align: center; font-size: 8pt; }
-                    .print-preview-content .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; } .print-preview-content .discount-details div { display: flex; justify-content: space-between; } .print-preview-content .discount-details span:first-child { padding-right: 3px; }
-                    .print-preview-content th { font-size: 7pt; white-space: normal; text-align: right; } .print-preview-content th.item-name { text-align: left; }
-                  `}</style>
-                  <BillPrintContent
-                    billNumber={billNumber} saleItems={saleRecordItemsForPrint} subtotalOriginal={subtotalOriginal}
-                    totalItemDiscountAmount={totalItemDiscountAmount} totalCartDiscountAmount={totalCartDiscountAmount}
-                    tax={tax} total={total} taxRate={taxRate} paymentMethod={paymentMethod}
-                    amountPaid={currentAmountPaidForPrint} changeDue={currentChangeDueForPrint}
-                    customerName={selectedCustomer ? selectedCustomer.name : manualCustomerName}
-                    appliedDiscountSummary={appliedDiscountSummary} calculatedItemDiscounts={calculatedItemDiscountsMap}
-                    companyNameProp={companyProfile?.name}
-                    companyAddressProp={companyProfile?.address}
-                    companyPhoneProp={companyProfile?.phone}
-                  />
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
-
-          <div className="flex flex-col p-6 bg-card space-y-6 overflow-y-auto">
-            <div>
-              <Label className="text-sm font-medium text-card-foreground">Payment Method</Label>
-              <p className="text-lg font-semibold text-primary">{paymentMethod === 'cash' ? 'Cash Payment' : 'Credit Sale / Card Payment'}</p>
-            </div>
-            <Separator className="bg-border" />
-
-            <div>
-              <Label htmlFor="customer-select-trigger" className="text-sm font-medium text-card-foreground">Customer (Optional)</Label>
-              <Popover open={isCustomerPopoverOpen} onOpenChange={setIsCustomerPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="customer-select-trigger"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={isCustomerPopoverOpen}
-                    className="w-full justify-between bg-input border-border text-card-foreground hover:bg-muted/20 mt-1"
-                  >
-                    {selectedCustomer ? selectedCustomer.name : manualCustomerName || "Select or type customer..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <div className="p-2">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search customer..."
-                        value={customerSearchTerm}
-                        onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                        className="pl-8 h-9 bg-background border-border focus:ring-primary"
-                        aria-label="Search customers"
-                      />
-                    </div>
-                  </div>
-                  {isLoadingCustomers && <p className="p-2 text-xs text-muted-foreground">Loading customers...</p>}
-                  {customerError && <p className="p-2 text-xs text-destructive">{customerError}</p>}
-                  {!isLoadingCustomers && !customerError && (
-                    <ScrollArea className="max-h-60">
-                      {filteredCustomers.length === 0 && customerSearchTerm && (
-                        <p className="p-2 text-xs text-muted-foreground text-center">No customer found.</p>
-                      )}
-                      {filteredCustomers.map((customer) => (
-                        <Button
-                          key={customer.id}
-                          variant="ghost"
-                          className="w-full justify-start h-auto py-1.5 px-2 text-left rounded-sm"
-                          onClick={() => {
-                            setSelectedCustomer(customer);
-                            setManualCustomerName('');
-                            setIsCustomerPopoverOpen(false);
-                          }}
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-sm">{customer.name}</span>
-                            {customer.phone && <span className="text-xs text-muted-foreground">{customer.phone}</span>}
-                          </div>
-                        </Button>
-                      ))}
-                    </ScrollArea>
-                  )}
-                   <div className="p-2 border-t border-border">
-                       <Input
-                           placeholder="Or type new customer name"
-                           value={manualCustomerName}
-                           onChange={(e) => {
-                               setManualCustomerName(e.target.value);
-                               if(selectedCustomer) setSelectedCustomer(null);
-                           }}
-                           className="h-9 bg-background border-border focus:ring-primary"
-                       />
-                   </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {paymentMethod === 'cash' && (
-              <>
-                <div>
-                  <Label htmlFor="cashAmountPaid" className="text-sm font-medium text-card-foreground">Amount Paid by Customer (Cash)</Label>
-                  <Input
-                    id="cashAmountPaid" ref={amountPaidInputRef} type="number" value={cashAmountPaidStr}
-                    onChange={(e) => setCashAmountPaidStr(e.target.value)} placeholder="e.g., 5000"
-                    className="bg-input border-border focus:ring-primary text-card-foreground text-lg mt-1" min="0"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-card-foreground">Change Due</Label>
-                  <p className={`text-2xl font-bold ${changeDue > 0 ? 'text-green-400' : 'text-card-foreground'}`}>
-                    Rs. {changeDue.toFixed(2)}
-                  </p>
-                </div>
-              </>
-            )}
-
-            {paymentMethod === 'credit' && (
-              <>
-                <div>
-                  <Label htmlFor="cardAmountPaidNow" className="text-sm font-medium text-card-foreground">Amount Paid by Card Now (Optional)</Label>
-                  <Input
-                    id="cardAmountPaidNow" type="number" value={cardAmountPaidNowStr}
-                    onChange={(e) => setCardAmountPaidNowStr(e.target.value)} placeholder={`Full amount: Rs. ${total.toFixed(2)}`}
-                    className="bg-input border-border focus:ring-primary text-card-foreground text-lg mt-1" min="0"
-                  />
-                   <p className="text-xs text-muted-foreground mt-1">
-                    Enter the amount charged to the card now. If less than total, the rest becomes credit. Leave blank or 0 if entire amount is on credit.
-                  </p>
-                </div>
-              </>
-            )}
-
-            <div className="text-2xl font-bold text-primary mt-auto">
-              <span>Total to Pay: Rs. {total.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="p-4 border-t border-border bg-card flex-shrink-0">
-          <div className="flex w-full justify-between items-center">
-             <Button variant="outline" onClick={handlePrintBill} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" disabled={saleRecordItemsForPrint.length === 0 || isLoadingCompanyProfile}>
-                <Printer className="mr-2 h-4 w-4" /> {isLoadingCompanyProfile ? 'Loading...' : 'Print Bill'}
-             </Button>
-            <Button
-              onClick={handleConfirmPayment}
-              className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-6"
-              disabled={confirmButtonDisabled}
-            >
-              <CheckCircle className="mr-2 h-5 w-5" /> Confirm Payment
-            </Button>
-          </div>
-        </DialogFooter>
-
-        {isBillVisibleForPrint && (
-            <div id="printable-bill-content-holder" style={{ display: 'none' }}>
-                <BillPrintContent
-                    billNumber={billNumber} saleItems={saleRecordItemsForPrint} subtotalOriginal={subtotalOriginal}
-                    totalItemDiscountAmount={totalItemDiscountAmount} totalCartDiscountAmount={totalCartDiscountAmount}
-                    tax={tax} total={total} taxRate={taxRate} paymentMethod={paymentMethod}
-                    amountPaid={currentAmountPaidForPrint} changeDue={currentChangeDueForPrint}
-                    customerName={selectedCustomer ? selectedCustomer.name : manualCustomerName}
-                    appliedDiscountSummary={appliedDiscountSummary} calculatedItemDiscounts={calculatedItemDiscountsMap}
-                    companyNameProp={companyProfile?.name}
-                    companyAddressProp={companyProfile?.address}
-                    companyPhoneProp={companyProfile?.phone}
-                />
-            </div>
-        )}
+        <PaymentFormContent 
+            paymentMethod={paymentMethod} 
+            billNumber={billNumber}
+            onPaymentSuccess={(details) => {
+                onPaymentSuccess(details);
+                onOpenChange(false); // Close dialog on success
+            }}
+            onBackToCart={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );

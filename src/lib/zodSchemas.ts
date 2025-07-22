@@ -52,7 +52,29 @@ export const BuyGetRuleSchema = z.object({
 export type BuyGetRuleInput = z.infer<typeof BuyGetRuleSchema>;
 
 
-// Schema for Product (NO direct discount config here anymore)
+// NEW: Schema specifically for the Product Form
+export const ProductFormDataSchema = z.object({
+  id: z.string().cuid().optional(),
+  name: z.string().min(1, "Product name is required"),
+  code: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  barcode: z.string().optional().nullable(),
+  units: UnitDefinitionSchema,
+  sellingPrice: z.number({invalid_type_error: "Selling price must be a number"}).nonnegative("Selling price must be non-negative"),
+  // stock and costPrice are optional for the form because they are for initial creation
+  stock: z.number().nonnegative("Stock cannot be negative").optional().nullable(),
+  costPrice: z.number().nonnegative("Cost price cannot be negative").optional().nullable(),
+  defaultQuantity: z.number({invalid_type_error: "Default quantity must be a number"}).positive("Default quantity must be positive").default(1),
+  isActive: z.boolean().default(true),
+  isService: z.boolean().default(false),
+  productSpecificTaxRate: z.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate must be a percentage between 0 and 100.").optional().nullable(),
+  description: z.string().optional().nullable(),
+  imageUrl: z.string().url("Invalid image URL. Must be full URL or empty.").optional().nullable().or(z.literal('')),
+});
+export type ProductFormData = z.infer<typeof ProductFormDataSchema>;
+
+
+// Schema for Product (Database Model representation)
 export const ProductSchema = z.object({
   id: z.string().cuid(),
   name: z.string().min(1, "Product name is required"),
@@ -61,12 +83,12 @@ export const ProductSchema = z.object({
   barcode: z.string().optional().nullable(),
   units: UnitDefinitionSchema,
   sellingPrice: z.number({invalid_type_error: "Selling price must be a number"}).nonnegative("Selling price must be non-negative"),
-  costPrice: z.number({invalid_type_error: "Cost price must be a number"}).nonnegative("Cost price must be non-negative").optional().nullable(),
-  stock: z.number({invalid_type_error: "Stock must be a number"}).nonnegative("Stock must be a non-negative number"),
+  stock: z.number(), // Not part of form, calculated
+  costPrice: z.number().optional().nullable(), // Not part of form, calculated
   defaultQuantity: z.number({invalid_type_error: "Default quantity must be a number"}).positive("Default quantity must be positive").default(1),
   isActive: z.boolean().default(true),
   isService: z.boolean().default(false),
-  productSpecificTaxRate: z.number({invalid_type_error: "Product tax rate must be a number"}).min(0, "Tax rate cannot be negative.").max(1, "Tax rate must be a decimal between 0 and 1 (e.g., 0.05 for 5%).").optional().nullable(),
+  productSpecificTaxRate: z.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate must be a percentage between 0 and 100.").optional().nullable(),
   description: z.string().optional().nullable(),
   imageUrl: z.string().url("Invalid image URL. If provided, it must be a full URL (e.g., https://example.com/image.png)").optional().nullable().or(z.literal('')),
   createdAt: z.string().datetime().optional(),
@@ -74,11 +96,14 @@ export const ProductSchema = z.object({
 });
 export type ProductType = z.infer<typeof ProductSchema>;
 
-export const ProductCreateInputSchema = ProductSchema.omit({ id: true, createdAt: true, updatedAt: true });
+// This schema is for creating the DB record, it doesn't include form-only fields.
+export const ProductCreateInputSchema = ProductSchema.omit({ id: true, createdAt: true, updatedAt: true, stock: true, costPrice: true });
 export type ProductCreateInput = z.infer<typeof ProductCreateInputSchema>;
 
-export const ProductUpdateInputSchema = ProductCreateInputSchema.partial();
+// Update schema should be partial and can now accept stock/costPrice for adjustments.
+export const ProductUpdateInputSchema = ProductFormDataSchema.partial();
 export type ProductUpdateInput = z.infer<typeof ProductUpdateInputSchema>;
+
 
 // Schema for AppliedRuleInfo
 export const AppliedRuleInfoSchema = z.object({
@@ -110,7 +135,7 @@ export type AppliedRuleInfoInput = z.infer<typeof AppliedRuleInfoSchema>;
 
 // Schema for ReturnedItemDetail
 export const ReturnedItemDetailSchema = z.object({
-  id: z.string().min(1).optional(), // Changed from cuid() to min(1)
+  id: z.string().min(1),
   itemId: z.string(), // productId of the item returned
   name: z.string(),
   returnedQuantity: z.number().positive(),
@@ -118,8 +143,10 @@ export const ReturnedItemDetailSchema = z.object({
   refundAmountPerUnit: z.number(),
   totalRefundForThisReturnEntry: z.number(),
   returnDate: z.string().datetime(),
-  returnTransactionId: z.string(), // ID of the SaleRecord (type RETURN_TRANSACTION)
+  returnTransactionId: z.string(),
   isUndone: z.boolean().optional().default(false),
+  processedByUserId: z.string().min(1, "Processed by user ID is required."),
+  originalBatchId: z.string().nullable().optional(),
 });
 export type ReturnedItemDetailInput = z.infer<typeof ReturnedItemDetailSchema>;
 
@@ -131,11 +158,14 @@ export const SaleRecordItemSchema = z.object({
   price: z.number(),
   category: z.string().optional().nullable(),
   imageUrl: z.string().url().optional().nullable().or(z.literal('')),
-  units: UnitDefinitionSchema,
+  units: UnitDefinitionSchema, // CORRECTED: This was missing before
   quantity: z.number().positive("Item quantity must be greater than 0."), // Individual items must always have quantity > 0
   priceAtSale: z.number(),
   effectivePricePaidPerUnit: z.number(),
   totalDiscountOnLine: z.number(),
+  costPriceAtSale: z.number(), // Added for profit calculation
+  batchId: z.string().optional().nullable(),
+  batchNumber: z.string().optional().nullable(),
 });
 export type SaleRecordItemInput = z.infer<typeof SaleRecordItemSchema>;
 
@@ -151,6 +181,7 @@ export const PaymentInstallmentSchema = z.object({
   notes: z.string().optional().nullable(),
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
+  recordedByUserId: z.string(),
 });
 export type PaymentInstallmentInput = z.infer<typeof PaymentInstallmentSchema>;
 
@@ -166,7 +197,7 @@ export const SaleRecordSchema = z.object({
   totalCartDiscountAmount: z.number(),
   netSubtotal: z.number(),
   appliedDiscountSummary: z.union([z.array(AppliedRuleInfoSchema), z.null()]),
-  activeDiscountSetIdDuringSale: z.string().optional().nullable(),
+  activeDiscountSetId: z.string().optional().nullable(),
   taxRate: z.number(),
   taxAmount: z.number(),
   totalAmount: z.number(),
@@ -174,7 +205,7 @@ export const SaleRecordSchema = z.object({
   amountPaidByCustomer: z.number().optional().nullable(),
   changeDueToCustomer: z.number().optional().nullable(),
   status: z.enum(['COMPLETED_ORIGINAL', 'ADJUSTED_ACTIVE', 'RETURN_TRANSACTION_COMPLETED']),
-  returnedItemsLog: z.union([z.array(ReturnedItemDetailSchema), z.null()]),
+  returnedItemsLog: z.array(ReturnedItemDetailSchema).optional().nullable(),
   originalSaleRecordId: z.string().optional().nullable(),
   isCreditSale: z.boolean().default(false),
   creditOutstandingAmount: z.number().optional().nullable(),
@@ -202,7 +233,7 @@ export const SaleRecordSchema = z.object({
 export type SaleRecordInput = z.infer<typeof SaleRecordSchema>;
 
 export const UndoReturnItemInputSchema = z.object({
-  originalSaleId: z.string().min(1, "Original Sale ID is required."), 
+  masterSaleRecordId: z.string().min(1, "Master Sale Record ID is required."),
   returnedItemDetailId: z.string().min(1, "Returned Item Detail ID is required."), 
 });
 export type UndoReturnItemInput = z.infer<typeof UndoReturnItemInputSchema>;
@@ -244,7 +275,7 @@ export type DiscountSetValidationInput = z.infer<typeof DiscountSetValidationSch
 
 
 export const TaxRateValidationSchema = z.object({
-  rate: z.number().min(0, "Tax rate cannot be negative.").max(1, "Tax rate must be a decimal between 0 and 1 (e.g., 0.05 for 5%)."),
+  rate: z.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate must be between 0 and 100."),
 });
 export type TaxRateValidationInput = z.infer<typeof TaxRateValidationSchema>;
 
@@ -283,6 +314,9 @@ export const PurchaseBillItemInputSchema = z.object({
   productId: z.string().min(1, "Product ID is required."),
   quantityPurchased: z.number().positive("Purchased quantity must be a positive number."),
   costPriceAtPurchase: z.number().nonnegative("Cost price must be a non-negative number."),
+  currentSellingPrice: z.number().nonnegative("Selling price must be a non-negative number.").optional(),
+  batchNumber: z.string().optional().nullable(),
+  expiryDate: z.date().optional().nullable(),
 });
 export type PurchaseBillItemInput = z.infer<typeof PurchaseBillItemInputSchema>;
 
@@ -322,7 +356,7 @@ export const PurchasePaymentCreateInputSchema = z.object({
   reference: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
-export type PurchasePaymentCreateInput = z.infer<typeof PurchasePaymentCreateInputSchema>;
+export type PurchasePaymentCreateInput = z.infer<typeof PurchasePaymentCreateInput>;
 
 export const UserCreateSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters long."),
@@ -383,8 +417,10 @@ export const CompanyProfileSchema = z.object({
   website: z.string().url("Invalid URL format. Must be a full URL (e.g., https://example.com/image.png) or empty if no valid URL.").optional().nullable().or(z.literal('')),
   taxId: z.string().optional().nullable().or(z.literal('')),
   logoUrl: z.string().url("Invalid URL format. Must be a full URL (e.g., https://example.com/image.png) or empty if no logo.").optional().nullable().or(z.literal('')),
+  createdByUserId: z.string().cuid().optional(),
+  updatedByUserId: z.string().cuid().optional(),
 });
-export type CompanyProfileFormData = z.infer<typeof CompanyProfileSchema>;
+export type CompanyProfileFormDataWithUser = z.infer<typeof CompanyProfileSchema>;
 
 // Schema for Stock Adjustment Form
 export const StockAdjustmentReasonEnumSchema = z.enum(['LOST', 'DAMAGED', 'CORRECTION_ADD', 'CORRECTION_SUBTRACT']);
