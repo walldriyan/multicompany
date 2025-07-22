@@ -167,7 +167,7 @@ export default function CompanyDetailsPage() {
       setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => setPreviewUrl(reader.result as string);
-      reader.readAsDataURL(file);
+      reader.readDataURL(file);
     }
   };
 

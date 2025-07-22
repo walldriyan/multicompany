@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { UserForm } from '@/components/dashboard/users/UserForm';
 import { RoleForm } from '@/components/dashboard/users/RoleForm';
-import type { User as UserType, Role as RoleType, Permission as PermissionType, UserFormData, RoleFormData } from '@/types';
+import type { User as UserType, Role as RoleType, Permission as PermissionType, UserFormData, RoleFormData, CompanyProfileFormData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, UserCog, Users, ShieldCheck, PlusCircle, Edit3, Trash2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,8 @@ import {
   getAllUsersWithRolesAction, 
   updateUserAction, 
   deleteUserAction,
-  getRolesForUserFormAction
+  getRolesForUserFormAction,
+  getCompaniesForUserFormAction
 } from '@/app/actions/userActions';
 import { 
   createRoleAction, 
@@ -53,10 +54,12 @@ export default function UserManagementPage() {
   const [roles, setRoles] = useState<RoleType[]>([]);
   const [permissions, setPermissions] = useState<PermissionType[]>([]);
   const [rolesForForm, setRolesForForm] = useState<Pick<RoleType, 'id' | 'name'>[]>([]);
+  const [companiesForForm, setCompaniesForForm] = useState<Pick<CompanyProfileFormData, 'id' | 'name'>[]>([]);
 
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
 
   const [isUserSheetOpen, setIsUserSheetOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
@@ -83,17 +86,30 @@ export default function UserManagementPage() {
     setIsLoadingUsers(false);
   }, [toast]);
 
-  const fetchRoles = useCallback(async () => {
+  const fetchRolesAndCompanies = useCallback(async () => {
     setIsLoadingRoles(true);
+    setIsLoadingCompanies(true);
     setLastRoleSubmission(null);
-    const result = await getAllRolesWithPermissionsAction();
-    if (result.success && result.data) {
-      setRoles(result.data);
-      setRolesForForm(result.data.map(r => ({id: r.id, name: r.name})));
+    const [rolesResult, companiesResult] = await Promise.all([
+      getAllRolesWithPermissionsAction(),
+      getCompaniesForUserFormAction()
+    ]);
+    
+    if (rolesResult.success && rolesResult.data) {
+      setRoles(rolesResult.data);
+      setRolesForForm(rolesResult.data.map(r => ({id: r.id, name: r.name})));
     } else {
-      toast({ title: 'Error Fetching Roles', description: result.error, variant: 'destructive' });
+      toast({ title: 'Error Fetching Roles', description: rolesResult.error, variant: 'destructive' });
     }
     setIsLoadingRoles(false);
+
+    if (companiesResult.success && companiesResult.data) {
+      setCompaniesForForm(companiesResult.data);
+    } else {
+       toast({ title: 'Error Fetching Companies', description: companiesResult.error, variant: 'destructive' });
+    }
+    setIsLoadingCompanies(false);
+
   }, [toast]);
 
   const fetchPermissions = useCallback(async () => {
@@ -119,9 +135,9 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     fetchUsers();
-    fetchRoles();
+    fetchRolesAndCompanies();
     fetchPermissions();
-  }, [fetchUsers, fetchRoles, fetchPermissions]);
+  }, [fetchUsers, fetchRolesAndCompanies, fetchPermissions]);
 
   // User handlers
   const resetUserFormState = () => {
@@ -196,7 +212,7 @@ export default function UserManagementPage() {
     const result = await deleteRoleAction(roleToDelete.id);
     if (result.success) {
       toast({ title: 'Role Deleted', description: `Role "${roleToDelete.name}" has been deleted.` });
-      fetchRoles(); // Refresh list
+      fetchRolesAndCompanies(); // Refresh list
     } else {
       toast({ title: 'Error Deleting Role', description: result.error, variant: 'destructive' });
     }
@@ -217,7 +233,7 @@ export default function UserManagementPage() {
     if (result.success && result.data) {
       toast({ title: id ? 'Role Updated' : 'Role Created', description: `Role "${result.data.name}" has been saved.` });
       setLastRoleSubmission({id: result.data.id, name: result.data.name});
-      fetchRoles(); // Refresh list
+      fetchRolesAndCompanies(); // Refresh list
       if(!id) setEditingRole(null);
     }
     return { success: result.success, error: result.error, fieldErrors: result.fieldErrors };
@@ -231,6 +247,7 @@ export default function UserManagementPage() {
     Array.from({ length: 3 }).map((_, i) => (
       <TableRow key={`skel-user-${i}`}>
         <TableCell><Skeleton className="h-4 w-32 bg-muted/50" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-24 bg-muted/50" /></TableCell>
         <TableCell><Skeleton className="h-4 w-40 bg-muted/50" /></TableCell>
         <TableCell><Skeleton className="h-4 w-24 bg-muted/50" /></TableCell>
         <TableCell className="text-center"><Skeleton className="h-6 w-16 mx-auto rounded-full bg-muted/50" /></TableCell>
@@ -286,7 +303,7 @@ export default function UserManagementPage() {
           </h1>
         </div>
         <div className="flex space-x-2 self-end sm:self-center">
-           <Button onClick={() => { fetchUsers(); fetchRoles(); fetchPermissions();}} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" disabled={isLoadingUsers || isLoadingRoles}>
+           <Button onClick={() => { fetchUsers(); fetchRolesAndCompanies(); fetchPermissions();}} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" disabled={isLoadingUsers || isLoadingRoles}>
               <RefreshCw className={`mr-2 h-4 w-4 ${(isLoadingUsers || isLoadingRoles) ? 'animate-spin' : ''}`} /> Refresh All
             </Button>
             {activeTab === 'users' && (
@@ -316,7 +333,7 @@ export default function UserManagementPage() {
             </CardHeader>
             <CardContent>
               {isLoadingUsers && users.length === 0 ? (
-                <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader><TableBody><UserListSkeleton /></TableBody></Table>
+                <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Company</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader><TableBody><UserListSkeleton /></TableBody></Table>
               ) : !isLoadingUsers && users.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
                   <Users className="mx-auto h-12 w-12 mb-4 text-primary" />
@@ -328,6 +345,7 @@ export default function UserManagementPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-muted-foreground">Username</TableHead>
+                        <TableHead className="text-muted-foreground">Company</TableHead>
                         <TableHead className="text-muted-foreground">Email</TableHead>
                         <TableHead className="text-muted-foreground">Role</TableHead>
                         <TableHead className="text-center text-muted-foreground">Status</TableHead>
@@ -338,6 +356,7 @@ export default function UserManagementPage() {
                       {users.map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium text-card-foreground">{user.username}</TableCell>
+                          <TableCell className="text-card-foreground">{user.company?.name || 'N/A (Super Admin)'}</TableCell>
                           <TableCell className="text-card-foreground">{user.email || 'N/A'}</TableCell>
                           <TableCell className="text-card-foreground">{user.role?.name || 'N/A'}</TableCell>
                           <TableCell className="text-center">
@@ -424,11 +443,12 @@ export default function UserManagementPage() {
               </SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-              {isLoadingRoles ? <p>Loading roles...</p> : 
+              {(isLoadingRoles || isLoadingCompanies) ? <p>Loading roles and companies...</p> : 
                 <UserForm
                   key={editingUser?.id || lastUserSubmission?.id || 'new-user-form'}
                   user={editingUser || undefined}
                   roles={rolesForForm}
+                  companies={companiesForForm}
                   onSubmit={handleUserFormSubmit}
                   isLoading={isSubmitting}
                   onCancel={() => setIsUserSheetOpen(false)}

@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { UserCreateSchema, UserUpdateSchema } from '@/lib/zodSchemas';
-import type { UserFormData, Role } from '@/types';
+import type { UserFormData, Role, CompanyProfileFormData } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, FilePlus2, Eye, EyeOff } from 'lucide-react';
 
 interface UserFormProps {
-  user?: Omit<UserFormData, 'password' | 'confirmPassword'> & { id?: string, password?: string, confirmPassword?: string };
+  user?: Omit<UserFormData, 'password' | 'confirmPassword'> & { id?: string, password?: string, confirmPassword?: string, companyId?: string | null };
   roles: Pick<Role, 'id' | 'name'>[];
+  companies: Pick<CompanyProfileFormData, 'id' | 'name'>[];
   onSubmit: (data: UserFormData, id?: string) => Promise<{ success: boolean; error?: string; fieldErrors?: Record<string, string[]> }>;
   onCancel?: () => void;
   isLoading?: boolean;
@@ -30,12 +31,14 @@ const defaultFormValues: UserFormData = {
   password: '',
   confirmPassword: '',
   roleId: '',
+  companyId: null,
   isActive: true,
 };
 
 export function UserForm({
   user,
   roles,
+  companies,
   onSubmit,
   onCancel,
   isLoading,
@@ -51,6 +54,7 @@ export function UserForm({
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors: localErrors, isDirty, isValid: formIsValid },
     setError: setLocalError,
   } = useForm<UserFormData>({
@@ -63,6 +67,8 @@ export function UserForm({
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string[]> | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  const selectedRoleName = watch('roleId') ? roles.find(r => r.id === watch('roleId'))?.name : '';
 
   useEffect(() => {
     if (user) {
@@ -70,6 +76,7 @@ export function UserForm({
         username: user.username || '',
         email: user.email || '',
         roleId: user.roleId || '',
+        companyId: user.companyId || null,
         isActive: user.isActive !== undefined ? user.isActive : true,
         password: '', // Always clear password fields on edit
         confirmPassword: '',
@@ -107,6 +114,7 @@ export function UserForm({
   };
   
   const combinedFieldErrors = { ...localErrors, ...serverFieldErrors };
+  const isSuperAdminRole = selectedRoleName === 'Admin';
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-4">
@@ -209,6 +217,34 @@ export function UserForm({
           <Label htmlFor="isActive" className="text-foreground text-xs">Active</Label>
         </div>
       </div>
+      
+       <div>
+          <Label htmlFor="companyId" className="text-foreground text-xs">Company*</Label>
+           <Controller
+            name="companyId"
+            control={control}
+            render={({ field }) => (
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value || ""} 
+                disabled={roles.length === 0 || isSuperAdminRole}
+              >
+                <SelectTrigger id="companyId" className="bg-input border-border focus:ring-primary text-sm">
+                  <SelectValue placeholder={isSuperAdminRole ? "Not applicable for Super Admin" : "Select a company"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map(company => (
+                    <SelectItem key={company.id} value={company.id!}>{company.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+           {(combinedFieldErrors.companyId || serverFieldErrors?.companyId) && (
+            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.companyId?.message || serverFieldErrors?.companyId?.[0]}</p>
+          )}
+          {isSuperAdminRole && <p className="text-xs text-muted-foreground mt-1">Super Admins are not tied to a specific company.</p>}
+        </div>
 
       <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">
         {onCancel && (

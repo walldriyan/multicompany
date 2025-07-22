@@ -2,7 +2,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import type { UserCreateInput, UserUpdateInput, Role, User } from '@/types';
+import type { UserCreateInput, UserUpdateInput, Role, User, CompanyProfileFormData } from '@/types';
 import { UserCreateSchema, UserUpdateSchema } from '@/lib/zodSchemas';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
@@ -15,6 +15,8 @@ function mapPrismaUserToType(prismaUser: any): Omit<User, 'passwordHash'> {
     email: prismaUser.email,
     isActive: prismaUser.isActive,
     roleId: prismaUser.roleId,
+    companyId: prismaUser.companyId,
+    company: prismaUser.company,
     role: prismaUser.role ? {
         id: prismaUser.role.id,
         name: prismaUser.role.name,
@@ -43,11 +45,12 @@ export async function createUserAction(
     const newUser = await prisma.user.create({
       data: {
         ...restOfUserData, // restOfUserData now correctly excludes password and confirmPassword
+        companyId: restOfUserData.companyId || undefined,
         passwordHash,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
       },
-      include: { role: true },
+      include: { role: true, company: true },
     });
     return { success: true, data: mapPrismaUserToType(newUser) };
   } catch (error: any) {
@@ -66,6 +69,8 @@ export async function createUserAction(
       } else if (error.code === 'P2003') { // Foreign key constraint failed
         if (error.message.includes('User_roleId_fkey')) {
              errorMessage = 'Invalid Role selected. The specified role does not exist.';
+        } else if (error.message.includes('User_companyId_fkey')) {
+             errorMessage = 'Invalid Company selected. The specified company does not exist.';
         } else {
             errorMessage = `Database integrity error: ${error.message} (Code: ${error.code})`;
         }
@@ -86,7 +91,7 @@ export async function getAllUsersWithRolesAction(): Promise<{
 }> {
   try {
     const users = await prisma.user.findMany({
-      include: { role: true },
+      include: { role: true, company: true },
       orderBy: { username: 'asc' },
     });
     return { success: true, data: users.map(mapPrismaUserToType) };
@@ -112,6 +117,7 @@ export async function updateUserAction(
 
   const dataToUpdate: Prisma.UserUpdateInput = { 
       ...restOfUserData,
+      companyId: restOfUserData.companyId || null,
       updatedByUserId: actorUserId
   };
 
@@ -123,7 +129,7 @@ export async function updateUserAction(
     const updatedUser = await prisma.user.update({
       where: { id },
       data: dataToUpdate,
-      include: { role: true },
+      include: { role: true, company: true },
     });
     return { success: true, data: mapPrismaUserToType(updatedUser) };
   } catch (error: any) {
@@ -143,6 +149,8 @@ export async function updateUserAction(
         errorMessage = 'User to update not found.';
       } else if (error.message.includes('User_roleId_fkey')) {
          errorMessage = 'Invalid Role selected. The specified role does not exist.';
+      } else if (error.message.includes('User_companyId_fkey')) {
+         errorMessage = 'Invalid Company selected. The specified company does not exist.';
       } else {
         errorMessage = `Database error: ${error.message} (Code: ${error.code})`;
       }
@@ -181,5 +189,18 @@ export async function getRolesForUserFormAction(): Promise<{ success: boolean; d
   } catch (error: any) {
     console.error('Error fetching roles for form:', error);
     return { success: false, error: 'Failed to fetch roles for form.' };
+  }
+}
+
+export async function getCompaniesForUserFormAction(): Promise<{ success: boolean; data?: Pick<CompanyProfileFormData, 'id' | 'name'>[]; error?: string }> {
+  try {
+    const companies = await prisma.companyProfile.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+    return { success: true, data: companies };
+  } catch (error: any) {
+    console.error('Error fetching companies for form:', error);
+    return { success: false, error: 'Failed to fetch companies for form.' };
   }
 }
