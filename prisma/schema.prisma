@@ -10,433 +10,393 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-// -------------------------------------
-// Core Models
-// -------------------------------------
-
-model CompanyProfile {
-  id              String  @id @default(cuid())
-  name            String
-  address         String?
-  phone           String?
-  email           String?
-  website         String?
-  taxId           String?
-  logoUrl         String?
-
-  users           User[]
-  products        Product[]
-  parties         Party[]
-  saleRecords     SaleRecord[]
-  purchaseBills   PurchaseBill[]
-  discountSets    DiscountSet[]
-  stockAdjustmentLogs StockAdjustmentLog[]
-  financialTransactions FinancialTransaction[]
-  cashRegisterShifts  CashRegisterShift[]
-  productDiscountConfigurations ProductDiscountConfiguration[]
-
-  createdByUserId String?
-  updatedByUserId String?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  email         String?   @unique
-  passwordHash  String
-  isActive      Boolean   @default(true)
-  
-  companyId     String?
-  company       CompanyProfile? @relation(fields: [companyId], references: [id])
+  id                        String    @id @default(cuid())
+  username                  String    @unique
+  email                     String?   @unique
+  passwordHash              String
+  isActive                  Boolean   @default(true)
+  roleId                    String
+  role                      Role      @relation(fields: [roleId], references: [id])
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  createdByUserId           String?
+  updatedByUserId           String?
+  companyId                 String?
+  company                   CompanyProfile? @relation(fields: [companyId], references: [id])
 
-  roleId        String
-  role          Role      @relation(fields: [roleId], references: [id])
+  createdParties            Party[]      @relation("CreatedParties")
+  updatedParties            Party[]      @relation("UpdatedParties")
+  createdProducts           Product[]    @relation("CreatedProducts")
+  updatedProducts           Product[]    @relation("UpdatedProducts")
+  createdPurchaseBills      PurchaseBill[] @relation("CreatedPurchaseBills")
+  recordedPurchasePayments  PurchasePayment[] @relation("RecordedPurchasePayments")
+  createdSaleRecords        SaleRecord[] @relation("CreatedSaleRecords")
+  recordedPaymentInstallments PaymentInstallment[] @relation("RecordedPaymentInstallments")
 
-  createdSales      SaleRecord[] @relation("CreatedSales")
-  createdPurchaseBills PurchaseBill[] @relation("CreatedPurchaseBills")
-  recordedPayments  PurchasePayment[] @relation("RecordedPayments")
-  createdParties    Party[] @relation("CreatedParties")
-  updatedParties    Party[] @relation("UpdatedParties")
-  createdProducts   Product[] @relation("CreatedProducts")
-  updatedProducts   Product[] @relation("UpdatedProducts")
-  stockAdjustments  StockAdjustmentLog[]
-  financialTransactions FinancialTransaction[]
-  cashRegisterShifts  CashRegisterShift[]
+  createdDiscountSets       DiscountSet[] @relation("CreatedDiscountSets")
+  updatedDiscountSets       DiscountSet[] @relation("UpdatedDiscountSets")
 
-  createdRoles      Role[] @relation("CreatedRoles")
-  updatedRoles      Role[] @relation("UpdatedRoles")
-  createdUsers      User[] @relation("CreatedUsers")
-  updatedUsers      User[] @relation("UpdatedUsers")
-  
-  createdByUserId   String?
-  updatedByUserId   String?
-  createdByUser     User? @relation("CreatedUsers", fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  updatedByUser     User? @relation("UpdatedUsers", fields: [updatedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updatedAppConfigs         AppConfig[]  @relation("UpdatedAppConfigs")
+  stockAdjustmentLogs       StockAdjustmentLog[]
+  financialTransactions     FinancialTransaction[]
+  cashRegisterShifts        CashRegisterShift[]
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdRoles              Role[] @relation("CreatedRoles")
+  updatedRoles              Role[] @relation("UpdatedRoles")
+
+  createdCompanyProfiles    CompanyProfile[] @relation("CreatedCompanyProfiles")
+  updatedCompanyProfiles    CompanyProfile[] @relation("UpdatedCompanyProfiles")
+
+  @@map("users")
 }
 
 model Role {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  description     String?
-  users           User[]
-  permissions     RolePermission[]
-  
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   createdByUserId String?
   updatedByUserId String?
-  createdByUser   User?     @relation("CreatedRoles", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  updatedByUser   User?     @relation("UpdatedRoles", fields: [updatedByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  createdBy   User?    @relation("CreatedRoles", fields: [createdByUserId], references: [id])
+  updatedBy   User?    @relation("UpdatedRoles", fields: [updatedByUserId], references: [id])
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  @@map("roles")
 }
 
 model Permission {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   action      String
   subject     String
   description String?
   roles       RolePermission[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([action, subject])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  @@map("permissions")
 }
 
 model RolePermission {
-  roleId        String
-  permissionId  String
-  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime   @default(now())
 
   @@id([roleId, permissionId])
+  @@map("role_permissions")
 }
 
-// -------------------------------------
-// Business Logic Models
-// -------------------------------------
-
 model Party {
-  id            String    @id @default(cuid())
-  name          String
-  phone         String?
-  email         String?   @unique
-  address       String?
-  type          String    // "CUSTOMER" or "SUPPLIER"
-  isActive      Boolean   @default(true)
-
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?  @unique
+  address   String?
+  type      String // "CUSTOMER" or "SUPPLIER"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdByUserId String?
+  updatedByUserId String?
+  createdBy User?    @relation("CreatedParties", fields: [createdByUserId], references: [id])
+  updatedBy User?    @relation("UpdatedParties", fields: [updatedByUserId], references: [id])
+  
+  purchaseBills PurchaseBill[]
+  saleRecords   SaleRecord[]
   companyId     String
   company       CompanyProfile @relation(fields: [companyId], references: [id])
 
-  sales         SaleRecord[]
-  purchases     PurchaseBill[]
-
-  createdByUserId String?
-  updatedByUserId String?
-  createdByUser User?     @relation("CreatedParties", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  updatedByUser User?     @relation("UpdatedParties", fields: [updatedByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  @@map("parties")
 }
 
 model Product {
-  id            String    @id @default(cuid())
-  name          String    @unique
-  code          String?   @unique
-  category      String?
-  barcode       String?   @unique
-  units         Json      // { baseUnit: 'pcs', derivedUnits: [{ name: 'box', conversionFactor: 12, threshold: 12 }] }
-  sellingPrice  Float
-  defaultQuantity Float     @default(1)
-  isActive      Boolean   @default(true)
-  isService     Boolean   @default(false)
+  id                 String      @id @default(cuid())
+  name               String
+  code               String?     @unique
+  category           String?
+  barcode            String?
+  units              Json
+  sellingPrice       Float
+  defaultQuantity    Float       @default(1)
+  isActive           Boolean     @default(true)
+  isService          Boolean     @default(false)
   productSpecificTaxRate Float?
-  description   String?
-  imageUrl      String?
+  description        String?
+  imageUrl           String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  createdByUserId    String?
+  updatedByUserId    String?
+  createdBy          User?       @relation("CreatedProducts", fields: [createdByUserId], references: [id])
+  updatedBy          User?       @relation("UpdatedProducts", fields: [updatedByUserId], references: [id])
 
-  companyId     String
-  company       CompanyProfile @relation(fields: [companyId], references: [id])
-
-  batches       ProductBatch[]
-  purchaseBillItems PurchaseBillItem[]
-  saleRecordItems   Json // Handled in SaleRecord
-  
-  stockAdjustmentLogs StockAdjustmentLog[]
   productDiscountConfigurations ProductDiscountConfiguration[]
+  
+  batches            ProductBatch[]
+  stockAdjustmentLogs StockAdjustmentLog[]
+  companyId          String
+  company            CompanyProfile @relation(fields: [companyId], references: [id])
+  purchaseBillItems  PurchaseBillItem[]
 
-  createdByUserId String?
-  updatedByUserId String?
-  createdByUser User?     @relation("CreatedProducts", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  updatedByUser User?     @relation("UpdatedProducts", fields: [updatedByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  @@map("products")
 }
 
 model ProductBatch {
-  id                String    @id @default(cuid())
+  id                String   @id @default(cuid())
   productId         String
-  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  purchaseBillItemId String?  @unique
+  purchaseBillItem  PurchaseBillItem? @relation(fields: [purchaseBillItemId], references: [id])
   batchNumber       String?
   quantity          Float
   costPrice         Float
   sellingPrice      Float
   expiryDate        DateTime?
+  createdAt         DateTime @default(now())
 
-  purchaseBillItemId String? @unique
-  purchaseBillItem   PurchaseBillItem? @relation(fields: [purchaseBillItemId], references: [id], onDelete: SetNull)
-
-  createdAt         DateTime  @default(now())
+  @@map("product_batches")
 }
 
-model DiscountSet {
-  id                  String    @id @default(cuid())
-  name                String    @unique
-  isActive            Boolean   @default(true)
-  isDefault           Boolean   @default(false)
-  isOneTimePerTransaction Boolean @default(false)
 
+model PurchaseBillItem {
+  id                 String   @id @default(cuid())
+  purchaseBillId     String
+  purchaseBill       PurchaseBill @relation(fields: [purchaseBillId], references: [id])
+  productId          String
+  product            Product  @relation(fields: [productId], references: [id])
+  productNameAtPurchase String
+  quantityPurchased  Float
+  costPriceAtPurchase Float
+  subtotal           Float
+  batch              ProductBatch?
+
+  @@map("purchase_bill_items")
+}
+
+model PurchaseBill {
+  id                 String   @id @default(cuid())
+  supplierId         String
+  supplier           Party    @relation(fields: [supplierId], references: [id])
+  supplierBillNumber String?
+  purchaseDate       DateTime
+  items              PurchaseBillItem[]
+  notes              String?
+  totalAmount        Float
+  amountPaid         Float
+  paymentStatus      String   // e.g., 'COMPLETED', 'PAID', 'PARTIALLY_PAID'
+  payments           PurchasePayment[]
+  createdByUserId    String?
+  createdBy          User?    @relation("CreatedPurchaseBills", fields: [createdByUserId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  companyId          String
+  company            CompanyProfile @relation(fields: [companyId], references: [id])
+  
+  @@map("purchase_bills")
+}
+
+model PurchasePayment {
+  id              String   @id @default(cuid())
+  purchaseBillId  String
+  purchaseBill    PurchaseBill @relation(fields: [purchaseBillId], references: [id])
+  paymentDate     DateTime
+  amountPaid      Float
+  method          String
+  reference       String?
+  notes           String?
+  recordedByUserId String?
+  recordedBy      User?    @relation("RecordedPurchasePayments", fields: [recordedByUserId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@map("purchase_payments")
+}
+
+
+model SaleRecord {
+  id                 String   @id @default(cuid())
+  recordType         String   // "SALE", "RETURN_TRANSACTION"
+  billNumber         String   @unique
+  date               DateTime
+  items              Json
+  subtotalOriginal   Float
+  totalItemDiscountAmount Float
+  totalCartDiscountAmount Float
+  netSubtotal        Float
+  appliedDiscountSummary Json?
+  activeDiscountSetId String?
+  taxRate            Float
+  taxAmount          Float
+  totalAmount        Float
+  paymentMethod      String   // "cash", "credit", "REFUND"
+  amountPaidByCustomer Float?
+  changeDueToCustomer Float?
+  status             String   // "COMPLETED_ORIGINAL", "ADJUSTED_ACTIVE", "RETURN_TRANSACTION_COMPLETED"
+  returnedItemsLog   Json?
+  originalSaleRecordId String?
+  isCreditSale       Boolean  @default(false)
+  creditOutstandingAmount Float?
+  creditLastPaymentDate DateTime?
+  creditPaymentStatus String?   // 'PENDING', 'PARTIALLY_PAID', 'FULLY_PAID'
+  paymentInstallments PaymentInstallment[]
+  customerId         String?
+  customer           Party?   @relation(fields: [customerId], references: [id])
+  createdByUserId    String?
+  createdBy          User?    @relation("CreatedSaleRecords", fields: [createdByUserId], references: [id])
+  companyId          String
+  company            CompanyProfile @relation(fields: [companyId], references: [id])
+  
+  @@map("sale_records")
+}
+
+
+model PaymentInstallment {
+  id              String   @id @default(cuid())
+  saleRecordId    String
+  saleRecord      SaleRecord @relation(fields: [saleRecordId], references: [id])
+  paymentDate     DateTime
+  amountPaid      Float
+  method          String
+  notes           String?
+  recordedByUserId String?
+  recordedBy      User?    @relation("RecordedPaymentInstallments", fields: [recordedByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("payment_installments")
+}
+
+
+model DiscountSet {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  isActive          Boolean  @default(true)
+  isDefault         Boolean  @default(false)
+  isOneTimePerTransaction Boolean @default(false)
   globalCartPriceRuleJson Json?
   globalCartQuantityRuleJson Json?
   defaultLineItemValueRuleJson Json?
   defaultLineItemQuantityRuleJson Json?
   defaultSpecificQtyThresholdRuleJson Json?
   defaultSpecificUnitPriceThresholdRuleJson Json?
-  buyGetRulesJson     Json?
-
-  companyId           String
-  company             CompanyProfile @relation(fields: [companyId], references: [id])
-
+  buyGetRulesJson Json?
   productConfigurations ProductDiscountConfiguration[]
-  activeSaleRecords   SaleRecord[]
+  createdByUserId   String?
+  updatedByUserId   String?
+  createdBy         User?    @relation("CreatedDiscountSets", fields: [createdByUserId], references: [id])
+  updatedBy         User?    @relation("UpdatedDiscountSets", fields: [updatedByUserId], references: [id])
+  companyId         String
+  company           CompanyProfile @relation(fields: [companyId], references: [id])
 
-  createdByUserId     String?
-  updatedByUserId     String?
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  @@map("discount_sets")
 }
 
 model ProductDiscountConfiguration {
-  id                      String    @id @default(cuid())
-  discountSetId           String
-  discountSet             DiscountSet @relation(fields: [discountSetId], references: [id], onDelete: Cascade)
-  
-  productId               String
-  product                 Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  discountSetId      String
+  discountSet        DiscountSet @relation(fields: [discountSetId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productNameAtConfiguration String
   isActiveForProductInCampaign Boolean @default(true)
-
-  lineItemValueRuleJson   Json?
+  lineItemValueRuleJson Json?
   lineItemQuantityRuleJson Json?
   specificQtyThresholdRuleJson Json?
   specificUnitPriceThresholdRuleJson Json?
 
-  companyId           String
-  company             CompanyProfile @relation(fields: [companyId], references: [id])
-
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-}
-
-
-// -------------------------------------
-// Transactional Models
-// -------------------------------------
-
-model SaleRecord {
-  id            String    @id @default(cuid())
-  recordType    String    // "SALE", "RETURN_TRANSACTION"
-  billNumber    String    @unique
-  date          DateTime
-  
-  items         Json      // SaleRecordItem[]
-  subtotalOriginal Float
-  totalItemDiscountAmount Float
-  totalCartDiscountAmount Float
-  netSubtotal   Float
-  appliedDiscountSummary Json?
-  taxRate       Float
-  taxAmount     Float
-  totalAmount   Float
-  paymentMethod String    // "cash", "credit", "REFUND"
-  amountPaidByCustomer Float?
-  changeDueToCustomer Float?
-  status        String    // "COMPLETED_ORIGINAL", "ADJUSTED_ACTIVE", "RETURN_TRANSACTION_COMPLETED"
-  
-  returnedItemsLog Json?  // ReturnedItemDetail[]
-  originalSaleRecordId String?
-
-  isCreditSale    Boolean @default(false)
-  creditOutstandingAmount Float?
-  creditLastPaymentDate DateTime?
-  creditPaymentStatus String? // "PENDING", "PARTIALLY_PAID", "FULLY_PAID"
-  
-  paymentInstallments PaymentInstallment[]
-
-  companyId     String
-  company       CompanyProfile @relation(fields: [companyId], references: [id])
-  
-  customerId    String?
-  customer      Party?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-
-  activeDiscountSetId String?
-  activeDiscountSet   DiscountSet? @relation(fields: [activeDiscountSetId], references: [id], onDelete: SetNull)
-  
-  createdByUserId String
-  createdBy     User      @relation("CreatedSales", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  
-  createdAt     DateTime  @default(now())
-}
-
-model PaymentInstallment {
-  id              String    @id @default(cuid())
-  saleRecordId    String
-  saleRecord      SaleRecord @relation(fields: [saleRecordId], references: [id], onDelete: Cascade)
-  
-  paymentDate     DateTime
-  amountPaid      Float
-  method          String
-  notes           String?
-  
-  recordedByUserId String
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
-
-
-model PurchaseBill {
-  id                  String    @id @default(cuid())
-  supplierId          String
-  supplier            Party     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  
-  supplierBillNumber  String?
-  purchaseDate        DateTime
-  notes               String?
-  totalAmount         Float
-  amountPaid          Float     @default(0)
-  paymentStatus       String    // "DRAFT", "COMPLETED", "PAID", "PARTIALLY_PAID", "CANCELLED"
-  
-  items               PurchaseBillItem[]
-  payments            PurchasePayment[]
-
-  companyId           String
-  company             CompanyProfile @relation(fields: [companyId], references: [id])
-  
-  createdByUserId     String
-  createdBy           User      @relation("CreatedPurchaseBills", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-}
-
-model PurchaseBillItem {
-  id                  String    @id @default(cuid())
-  purchaseBillId      String
-  purchaseBill        PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
-  
-  productId           String
-  product             Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  productNameAtPurchase String
-  
-  quantityPurchased   Float
-  costPriceAtPurchase Float
-  subtotal            Float
-
-  batch               ProductBatch?
-}
-
-model PurchasePayment {
-  id                String    @id @default(cuid())
-  purchaseBillId    String
-  purchaseBill      PurchaseBill @relation(fields: [purchaseBillId], references: [id], onDelete: Cascade)
-  
-  paymentDate       DateTime
-  amountPaid        Float
-  method            String    // "CASH", "BANK_TRANSFER", "CHEQUE", etc.
-  reference         String?
-  notes             String?
-  
-  recordedByUserId  String
-  recordedByUser    User      @relation("RecordedPayments", fields: [recordedByUserId], references: [id], onDelete: Restrict)
-  
-  createdAt         DateTime  @default(now())
-}
-
-
-// -------------------------------------
-// Utility & Log Models
-// -------------------------------------
-
-model StockAdjustmentLog {
-  id              String    @id @default(cuid())
-  productId       String
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
-  quantityChanged Float
-  reason          String    // "LOST", "DAMAGED", "CORRECTION_ADD", "CORRECTION_SUBTRACT"
-  notes           String?
-  
-  adjustedAt      DateTime  @default(now())
-
-  companyId       String
-  company         CompanyProfile @relation(fields: [companyId], references: [id])
-  
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-}
-
-
-model FinancialTransaction {
-  id            String    @id @default(cuid())
-  date          DateTime
-  type          String    // "INCOME" or "EXPENSE"
-  amount        Float
-  category      String
-  description   String?
-
-  companyId     String
-  company       CompanyProfile @relation(fields: [companyId], references: [id])
-  
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model CashRegisterShift {
-  id              String    @id @default(cuid())
-  openingBalance  Float
-  closingBalance  Float?
-  notes           String?
-  
-  startedAt       DateTime  @default(now())
-  closedAt        DateTime?
-  status          String    // "OPEN", "CLOSED"
-
-  companyId       String
-  company         CompanyProfile @relation(fields: [companyId], references: [id])
-
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  @@map("product_discount_configurations")
 }
 
 model AppConfig {
-  id              String    @id
+  id              String   @id
   value           Json
-  
   updatedByUserId String?
-  updatedAt       DateTime  @updatedAt
+  updatedBy       User?    @relation("UpdatedAppConfigs", fields: [updatedByUserId], references: [id])
+
+  @@map("app_config")
+}
+
+
+model StockAdjustmentLog {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  quantityChanged Float
+  reason          String   // 'LOST', 'DAMAGED', 'CORRECTION_ADD', 'CORRECTION_SUBTRACT'
+  notes           String?
+  adjustedAt      DateTime @default(now())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  companyId       String
+  company         CompanyProfile @relation(fields: [companyId], references: [id])
+
+  @@map("stock_adjustment_logs")
+}
+
+model FinancialTransaction {
+  id          String   @id @default(cuid())
+  date        DateTime
+  type        String   // 'INCOME' or 'EXPENSE'
+  amount      Float
+  category    String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  companyId   String
+  company     CompanyProfile @relation(fields: [companyId], references: [id])
+
+  @@map("financial_transactions")
+}
+
+model CashRegisterShift {
+  id              String   @id @default(cuid())
+  openingBalance  Float
+  closingBalance  Float?
+  notes           String?
+  startedAt       DateTime @default(now())
+  closedAt        DateTime?
+  status          String   // 'OPEN', 'CLOSED'
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  companyId       String
+  company         CompanyProfile @relation(fields: [companyId], references: [id])
+
+  @@map("cash_register_shifts")
+}
+
+model CompanyProfile {
+  id          String @id @default(cuid())
+  name        String @unique
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  taxId       String?
+  logoUrl     String?
+  createdByUserId String?
+  updatedByUserId String?
+  createdBy   User?    @relation("CreatedCompanyProfiles", fields: [createdByUserId], references: [id])
+  updatedBy   User?    @relation("UpdatedCompanyProfiles", fields: [updatedByUserId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users       User[]
+  parties     Party[]
+  products    Product[]
+  purchaseBills PurchaseBill[]
+  saleRecords SaleRecord[]
+  discountSets DiscountSet[]
+  stockAdjustmentLogs StockAdjustmentLog[]
+  financialTransactions FinancialTransaction[]
+  cashRegisterShifts    CashRegisterShift[]
+
+  @@map("company_profiles")
 }
