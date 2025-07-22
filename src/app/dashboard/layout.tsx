@@ -172,6 +172,7 @@ export default function DashboardLayout({
                         <div className="flex-grow overflow-hidden group-data-[collapsible=icon]:hidden">
                             <p className="text-sm font-semibold text-foreground truncate">{currentUser?.username}</p>
                             <p className="text-xs text-muted-foreground truncate">{currentUser?.role?.name}</p>
+                            <p className="text-xs text-primary/80 truncate">{currentUser?.company?.name || 'Super Admin'}</p>
                         </div>
                     </div>
                 </SidebarMenuItem>

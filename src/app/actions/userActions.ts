@@ -117,7 +117,7 @@ export async function updateUserAction(
 
   const dataToUpdate: Prisma.UserUpdateInput = { 
       ...restOfUserData,
-      companyId: restOfUserData.companyId || null,
+      companyId: restOfUserData.companyId === 'null' ? null : restOfUserData.companyId || null,
       updatedByUserId: actorUserId
   };
 

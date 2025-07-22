@@ -101,7 +101,7 @@ export async function createProductAction(
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.companyId) {
-    return { success: false, error: "Could not find the user's company to associate the product with." };
+    return { success: false, error: "Could not find the user's company to associate the product with. Please ensure the user is assigned to a company." };
   }
   const companyId = user.companyId;
 
