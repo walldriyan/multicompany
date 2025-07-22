@@ -83,6 +83,7 @@ function mapPrismaProductToType(
     createdByUserId: product.createdByUserId,
     updatedByUserId: product.updatedByUserId,
     productDiscountConfigurations: product.productDiscountConfigurations,
+    companyId: product.companyId,
   };
 }
 
@@ -94,6 +95,16 @@ export async function createProductAction(
   if (!prisma || !prisma.product) {
     return { success: false, error: "Prisma client or Product model not initialized. Please run 'npx prisma generate'." };
   }
+   if (!userId) {
+    return { success: false, error: "User is not authenticated. Cannot create product." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.companyId) {
+    return { success: false, error: "Could not find the user's company to associate the product with." };
+  }
+  const companyId = user.companyId;
+
   const validationResult = ProductFormDataSchema.safeParse(productData);
   if (!validationResult.success) {
     const fieldErrors = validationResult.error.flatten().fieldErrors;
@@ -111,6 +122,7 @@ export async function createProductAction(
       const createdProduct = await tx.product.create({
         data: {
           ...restOfProductData,
+          companyId: companyId,
           sellingPrice: sellingPrice,
           units: unitsToStore,
           code: restOfProductData.code || undefined,
@@ -171,8 +183,8 @@ export async function createProductAction(
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
         const target = error.meta?.target as string[] | undefined;
-        if (target?.includes('name')) return { success: false, error: 'A product with this name already exists.' };
-        if (target?.includes('code')) return { success: false, error: 'A product with this code already exists.' };
+        if (target?.includes('name')) return { success: false, error: 'A product with this name already exists in this company.' };
+        if (target?.includes('code')) return { success: false, error: 'A product with this code already exists in this company.' };
         return { success: false, error: `A unique constraint violation occurred on: ${target?.join(', ')}` };
       }
     }

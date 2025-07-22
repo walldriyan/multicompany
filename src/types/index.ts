@@ -396,6 +396,7 @@ export interface User {
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
   companyId?: string | null; // Multi-company support
+  company?: CompanyProfileFormData;
 }
 
 export interface UserFormData {

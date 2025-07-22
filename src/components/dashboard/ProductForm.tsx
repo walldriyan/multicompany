@@ -85,7 +85,7 @@ export function ProductForm({
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
     defaultValues: product
-      ? { ...defaultFormValues, ...product, stock: product.stock, costPrice: product.costPrice }
+      ? { ...defaultFormValues, ...product, stock: 0, costPrice: product.costPrice }
       : defaultFormValues,
     mode: "onChange",
   });
@@ -152,7 +152,7 @@ export function ProductForm({
         ? {
             ...defaultFormValues,
             ...product,
-            stock: product.isService ? 0 : product.stock,
+            stock: 0, // Always start with 0 for adjustments
             costPrice: product.costPrice,
           }
         : defaultFormValues;
@@ -695,7 +695,7 @@ export function ProductForm({
                                             <TableCell className="text-xs">{batch.productNameAtPurchase || product.name}</TableCell>
                                             <TableCell className="text-right text-xs">{batch.quantity}</TableCell>
                                             <TableCell className="text-right text-xs">Rs. {batch.costPrice.toFixed(2)}</TableCell>
-                                            <TableCell className="text-right text-xs">Rs. {product.sellingPrice.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right text-xs">Rs. {batch.sellingPrice.toFixed(2)}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
