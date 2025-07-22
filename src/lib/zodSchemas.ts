@@ -356,7 +356,7 @@ export const PurchasePaymentCreateInputSchema = z.object({
   reference: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
-export type PurchasePaymentCreateInput = z.infer<typeof PurchasePaymentCreateInput>;
+export type PurchasePaymentCreateInput = z.infer<typeof PurchasePaymentCreateInputSchema>;
 
 export const UserCreateSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters long."),
@@ -365,6 +365,7 @@ export const UserCreateSchema = z.object({
   confirmPassword: z.string(),
   roleId: z.string().min(1, "Role is required."),
   isActive: z.boolean().default(true),
+  companyId: z.string().min(1, "Company is required for this role.").optional().nullable(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -378,6 +379,7 @@ export const UserUpdateSchema = z.object({
   confirmPassword: z.string().optional().or(z.literal('')),
   roleId: z.string().min(1, "Role is required."),
   isActive: z.boolean().default(true),
+  companyId: z.string().min(1, "Company is required for this role.").optional().nullable(),
 }).refine((data) => {
   if (data.password && data.password.length > 0) {
     return data.password === data.confirmPassword;
@@ -411,8 +413,8 @@ export type PermissionCreateInput = z.infer<typeof PermissionCreateSchema>;
 export const CompanyProfileSchema = z.object({
   id: z.string().cuid().optional(),
   name: z.string().min(1, "Company name is required."),
-  address: z.string().min(1, "Address is required."),
-  phone: z.string().min(1, "Phone number is required."),
+  address: z.string().optional().nullable().or(z.literal('')),
+  phone: z.string().optional().nullable().or(z.literal('')),
   email: z.string().email("Invalid email format.").optional().nullable().or(z.literal('')),
   website: z.string().url("Invalid URL format. Must be a full URL (e.g., https://example.com/image.png) or empty if no valid URL.").optional().nullable().or(z.literal('')),
   taxId: z.string().optional().nullable().or(z.literal('')),
@@ -456,3 +458,5 @@ export const CashRegisterShiftFormSchema = z.object({
 }).refine(data => data.openingBalance !== undefined || data.closingBalance !== undefined, {
     message: "Either opening or closing balance must be provided.",
 });
+
+    

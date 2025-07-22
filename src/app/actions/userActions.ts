@@ -106,12 +106,18 @@ export async function updateUserAction(
   userData: unknown,
   actorUserId: string | null
 ): Promise<{ success: boolean; data?: Omit<User, 'passwordHash'>; error?: string; fieldErrors?: Record<string, string[]> }> {
+  console.log("[ACTION START] updateUserAction for user ID:", id);
+  console.log("[STEP 1] Raw data from form:", userData);
+
   if (!id) return { success: false, error: "User ID is required for update." };
   
   const validationResult = UserUpdateSchema.safeParse(userData);
   if (!validationResult.success) {
+    console.error("[VALIDATION FAIL] Zod validation failed:", validationResult.error.flatten().fieldErrors);
     return { success: false, error: "Validation failed.", fieldErrors: validationResult.error.flatten().fieldErrors };
   }
+  
+  console.log("[STEP 2] Zod validation successful. Validated data:", validationResult.data);
   const { password, confirmPassword, ...restOfUserData } = validationResult.data;
 
   const dataToUpdate: Prisma.UserUpdateInput = { 
@@ -126,10 +132,14 @@ export async function updateUserAction(
       dataToUpdate.companyId = restOfUserData.companyId;
   }
 
-
   if (password && password.trim() !== "") {
     dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
+    console.log("[STEP 3] New password provided and hashed.");
+  } else {
+    console.log("[STEP 3] No new password provided.");
   }
+
+  console.log("[STEP 4] Final data payload being sent to Prisma:", dataToUpdate);
 
   try {
     const updatedUser = await prisma.user.update({
@@ -137,9 +147,10 @@ export async function updateUserAction(
       data: dataToUpdate,
       include: { role: true, company: true },
     });
+    console.log("[SUCCESS] Prisma update successful. Updated user:", updatedUser);
     return { success: true, data: mapPrismaUserToType(updatedUser) };
   } catch (error: any) {
-    console.error(`Error updating user for ID ${id}:`, error);
+    console.error('[ACTION FAIL] Critical error in updateUserAction:', error);
     let errorMessage = 'Failed to update user. Please check server logs for details.';
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
@@ -210,3 +221,5 @@ export async function getCompaniesForUserFormAction(): Promise<{ success: boolea
     return { success: false, error: 'Failed to fetch companies for form.' };
   }
 }
+
+    
