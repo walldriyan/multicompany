@@ -154,6 +154,7 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
       })),
       customerId: record.customerId || null,
       customer: record.customer,
+      companyId: record.companyId,
       _hasReturns: _hasReturnsFlag,
     };
   } catch (mapError: any) {
@@ -197,6 +198,12 @@ export async function saveSaleRecordAction(
     console.log('[saveSaleRecordAction] --- [STEP 2] Starting Prisma Transaction ---');
     const result = await prisma.$transaction(async (tx) => {
       console.log('[saveSaleRecordAction] [TX] Transaction block entered.');
+      
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user || !user.companyId) {
+        throw new Error("Could not find the user's company to associate the sale with.");
+      }
+      const companyId = user.companyId;
 
       if (!recordIdFromInput) {
         console.log('[saveSaleRecordAction] [TX] Creating new SaleRecord. Processing stock deduction loop...');
@@ -229,7 +236,9 @@ export async function saveSaleRecordAction(
         console.log('[saveSaleRecordAction] [TX] Stock deduction loop finished.');
 
         const commonDataPayload = {
-            ...saleRecordFields, createdByUserId: userId,
+            ...saleRecordFields, 
+            companyId: companyId,
+            createdByUserId: userId,
             billNumber: saleRecordFields.billNumber, date: new Date(saleRecordFields.date),
             activeDiscountSetId: saleRecordFields.activeDiscountSetId, 
             appliedDiscountSummary: (saleRecordFields.appliedDiscountSummary && Array.isArray(saleRecordFields.appliedDiscountSummary) ? saleRecordFields.appliedDiscountSummary : Prisma.JsonNull) as Prisma.JsonValue,
