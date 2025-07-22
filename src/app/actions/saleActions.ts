@@ -199,11 +199,24 @@ export async function saveSaleRecordAction(
     const result = await prisma.$transaction(async (tx) => {
       console.log('[saveSaleRecordAction] [TX] Transaction block entered.');
       
-      const user = await tx.user.findUnique({ where: { id: userId } });
-      if (!user || !user.companyId) {
+      const user = await tx.user.findUnique({ where: { id: userId }, include: { role: true } });
+      let companyId: string | null = user?.companyId || null;
+
+      // Super Admin fallback logic
+      if (!companyId && user?.role?.name === 'Admin') {
+          const firstCompany = await tx.companyProfile.findFirst({
+              orderBy: { createdAt: 'asc' }
+          });
+          if (firstCompany) {
+              companyId = firstCompany.id;
+          } else {
+              throw new Error("Could not find a default company to associate the Super Admin's sale with. Please create a company first.");
+          }
+      }
+
+      if (!companyId) {
         throw new Error("Could not find the user's company to associate the sale with.");
       }
-      const companyId = user.companyId;
 
       if (!recordIdFromInput) {
         console.log('[saveSaleRecordAction] [TX] Creating new SaleRecord. Processing stock deduction loop...');
