@@ -145,9 +145,27 @@ export async function saveCompanyProfileAction(
       });
     } else { // This is a create
        console.log("[DB] Creating new profile.");
+
+        // Check if this is the very first company being created.
+       const companyCount = await prisma.companyProfile.count();
+
        savedProfile = await prisma.companyProfile.create({
          data: { ...finalData, createdByUserId: userId }
        });
+
+       // If it was the first company, assign the admin user to it.
+       if (companyCount === 0) {
+            const adminUser = await prisma.user.findFirst({
+                where: { role: { name: 'Admin' } }
+            });
+            if (adminUser && !adminUser.companyId) {
+                await prisma.user.update({
+                    where: { id: adminUser.id },
+                    data: { companyId: savedProfile.id }
+                });
+                console.log(`[DB] First company created. Admin user '${adminUser.username}' assigned to it.`);
+            }
+       }
     }
     
     console.log("[DB SUCCESS] Prisma operation successful. Profile saved:", savedProfile);
