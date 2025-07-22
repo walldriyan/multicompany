@@ -112,14 +112,20 @@ export async function updateUserAction(
   if (!validationResult.success) {
     return { success: false, error: "Validation failed.", fieldErrors: validationResult.error.flatten().fieldErrors };
   }
-  // Destructure password AND confirmPassword out, as confirmPassword is not part of the DB schema
   const { password, confirmPassword, ...restOfUserData } = validationResult.data;
 
   const dataToUpdate: Prisma.UserUpdateInput = { 
       ...restOfUserData,
-      companyId: restOfUserData.companyId === 'null' ? null : restOfUserData.companyId || null,
       updatedByUserId: actorUserId
   };
+  
+  // Explicitly handle companyId to correctly set it to null if needed
+  if (restOfUserData.companyId === 'null' || restOfUserData.companyId === null || restOfUserData.companyId === undefined) {
+      dataToUpdate.companyId = null;
+  } else {
+      dataToUpdate.companyId = restOfUserData.companyId;
+  }
+
 
   if (password && password.trim() !== "") {
     dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
