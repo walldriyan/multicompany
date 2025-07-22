@@ -34,3 +34,4 @@ This will create a new migration file and update your database structure. You ma
   ```bash
   npx prisma studio
   ```
+hi

@@ -139,6 +139,22 @@ export default function UserManagementPage() {
     fetchPermissions();
   }, [fetchUsers, fetchRolesAndCompanies, fetchPermissions]);
 
+  useEffect(() => {
+    if (activeTab === 'users') {
+        const fetchCompaniesForForm = async () => {
+            setIsLoadingCompanies(true);
+            const result = await getCompaniesForUserFormAction();
+            if (result.success && result.data) {
+                setCompaniesForForm(result.data);
+            } else {
+                toast({ title: 'Could not refresh companies list', description: result.error, variant: 'destructive' });
+            }
+            setIsLoadingCompanies(false);
+        };
+        fetchCompaniesForForm();
+    }
+  }, [activeTab, toast]);
+
   // User handlers
   const resetUserFormState = () => {
     setEditingUser(null);
