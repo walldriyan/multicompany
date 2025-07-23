@@ -18,8 +18,8 @@ async function getCompanyIdForReport(userId?: string | null): Promise<string | n
 export async function getComprehensiveReportAction(
   startDate: Date,
   endDate: Date,
+  actorUserId: string | null, // This is the user *running* the report, for company scoping
   userIdForFilter?: string | null, // This is the user selected in the filter, could be 'all'
-  actorUserId?: string | null // This is the user *running* the report, for company scoping
 ): Promise<{ success: boolean; data?: ComprehensiveReport; error?: string }> {
   try {
 
@@ -157,11 +157,14 @@ export async function getComprehensiveReportAction(
 }
 
 
-export async function getUsersForReportFilterAction(actorUserId: string): Promise<{
+export async function getUsersForReportFilterAction(actorUserId: string | null): Promise<{
   success: boolean;
   data?: { id: string; username: string }[];
   error?: string;
 }> {
+  if (!actorUserId) {
+    return { success: false, error: "User not authenticated." };
+  }
   try {
     const companyId = await getCompanyIdForReport(actorUserId);
     if (!companyId) {
@@ -186,10 +189,9 @@ export async function getUsersForReportFilterAction(actorUserId: string): Promis
       },
     });
     return { success: true, data: users };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching users for report filter:', error);
-    return { success: false, error: 'Failed to load user list.' };
+    return { success: false, error: error.message || 'Failed to load user list.' };
   }
 }
-
       

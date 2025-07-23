@@ -25,9 +25,12 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, CalendarIcon, UserIcon, BarChart3, Printer, AlertTriangle, Package, ShoppingCart, Users, Briefcase, Archive, Wallet, Tag, CornerDownRight, TrendingUp, TrendingDown, ChevronsRight, FileText, Sigma, FileDiff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const currentUser = useSelector(selectCurrentUser);
   const [date, setDate] = useState<DateRange | undefined>({ from: startOfDay(addDays(new Date(), -30)), to: endOfDay(new Date()) });
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
@@ -71,20 +74,25 @@ export default function ReportsPage() {
 
   useEffect(() => {
     async function fetchUsers() {
-      const result = await getUsersForReportFilterAction();
+      if (!currentUser?.id) return;
+      const result = await getUsersForReportFilterAction(currentUser.id);
       if (result.success && result.data) {
         setUsers(result.data);
       } else {
-        toast({ title: 'Error', description: 'Could not load users for filter.', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error || 'Could not load users for filter.', variant: 'destructive' });
       }
     }
     fetchUsers();
-  }, [toast]);
+  }, [toast, currentUser]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!date?.from) {
       toast({ title: 'Invalid Date', description: 'Please select a date or date range.', variant: 'destructive' });
       return;
+    }
+    if (!currentUser?.id) {
+       toast({ title: 'Authentication Error', description: 'Cannot generate report, user not found.', variant: 'destructive' });
+       return;
     }
     setIsLoading(true);
     setReportData(null);
@@ -92,7 +100,7 @@ export default function ReportsPage() {
     const fromDate = startOfDay(date.from);
     const toDate = endOfDay(date.to || date.from); // If date.to is not set, use date.from
     
-    const result = await getComprehensiveReportAction(fromDate, toDate, selectedUserId === 'all' ? null : selectedUserId);
+    const result = await getComprehensiveReportAction(fromDate, toDate, currentUser.id, selectedUserId === 'all' ? null : selectedUserId);
     if (result.success && result.data) {
       setReportData(result.data);
       toast({ title: 'Report Generated', description: 'Report successfully created.' });
@@ -100,7 +108,7 @@ export default function ReportsPage() {
       toast({ title: 'Error Generating Report', description: result.error, variant: 'destructive' });
     }
     setIsLoading(false);
-  }, [date, selectedUserId, toast]);
+  }, [date, selectedUserId, toast, currentUser]);
   
   const handleSetPreset = (range: { from: Date; to: Date; }) => {
     setDate(range);
