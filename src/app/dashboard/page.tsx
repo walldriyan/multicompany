@@ -8,17 +8,20 @@ import { Home, Package, ShoppingCart, BarChart3, ReceiptText, WalletCards, Perce
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
-interface TimelineItemProps {
+interface WidgetProps {
   icon: React.ElementType;
   title: string;
   description: string;
   link: string;
   permission: { action: string; subject: string };
-  isLast?: boolean;
+  className?: string;
+  size?: 'small' | 'medium' | 'large';
 }
 
-const TimelineItem = ({ icon: Icon, title, description, link, permission, isLast = false }: TimelineItemProps) => {
+const Widget = ({ icon: Icon, title, description, link, permission, className = '', size = 'medium' }: WidgetProps) => {
   const { can } = usePermissions();
   const hasAccess = can(permission.action as any, permission.subject as any);
 
@@ -26,23 +29,30 @@ const TimelineItem = ({ icon: Icon, title, description, link, permission, isLast
     return null;
   }
 
+  const sizeClasses = {
+    small: 'md:col-span-1',
+    medium: 'md:col-span-1',
+    large: 'md:col-span-2',
+  };
+
   return (
-    <div className="relative flex items-start group">
-      <div className="flex flex-col items-center mr-3">
-        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 border-2 border-primary/20 group-hover:bg-primary/20 group-hover:border-primary transition-all duration-300">
-          <Icon className="w-3.5 h-3.5 text-primary" />
+    <div className={cn(
+      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-2xl bg-card/40 dark:bg-card/60 border border-white/10 backdrop-blur-xl overflow-hidden",
+      sizeClasses[size],
+      className
+    )}>
+      <div className="flex flex-col flex-grow">
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 border-2 border-primary/20 mb-3">
+          <Icon className="w-5 h-5 text-primary" />
         </div>
-        {!isLast && <div className="w-px h-full bg-border/40" />}
-      </div>
-      <div className="bg-gradient-to-br from-card to-background border border-border/40 rounded-lg p-2.5 group-hover:border-primary/40 transition-all duration-300 flex-1 flex flex-col mb-3">
-        <h3 className="text-sm font-semibold text-card-foreground">{title}</h3>
+        <h3 className="text-base font-semibold text-card-foreground">{title}</h3>
         <p className="mt-1 text-xs text-muted-foreground flex-grow">{description}</p>
-        <Button asChild variant="outline" size="sm" className="mt-2.5 rounded-full self-start h-7 px-2.5 text-xs">
-          <Link href={link}>
-            Go to Page <ArrowRight className="ml-1 h-3 w-3" />
-          </Link>
-        </Button>
       </div>
+      <Button asChild variant="secondary" size="sm" className="mt-4 rounded-full self-start h-8 px-3 text-xs bg-primary/10 hover:bg-primary/20 text-primary-foreground border border-primary/20">
+        <Link href={link}>
+          Go to Page <ArrowRight className="ml-1.5 h-3 w-3" />
+        </Link>
+      </Button>
     </div>
   );
 };
@@ -50,90 +60,102 @@ const TimelineItem = ({ icon: Icon, title, description, link, permission, isLast
 
 export default function WelcomePage() {
     const currentUser = useSelector(selectCurrentUser);
-    const timelineItems: Omit<TimelineItemProps, 'isLast'>[] = [
+    const widgetItems: Omit<WidgetProps, 'isLast'>[] = [
         { 
             icon: Package, 
-            title: "Product Management (නිෂ්පාදන කළමනාකරණය)", 
-            description: "Add, edit, and manage all your products, their prices, and stock levels. Example: Adding a new type of soap to the system.", 
+            title: "Product Management", 
+            description: "Add, edit, and manage all your products, their prices, and stock levels.", 
             link: "/dashboard/products", 
-            permission: { action: 'read', subject: 'Product' } 
+            permission: { action: 'read', subject: 'Product' },
+            size: 'large',
         },
         { 
             icon: ShoppingCart, 
-            title: "Purchases (GRN) (මිලදී ගැනීම්)", 
-            description: "Record incoming goods from suppliers to update stock levels and cost prices automatically. Example: Logging a shipment of 10 Sunlight soap boxes.", 
+            title: "Purchases (GRN)", 
+            description: "Record incoming goods from suppliers to update stock levels.", 
             link: "/dashboard/purchases", 
-            permission: { action: 'read', subject: 'PurchaseBill' } 
+            permission: { action: 'read', subject: 'PurchaseBill' },
+            size: 'medium',
         },
         { 
             icon: BarChart3, 
-            title: "Reports (වාර්තා)", 
-            description: "Generate detailed reports on sales, profits, expenses, and inventory to understand your business performance.", 
+            title: "Reports", 
+            description: "Generate detailed reports on sales, profits, and inventory.", 
             link: "/dashboard/reports", 
-            permission: { action: 'access', subject: 'Dashboard' } 
+            permission: { action: 'access', subject: 'Dashboard' },
+            size: 'medium',
         },
         { 
             icon: ReceiptText, 
-            title: "Credit Management (ණය කළමනාකරණය)", 
-            description: "Manage credit sales and track payments from customers who have purchased on credit. Example: Recording a Rs. 500 payment for Kamal's bill.", 
+            title: "Credit Management", 
+            description: "Manage credit sales and track payments from customers.", 
             link: "/dashboard/credit-management", 
-            permission: { action: 'read', subject: 'Sale' } 
+            permission: { action: 'read', subject: 'Sale' },
+            size: 'medium',
         },
         { 
             icon: WalletCards, 
-            title: "Cash Register (මුදල් ලාච්චුව)", 
-            description: "Start and end your daily shifts by recording the cash in your drawer. Example: Entering the opening balance to start the day.", 
+            title: "Cash Register", 
+            description: "Start and end your daily shifts by recording cash flow.", 
             link: "/dashboard/cash-register", 
-            permission: { action: 'access', subject: 'CashRegister' } 
+            permission: { action: 'access', subject: 'CashRegister' },
+            size: 'medium',
         },
         { 
             icon: Building, 
-            title: "Company Details (සමාගමේ විස්තර)", 
-            description: "Set up your company's name, address, phone number, and logo to be printed on receipts and invoices.", 
+            title: "Company Details", 
+            description: "Set up your company's name, address, and logo for receipts.", 
             link: "/dashboard/company", 
-            permission: { action: 'manage', subject: 'Settings' } 
+            permission: { action: 'manage', subject: 'Settings' },
+            size: 'small',
         },
         { 
             icon: Percent, 
-            title: "Discount Management (වට්ටම් කළමනාකරණය)", 
-            description: "Create and manage various discount campaigns and offers for your store. Example: Setting up a 'Buy 2 Get 1 Free' offer.", 
+            title: "Discount Management", 
+            description: "Create and manage discount campaigns for your store.", 
             link: "/dashboard/discounts", 
-            permission: { action: 'manage', subject: 'Settings' } 
+            permission: { action: 'manage', subject: 'Settings' },
+            size: 'small',
         },
         { 
             icon: TrendingUp, 
-            title: "Income & Expense (ආදායම් සහ වියදම්)", 
-            description: "Record all other business incomes and expenses like rent, salaries, and utility bills for accurate profit calculation.", 
+            title: "Income & Expense", 
+            description: "Record other business incomes and expenses like rent or bills.", 
             link: "/dashboard/financials", 
-            permission: { action: 'manage', subject: 'Settings' } 
+            permission: { action: 'manage', subject: 'Settings' },
+            size: 'small',
         },
         { 
             icon: Users, 
-            title: "Contacts Management (සම්බන්ධතා)", 
-            description: "Manage the information of your customers and suppliers, including their names, addresses, and phone numbers.", 
+            title: "Contacts Management", 
+            description: "Manage your customers and suppliers information.", 
             link: "/dashboard/parties", 
-            permission: { action: 'read', subject: 'Party' } 
+            permission: { action: 'read', subject: 'Party' },
+            size: 'small',
         },
         { 
             icon: Archive, 
-            title: "Stock Levels (තොග මට්ටම්)", 
-            description: "View and adjust stock levels for all products in one place. Example: Checking the remaining quantity of Signal toothpaste.", 
+            title: "Stock Levels", 
+            description: "View and adjust stock levels for all products in one place.", 
             link: "/dashboard/stock", 
-            permission: { action: 'read', subject: 'Product' } 
+            permission: { action: 'read', subject: 'Product' },
+            size: 'large'
         },
         { 
             icon: ArchiveX, 
-            title: "Stock Adjustments (තොග ගැලපීම්)", 
-            description: "Record expired, damaged, or lost stock to maintain accurate inventory levels. Example: Removing 2 broken biscuit packets from stock.", 
+            title: "Stock Adjustments", 
+            description: "Record expired, damaged, or lost stock.", 
             link: "/dashboard/lost-damage", 
-            permission: { action: 'update', subject: 'Product' } 
+            permission: { action: 'update', subject: 'Product' },
+            size: 'medium',
         },
         { 
             icon: UserCog, 
-            title: "Users & Roles (පරිශීලකයින් සහ භූමිකා)", 
-            description: "Create user accounts for employees and control their access levels with permissions. Example: Creating a 'Cashier' role with sale-only access.", 
+            title: "Users & Roles", 
+            description: "Create user accounts for employees and control their access.", 
             link: "/dashboard/users", 
-            permission: { action: 'read', subject: 'User' } 
+            permission: { action: 'read', subject: 'User' },
+            size: 'medium',
         },
     ];
     
@@ -143,7 +165,7 @@ export default function WelcomePage() {
         <div className="flex items-center space-x-3">
             <Home className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold text-primary">
-            Welcome to Aronium Dashboard
+              Welcome, {currentUser?.username || 'User'}!
             </h1>
         </div>
         <Button asChild>
@@ -152,14 +174,25 @@ export default function WelcomePage() {
           </Link>
         </Button>
       </header>
-      <div className="flex-1 rounded-lg bg-card/50 p-6 border border-border/30 shadow-xl">
-        <h2 className="text-2xl font-semibold text-card-foreground">Hello, {currentUser?.username || 'User'}!</h2>
-        <p className="text-muted-foreground mt-2 mb-8">
+      <div className="relative flex-1 rounded-2xl md:rounded-3xl p-4 md:p-6 border border-border/10 shadow-xl overflow-hidden">
+        <Image
+            src="https://placehold.co/1200x800.png"
+            alt="Dashboard background"
+            layout="fill"
+            objectFit="cover"
+            className="absolute inset-0 w-full h-full -z-10 backdrop-blur-3xl opacity-30"
+            data-ai-hint="abstract gradient"
+        />
+        <div className="absolute inset-0 w-full h-full bg-black/50 backdrop-blur-3xl -z-10"></div>
+
+        <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
+        <p className="text-muted-foreground mb-6">
           Here is a roadmap of the features available to you for managing your business.
         </p>
-        <div className="space-y-0">
-          {timelineItems.map((item, index) => (
-            <TimelineItem key={index} {...item} isLast={index === timelineItems.length - 1} />
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {widgetItems.map((item, index) => (
+            <Widget key={index} {...item} />
           ))}
         </div>
       </div>
