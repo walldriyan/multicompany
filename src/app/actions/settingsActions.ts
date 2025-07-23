@@ -84,13 +84,30 @@ function mapPrismaDiscountSetToType(
   };
 }
 
-export async function getDiscountSetsAction(): Promise<{
+export async function getDiscountSetsAction(userId: string): Promise<{
   success: boolean;
   data?: DiscountSet[];
   error?: string;
 }> {
+   if (!userId) {
+    return { success: false, error: "User is not authenticated." };
+  }
   try {
+     const user = await prisma.user.findUnique({ where: { id: userId } });
+     if (!user?.companyId) {
+       // Super admin without a company can see all for setup.
+       if (user?.role?.name === 'Admin') {
+           const allDbSets = await prisma.discountSet.findMany({
+               orderBy: { name: 'asc' },
+               include: { productConfigurations: { include: { product: { include: { batches: true } } } } }
+           });
+           return { success: true, data: allDbSets.map(mapPrismaDiscountSetToType) };
+       }
+       return { success: true, data: [] }; // Non-admin without company sees nothing.
+     }
+
     const dbDiscountSets = await prisma.discountSet.findMany({
+      where: { companyId: user.companyId },
       orderBy: { name: 'asc' },
       include: {
         productConfigurations: {
@@ -116,6 +133,15 @@ export async function saveDiscountSetAction(
   formData: DiscountSetFormData,
   userId: string,
 ): Promise<{ success: boolean; data?: DiscountSet; error?: string, fieldErrors?: Record<string, string[]> }> {
+  if (!userId) {
+    return { success: false, error: 'User is not authenticated.' };
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user?.companyId) {
+    return { success: false, error: "Cannot save discount set: User is not associated with a company." };
+  }
+  const companyId = user.companyId;
+
   const validationResult = DiscountSetValidationSchema.safeParse(formData);
   if (!validationResult.success) {
     return { success: false, error: "Validation failed. Check field errors.", fieldErrors: validationResult.error.flatten().fieldErrors };
@@ -127,7 +153,7 @@ export async function saveDiscountSetAction(
     const savedDbSet = await prisma.$transaction(async (tx) => {
       if (discountSetData.isDefault) {
         await tx.discountSet.updateMany({
-          where: { isDefault: true, NOT: { id: discountSetId || undefined } },
+          where: { companyId: companyId, isDefault: true, NOT: { id: discountSetId || undefined } },
           data: { isDefault: false },
         });
       }
@@ -160,6 +186,7 @@ export async function saveDiscountSetAction(
         currentDiscountSet = await tx.discountSet.create({
           data: {
             ...dataForDiscountSet,
+            companyId: companyId, // Associate with company on create
             createdByUserId: userId,
             updatedByUserId: userId,
           },
@@ -229,7 +256,7 @@ export async function saveDiscountSetAction(
   } catch (error: any) {
     console.error('Error saving discount set:', error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && error.meta?.target && Array.isArray(error.meta.target) && error.meta.target.includes('name')) {
-      return { success: false, error: 'A discount campaign with this name already exists.' };
+      return { success: false, error: 'A discount campaign with this name already exists in this company.' };
     }
     return { success: false, error: `Failed to save discount set. ${error.message}` };
   }
@@ -323,3 +350,5 @@ export async function getProductListForDiscountConfigAction(): Promise<{ success
         return { success: false, error: 'Failed to fetch product list.' };
     }
 }
+
+    

@@ -211,7 +211,15 @@ export async function getAllProductsAction(userId: string): Promise<{
   try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.companyId) {
-       return { success: true, data: [] }; // Return empty array if user has no company
+        // Super admin without a company can see all products, for setup purposes.
+        if (user?.role?.name === 'Admin') {
+             const allProductsFromDB = await prisma.product.findMany({
+                 orderBy: { name: 'asc' },
+                 include: { productDiscountConfigurations: true, batches: { include: { purchaseBillItem: { include: { purchaseBill: { include: { createdBy: { select: { username: true } } } } } } } } }
+             });
+             return { success: true, data: allProductsFromDB.map(mapPrismaProductToType) };
+        }
+       return { success: true, data: [] }; // Return empty array if non-admin user has no company
     }
 
     const productsFromDB = await prisma.product.findMany({
@@ -491,3 +499,5 @@ export async function updateProductStockAction(
      return { success: false, error: error.message || "Failed to update stock." };
   }
 }
+
+    
