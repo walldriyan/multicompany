@@ -52,6 +52,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BarcodeReader from 'react-barcode-reader';
 import { CreditPaymentStatusEnumSchema } from '@/lib/zodSchemas';
 import { store } from '@/store/store';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 type CheckoutMode = 'popup' | 'inline';
 
@@ -374,7 +375,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         }
         
         // --- THE ONLY RELIABLE WAY: RE-FETCH FROM THE "SINGLE SOURCE OF TRUTH" ---
-        const productsAfterSaleResult = await getAllProductsAction();
+        const productsAfterSaleResult = await getAllProductsAction(currentUser.id);
         if (productsAfterSaleResult.success && productsAfterSaleResult.data) {
           dispatch(initializeAllProducts(productsAfterSaleResult.data));
         } else {
@@ -527,9 +528,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                     <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                 </Button>
               </Link>
-              <Button variant="outline" onClick={() => setIsSettingsDialogOpen(true)} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                  <SettingsIcon className="mr-2 h-4 w-4" /> POS Screen Settings
-              </Button>
             </div>
           </div>
           <ProductSearch
@@ -553,12 +551,22 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                 <h2 className="text-xl font-semibold text-card-foreground">Sale Summary &amp; Actions</h2>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
-                            <SettingsIcon className="h-5 w-5" />
+                        <Button variant="ghost" className="h-9 w-9 p-0">
+                            <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                                {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
+                                </AvatarFallback>
+                            </Avatar>
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>Quick Settings</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuLabel className="font-normal">
+                            <div className="flex flex-col space-y-1">
+                                <p className="text-sm font-medium leading-none">{currentUser.username}</p>
+                                <p className="text-xs leading-none text-muted-foreground">{currentUser.role?.name}</p>
+                                <p className="text-xs leading-none text-primary/80">{currentUser.company?.name || 'Super Admin'}</p>
+                            </div>
+                        </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
                             <DropdownMenuLabel className="text-xs">Checkout Mode</DropdownMenuLabel>
@@ -572,8 +580,13 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setIsLogoutDialogOpen(true)}>
-                            <LogOut className="mr-2 h-4 w-4 text-red-400" />
+                        <DropdownMenuItem onSelect={() => setIsSettingsDialogOpen(true)}>
+                            <SettingsIcon className="mr-2 h-4 w-4" />
+                            <span>POS Screen Settings</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setIsLogoutDialogOpen(true)} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
+                            <LogOut className="mr-2 h-4 w-4" />
                             <span>Logout</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
