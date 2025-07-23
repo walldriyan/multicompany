@@ -10,37 +10,55 @@ import { ArrowLeft, Settings, DatabaseBackup, UploadCloud, AlertTriangle } from 
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
+import { backupCompanyDataAction } from '@/app/actions/backupActions'; // Import the new action
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const currentUser = useSelector(selectCurrentUser);
 
   const handleBackup = async () => {
+    if (!currentUser?.id) {
+        toast({ title: "Authentication Error", description: "You must be logged in to perform a backup.", variant: "destructive" });
+        return;
+    }
     setIsBackingUp(true);
-    toast({ title: "Starting Backup", description: "Your database backup is being prepared for download." });
-    // In a real app, this would trigger a server action
-    // For now, we simulate a delay and a successful download
-    setTimeout(() => {
-      // Simulate file download
-      const blob = new Blob(["Simulated DB Content"], { type: 'application/octet-stream' });
+    toast({ title: "Starting Backup", description: "Your company data backup is being prepared for download." });
+
+    const result = await backupCompanyDataAction(currentUser.id);
+
+    if (result.success && result.data) {
+      const blob = new Blob([result.data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `aronium_backup_${new Date().toISOString()}.db`;
+      a.download = `${result.companyName || 'company'}_backup_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast({ title: "Backup Complete", description: "Database backup downloaded successfully." });
-      setIsBackingUp(false);
-    }, 2000);
+      toast({ title: "Backup Complete", description: "Company data backup downloaded successfully." });
+    } else {
+       toast({ title: "Backup Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
+    }
+    
+    setIsBackingUp(false);
   };
 
   const handleRestoreClick = () => {
-    fileInputRef.current?.click();
+    // This functionality is still a placeholder as it's a destructive operation
+    // and requires a complex server action to parse and upsert data.
+    toast({
+        title: "Restore Not Implemented",
+        description: "Restoring from a backup is a sensitive operation and is not yet fully implemented.",
+        variant: "default",
+    });
+    // fileInputRef.current?.click();
   };
 
   const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,13 +98,14 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" /> Backup Database</CardTitle>
-                <CardDescription>Download a complete backup of the application database. Keep this file in a safe place.</CardDescription>
+                <CardTitle className="flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" /> Backup Company Data</CardTitle>
+                <CardDescription>Download a complete backup of your company's data (Products, Sales, etc.). Keep this file in a safe place.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={handleBackup} disabled={isBackingUp || isRestoring} className="w-full">
+                <Button onClick={handleBackup} disabled={isBackingUp || isRestoring || !currentUser?.companyId} className="w-full">
                   {isBackingUp ? 'Backing up...' : 'Download Backup File'}
                 </Button>
+                 {!currentUser?.companyId && <p className="text-xs text-muted-foreground mt-2 text-center">This feature is for company-specific backups. Super Admins without a company cannot use this.</p>}
               </CardContent>
             </Card>
             <Card className="border-destructive/50">
