@@ -87,9 +87,10 @@ export default function CreditManagementPage() {
   }, [toast, currentUser?.id, activeFilters, currentPage]);
 
   useEffect(() => {
+    if (!currentUser?.id) return;
     const fetchCustomers = async () => {
         setIsLoadingCustomers(true);
-        const result = await getAllCustomersAction();
+        const result = await getAllCustomersAction(currentUser.id);
         if (result.success && result.data) {
             setCustomers(result.data);
         } else {
@@ -98,7 +99,7 @@ export default function CreditManagementPage() {
         setIsLoadingCustomers(false);
     };
     fetchCustomers();
-  }, [toast]);
+  }, [toast, currentUser?.id]);
 
   useEffect(() => {
     fetchOpenSales();

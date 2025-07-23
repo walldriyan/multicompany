@@ -9,6 +9,18 @@ import { z } from 'zod';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
 import { getTaxRateAction } from './settingsActions';
 
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true }
+    });
+    if (!user?.companyId) {
+        throw new Error("User is not associated with a company.");
+    }
+    return { companyId: user.companyId };
+}
+
+
 function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): SaleRecordType | null {
   try {
     const itemsFromDb = (record.items !== Prisma.JsonNull && Array.isArray(record.items)) ? record.items : [];
@@ -199,24 +211,7 @@ export async function saveSaleRecordAction(
     const result = await prisma.$transaction(async (tx) => {
       console.log('[saveSaleRecordAction] [TX] Transaction block entered.');
       
-      const user = await tx.user.findUnique({ where: { id: userId }, include: { role: true } });
-      let companyId: string | null = user?.companyId || null;
-
-      // Super Admin fallback logic
-      if (!companyId && user?.role?.name === 'Admin') {
-          const firstCompany = await tx.companyProfile.findFirst({
-              orderBy: { createdAt: 'asc' }
-          });
-          if (firstCompany) {
-              companyId = firstCompany.id;
-          } else {
-              throw new Error("Could not find a default company to associate the Super Admin's sale with. Please create a company first.");
-          }
-      }
-
-      if (!companyId) {
-        throw new Error("Could not find the user's company to associate the sale with.");
-      }
+      const { companyId } = await getCurrentUserAndCompanyId(userId);
 
       if (!recordIdFromInput) {
         console.log('[saveSaleRecordAction] [TX] Creating new SaleRecord. Processing stock deduction loop...');
@@ -348,11 +343,13 @@ export async function getSaleContextByBillNumberAction(
   clickedAdjustedSaleId?: string | null
 ): Promise<{ success: boolean; data?: SaleContext; error?: string }> {
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const pristineOriginalDbRecord = await prisma.saleRecord.findFirst({
       where: {
         billNumber: billNumberToSearch,
         status: 'COMPLETED_ORIGINAL',
-        createdByUserId: userId,
+        companyId: companyId,
       },
       include: { 
         paymentInstallments: true, 
@@ -362,14 +359,15 @@ export async function getSaleContextByBillNumberAction(
     });
 
     if (!pristineOriginalDbRecord) {
-      return { success: false, error: `No original sale record found for bill number: ${billNumberToSearch} for this user.` };
+      return { success: false, error: `No original sale record found for bill number: ${billNumberToSearch} in your company.` };
     }
     
     // Find the LATEST adjusted sale record related to this original bill.
     const latestAdjustedSale = await prisma.saleRecord.findFirst({
         where: {
             originalSaleRecordId: pristineOriginalDbRecord.id,
-            status: 'ADJUSTED_ACTIVE'
+            status: 'ADJUSTED_ACTIVE',
+            companyId: companyId,
         },
         orderBy: { date: 'desc' }, 
         include: { 
@@ -410,8 +408,10 @@ export async function getAllSaleRecordsAction(
     return { success: false, error: 'User ID is required.' };
   }
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const whereClause: Prisma.SaleRecordWhereInput = {
-      createdByUserId: userId,
+      companyId: companyId,
       status: 'COMPLETED_ORIGINAL',
     };
 
@@ -438,6 +438,7 @@ export async function getAllSaleRecordsAction(
           where: {
               originalSaleRecordId: { in: originalSaleIds },
               status: 'ADJUSTED_ACTIVE',
+              companyId: companyId,
           },
           select: { originalSaleRecordId: true, returnedItemsLog: true },
       });
@@ -479,8 +480,10 @@ export async function getOpenCreditSalesAction(
   }
 ): Promise<{ success: boolean; data?: { sales: SaleRecordType[]; totalCount: number }; error?: string }> {
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    
     const whereClause: Prisma.SaleRecordWhereInput = {
-      createdByUserId: userId,
+      companyId: companyId,
       isCreditSale: true,
       creditPaymentStatus: {
         in: [CreditPaymentStatusEnumSchema.Enum.PENDING, CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID],
@@ -544,13 +547,15 @@ export async function recordCreditPaymentAction(
     }
 
     try {
+        const { companyId } = await getCurrentUserAndCompanyId(userId);
+        
         const updatedSaleRecordTxResult = await prisma.$transaction(async (tx) => {
-            const saleRecord = await tx.saleRecord.findUnique({
-                where: { id: saleRecordId },
+            const saleRecord = await tx.saleRecord.findFirst({
+                where: { id: saleRecordId, companyId: companyId },
                 include: { paymentInstallments: true }
             });
 
-            if (!saleRecord) throw new Error("Sale record not found.");
+            if (!saleRecord) throw new Error("Sale record not found in your company.");
             if (!saleRecord.isCreditSale || saleRecord.recordType !== 'SALE') throw new Error("This is not an open credit sale.");
             if (saleRecord.creditPaymentStatus === CreditPaymentStatusEnumSchema.enum.FULLY_PAID) throw new Error("This credit sale is already fully paid.");
 
@@ -641,14 +646,16 @@ export async function undoReturnItemAction(
   const { masterSaleRecordId, returnedItemDetailId } = validationResult.data;
 
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const updatedOrPristineSaleRecord = await prisma.$transaction(async (tx) => {
       
-      const masterRecord = await tx.saleRecord.findUnique({
-        where: { id: masterSaleRecordId },
+      const masterRecord = await tx.saleRecord.findFirst({
+        where: { id: masterSaleRecordId, companyId: companyId },
       });
 
       if (!masterRecord) {
-        throw new Error("Sale record to modify not found.");
+        throw new Error("Sale record to modify not found in your company.");
       }
       
       const pristineOriginalSale = masterRecord.originalSaleRecordId 
@@ -705,8 +712,8 @@ export async function undoReturnItemAction(
         });
 
       } else {
-        const allProductsForCalc = await tx.product.findMany({ include: { batches: true }});
-        const allDiscountSetsForCalc = await tx.discountSet.findMany({ include: { productConfigurations: true } });
+        const allProductsForCalc = await tx.product.findMany({ where: { companyId }, include: { batches: true }});
+        const allDiscountSetsForCalc = await tx.discountSet.findMany({ where: { companyId }, include: { productConfigurations: true } });
         
         const pristineItems: SaleRecordItemType[] = (pristineOriginalSale.items !== Prisma.JsonNull && Array.isArray(pristineOriginalSale.items)) ? pristineOriginalSale.items as any : [];
 
