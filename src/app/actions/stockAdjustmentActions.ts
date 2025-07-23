@@ -29,11 +29,14 @@ export async function adjustStockAction(
 
   // Verify the product belongs to the user's company before adjusting
   const productToAdjust = await prisma.product.findFirst({
-    where: { id: productId, companyId: companyId }
+    where: { id: productId, companyId: companyId },
+    include: { batches: true },
   });
   if (!productToAdjust) {
     return { success: false, error: "Product not found in your company." };
   }
+
+  const currentTotalStock = productToAdjust.batches.reduce((sum, b) => sum + b.quantity, 0);
 
   let changeInStock = 0;
   switch (reason) {
@@ -41,6 +44,9 @@ export async function adjustStockAction(
     case 'DAMAGED':
     case 'CORRECTION_SUBTRACT':
       changeInStock = -Math.abs(quantity);
+       if (currentTotalStock < Math.abs(changeInStock)) {
+         return { success: false, error: `Cannot subtract ${Math.abs(changeInStock)}. Only ${currentTotalStock} in stock.` };
+      }
       break;
     case 'CORRECTION_ADD':
       changeInStock = Math.abs(quantity);
@@ -75,5 +81,3 @@ export async function adjustStockAction(
 
   return { success: true };
 }
-
-      

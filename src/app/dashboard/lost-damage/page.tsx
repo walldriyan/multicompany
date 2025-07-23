@@ -23,6 +23,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { _internalUpdateProduct } from '@/store/slices/saleSlice';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type AdjustmentFormData = Omit<StockAdjustmentFormData, 'userId'>;
 
@@ -37,6 +38,8 @@ export default function LostDamagePage() {
   const { toast } = useToast();
   const dispatch: AppDispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
+  const { can } = usePermissions();
+  const canAdjustStock = can('update', 'Product');
 
   const [products, setProducts] = useState<ProductType[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -60,15 +63,16 @@ export default function LostDamagePage() {
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
   const fetchProducts = useCallback(async () => {
+    if (!currentUser?.id) return;
     setIsLoadingProducts(true);
-    const result = await getAllProductsAction();
+    const result = await getAllProductsAction(currentUser.id);
     if (result.success && result.data) {
       setProducts(result.data.filter(p => !p.isService)); // Filter out service items
     } else {
       toast({ title: 'Error fetching products', description: result.error, variant: 'destructive' });
     }
     setIsLoadingProducts(false);
-  }, [toast]);
+  }, [toast, currentUser]);
 
   useEffect(() => {
     fetchProducts();
@@ -105,14 +109,15 @@ export default function LostDamagePage() {
     if (result.success) {
       toast({ title: 'Stock Adjusted', description: 'Product stock has been updated successfully.' });
       
-      // Optimistically update the product in the local list and Redux store
-      const changeInStock = data.reason === 'CORRECTION_ADD' ? quantityNum : -quantityNum;
-      const newStock = (selectedProduct?.stock || 0) + changeInStock;
-      
-      if(selectedProduct) {
-        const updatedProductForStore: ProductType = { ...selectedProduct, stock: newStock };
-        dispatch(_internalUpdateProduct(updatedProductForStore));
-        setProducts(prev => prev.map(p => p.id === selectedProduct.id ? updatedProductForStore : p));
+      // After successful adjustment, refetch all products to get the most accurate state
+      // including updated average cost price which the client cannot calculate.
+      const freshProductsResult = await getAllProductsAction(currentUser.id);
+      if (freshProductsResult.success && freshProductsResult.data) {
+          const updatedProductFromServer = freshProductsResult.data.find(p => p.id === selectedProduct.id);
+          if (updatedProductFromServer) {
+             dispatch(_internalUpdateProduct(updatedProductFromServer));
+             setProducts(freshProductsResult.data.filter(p => !p.isService));
+          }
       }
       
       reset(defaultValues);
@@ -150,7 +155,7 @@ export default function LostDamagePage() {
         <CardHeader>
           <CardTitle className="text-card-foreground">Adjust Product Stock</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Record stock changes due to loss, damage, or other corrections.
+            Record stock changes due to loss, damage, or other corrections. This action is logged.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -160,93 +165,100 @@ export default function LostDamagePage() {
             <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-6">
               {formError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{formError}</p>}
               
-              <div>
-                <Label htmlFor="productId" className="text-card-foreground">Product*</Label>
-                <Controller
-                  name="productId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={products.length === 0}
-                    >
-                      <SelectTrigger id="productId" className="bg-input border-border focus:ring-primary text-card-foreground">
-                        <SelectValue placeholder={products.length === 0 ? "No non-service products available" : "Select a product"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map(product => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.name} ({product.code || 'No Code'}) - Stock: {getDisplayQuantityAndUnit(product.stock, product.units).displayQuantity} {getDisplayQuantityAndUnit(product.stock, product.units).displayUnit}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.productId && <p className="text-xs text-destructive mt-1">{errors.productId.message}</p>}
-                 {selectedProduct && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Selected: {selectedProduct.name} (Current Stock: {currentStockDisplay})
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <fieldset disabled={!canAdjustStock} className="space-y-6">
                 <div>
-                  <Label htmlFor="quantity" className="text-card-foreground">Quantity to Adjust*</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    {...register('quantity', { valueAsNumber: true })}
-                    className="bg-input border-border focus:ring-primary text-card-foreground"
-                    placeholder="e.g., 5"
-                    min="0.01" step="any"
-                  />
-                  {errors.quantity && <p className="text-xs text-destructive mt-1">{errors.quantity.message}</p>}
-                  {selectedProduct && <p className="text-xs text-muted-foreground mt-1">Adjusting in {selectedProduct.units.baseUnit}.</p>}
-                </div>
-
-                <div>
-                  <Label htmlFor="reason" className="text-card-foreground">Reason*</Label>
+                  <Label htmlFor="productId" className="text-card-foreground">Product*</Label>
                   <Controller
-                    name="reason"
+                    name="productId"
                     control={control}
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger id="reason" className="bg-input border-border focus:ring-primary text-card-foreground">
-                          <SelectValue placeholder="Select a reason" />
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={products.length === 0 || !canAdjustStock}
+                      >
+                        <SelectTrigger id="productId" className="bg-input border-border focus:ring-primary text-card-foreground">
+                          <SelectValue placeholder={products.length === 0 ? "No non-service products available" : "Select a product"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.values(StockAdjustmentReasonEnumSchema.Enum).map(reasonValue => (
-                            <SelectItem key={reasonValue} value={reasonValue}>
-                              {reasonValue.replace('_', ' ')}
+                          {products.map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name} ({product.code || 'No Code'}) - Stock: {getDisplayQuantityAndUnit(product.stock, product.units).displayQuantity} {getDisplayQuantityAndUnit(product.stock, product.units).displayUnit}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
-                  {errors.reason && <p className="text-xs text-destructive mt-1">{errors.reason.message}</p>}
+                  {errors.productId && <p className="text-xs text-destructive mt-1">{errors.productId.message}</p>}
+                  {selectedProduct && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Selected: {selectedProduct.name} (Current Stock: {currentStockDisplay})
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="notes" className="text-card-foreground">Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  {...register('notes')}
-                  className="bg-input border-border focus:ring-primary text-card-foreground min-h-[80px]"
-                  placeholder="Any additional details about this stock adjustment..."
-                />
-                {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="quantity" className="text-card-foreground">Quantity to Adjust*</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      {...register('quantity', { valueAsNumber: true })}
+                      className="bg-input border-border focus:ring-primary text-card-foreground"
+                      placeholder="e.g., 5"
+                      min="0.01" step="any"
+                    />
+                    {errors.quantity && <p className="text-xs text-destructive mt-1">{errors.quantity.message}</p>}
+                    {selectedProduct && <p className="text-xs text-muted-foreground mt-1">Adjusting in {selectedProduct.units.baseUnit}.</p>}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="reason" className="text-card-foreground">Reason*</Label>
+                    <Controller
+                      name="reason"
+                      control={control}
+                      render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger id="reason" className="bg-input border-border focus:ring-primary text-card-foreground">
+                            <SelectValue placeholder="Select a reason" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.values(StockAdjustmentReasonEnumSchema.Enum).map(reasonValue => (
+                              <SelectItem key={reasonValue} value={reasonValue}>
+                                {reasonValue.replace('_', ' ')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.reason && <p className="text-xs text-destructive mt-1">{errors.reason.message}</p>}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="notes" className="text-card-foreground">Notes (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    {...register('notes')}
+                    className="bg-input border-border focus:ring-primary text-card-foreground min-h-[80px]"
+                    placeholder="Any additional details about this stock adjustment..."
+                  />
+                  {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
+                </div>
+              </fieldset>
+              
+              {!canAdjustStock && (
+                <p className="text-sm text-yellow-500 bg-yellow-500/10 p-3 rounded-md">You do not have permission to adjust stock.</p>
+              )}
+
 
               <div className="flex justify-end pt-4">
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-6"
-                  disabled={isSubmitting || !isValid || !selectedProductId}
+                  disabled={isSubmitting || !isValid || !selectedProductId || !canAdjustStock}
                 >
                   <Layers className="mr-2 h-4 w-4" />
                   {isSubmitting ? 'Adjusting Stock...' : 'Confirm Stock Adjustment'}
