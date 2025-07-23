@@ -12,22 +12,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
-import { backupCompanyDataAction } from '@/app/actions/backupActions'; // Import the new action
+import { backupCompanyDataAction, backupFullDatabaseAction } from '@/app/actions/backupActions';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const currentUser = useSelector(selectCurrentUser);
+  const { can } = usePermissions();
+  const canManageSettings = can('manage', 'Settings');
 
-  const handleBackup = async () => {
-    if (!currentUser?.id) {
-        toast({ title: "Authentication Error", description: "You must be logged in to perform a backup.", variant: "destructive" });
-        return;
+  const isSuperAdmin = currentUser?.role?.name === 'Admin';
+
+  const handleCompanyBackup = async () => {
+    if (!currentUser?.id || !canManageSettings) {
+      toast({ title: "Error", description: "You don't have permission to perform this action.", variant: "destructive" });
+      return;
     }
-    setIsBackingUp(true);
-    toast({ title: "Starting Backup", description: "Your company data backup is being prepared for download." });
+    setIsProcessing(true);
+    toast({ title: "Starting Company Backup", description: "Preparing company data for download..." });
 
     const result = await backupCompanyDataAction(currentUser.id);
 
@@ -41,38 +45,111 @@ export default function SettingsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
-      toast({ title: "Backup Complete", description: "Company data backup downloaded successfully." });
+      toast({ title: "Backup Complete", description: "Company data (JSON) downloaded successfully." });
     } else {
        toast({ title: "Backup Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
     
-    setIsBackingUp(false);
+    setIsProcessing(false);
   };
+  
+  const handleFullDatabaseBackup = async () => {
+    if (!currentUser?.id || !isSuperAdmin || !canManageSettings) {
+       toast({ title: "Permission Denied", description: "Only Super Admins can perform a full database backup.", variant: "destructive" });
+       return;
+    }
+    setIsProcessing(true);
+    toast({ title: "Starting Full Database Backup", description: "Preparing database file for download..." });
+
+    const result = await backupFullDatabaseAction(currentUser.id);
+
+    if (result.success && result.data) {
+        const blob = new Blob([result.data], { type: 'application/vnd.sqlite3' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aronium_full_backup_${new Date().toISOString().split('T')[0]}.db`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Full Backup Complete", description: "Database file (.db) downloaded successfully." });
+    } else {
+        toast({ title: "Full Backup Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
+    }
+    setIsProcessing(false);
+  };
+
 
   const handleRestoreClick = () => {
-    // This functionality is still a placeholder as it's a destructive operation
-    // and requires a complex server action to parse and upsert data.
     toast({
         title: "Restore Not Implemented",
-        description: "Restoring from a backup is a sensitive operation and is not yet fully implemented.",
+        description: "Restoring from a backup is a sensitive operation and is not yet fully implemented in this UI.",
         variant: "default",
     });
-    // fileInputRef.current?.click();
   };
 
-  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setIsRestoring(true);
-      toast({ title: "Restoring Database", description: `Uploading ${file.name}... This may take a moment.` });
-      // Simulate upload and restore process
-      setTimeout(() => {
-        toast({ title: "Restore Complete", description: "Database has been restored successfully. The application may need to restart.", variant: "default" });
-        setIsRestoring(false);
-      }, 3000);
-    }
-  };
+  const renderSuperAdminView = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" /> Backup Full Database</CardTitle>
+          <CardDescription>Download the entire application database (`dev.db`). This contains all companies, users, and data. This is the master backup.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={handleFullDatabaseBackup} disabled={isProcessing || !canManageSettings} className="w-full">
+            {isProcessing ? 'Backing up...' : 'Download Full Database (.db)'}
+          </Button>
+        </CardContent>
+      </Card>
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center text-destructive"><AlertTriangle className="mr-2 h-5 w-5" /> Restore Full Database</CardTitle>
+          <CardDescription className="text-destructive/80">
+            Restoring will **completely overwrite** the current database with the uploaded file. This action cannot be undone. All current data will be lost.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={handleRestoreClick} variant="destructive" disabled={isProcessing || !canManageSettings} className="w-full">
+             <UploadCloud className="mr-2 h-4 w-4" />
+            {isProcessing ? 'Processing...' : 'Restore from .db file'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderCompanyUserView = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" /> Backup My Company Data</CardTitle>
+          <CardDescription>Download a backup of your company's data (Products, Sales, etc.) as a JSON file. Keep this file in a safe place.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={handleCompanyBackup} disabled={isProcessing || !currentUser?.companyId || !canManageSettings} className="w-full">
+            {isProcessing ? 'Backing up...' : 'Download Company Backup (.json)'}
+          </Button>
+          {!currentUser?.companyId && <p className="text-xs text-muted-foreground mt-2 text-center">You must be assigned to a company to use this feature.</p>}
+        </CardContent>
+      </Card>
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center text-destructive"><AlertTriangle className="mr-2 h-5 w-5" /> Restore Company Data</CardTitle>
+          <CardDescription className="text-destructive/80">
+            Restoring from a JSON file will overwrite your company's existing data. This action is not yet implemented.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={handleRestoreClick} variant="destructive" disabled={isProcessing || !canManageSettings} className="w-full">
+            <UploadCloud className="mr-2 h-4 w-4" />
+            {isProcessing ? 'Processing...' : 'Restore from .json file'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
 
   return (
     <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
@@ -95,35 +172,14 @@ export default function SettingsPage() {
           <TabsTrigger value="system-settings">System Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="backup-restore" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {!canManageSettings ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center"><DatabaseBackup className="mr-2 h-5 w-5 text-primary" /> Backup Company Data</CardTitle>
-                <CardDescription>Download a complete backup of your company's data (Products, Sales, etc.). Keep this file in a safe place.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={handleBackup} disabled={isBackingUp || isRestoring || !currentUser?.companyId} className="w-full">
-                  {isBackingUp ? 'Backing up...' : 'Download Backup File'}
-                </Button>
-                 {!currentUser?.companyId && <p className="text-xs text-muted-foreground mt-2 text-center">This feature is for company-specific backups. Super Admins without a company cannot use this.</p>}
+              <CardContent className="p-6 text-center text-muted-foreground">
+                <AlertTriangle className="mx-auto h-8 w-8 text-yellow-500 mb-2" />
+                <p>You do not have permission to manage backups and restores.</p>
               </CardContent>
             </Card>
-            <Card className="border-destructive/50">
-              <CardHeader>
-                <CardTitle className="flex items-center text-destructive"><AlertTriangle className="mr-2 h-5 w-5" /> Restore Database</CardTitle>
-                <CardDescription className="text-destructive/80">
-                  Restoring will completely overwrite the current database. This action cannot be undone. Proceed with caution.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept=".db,.sqlite,.sqlite3" />
-                <Button onClick={handleRestoreClick} variant="destructive" disabled={isRestoring || isBackingUp} className="w-full">
-                   <UploadCloud className="mr-2 h-4 w-4" />
-                  {isRestoring ? 'Restoring...' : 'Choose Backup File to Restore'}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          ) : isSuperAdmin ? renderSuperAdminView() : renderCompanyUserView()}
         </TabsContent>
         <TabsContent value="system-settings" className="mt-4">
           <Card>
