@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
+import { usePermissions } from '@/hooks/usePermissions';
 
 import { 
   createUserAction, 
@@ -47,6 +48,7 @@ interface LastSuccessfulSubmission {
 export default function UserManagementPage() {
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
+  const { can } = usePermissions();
 
   const [activeTab, setActiveTab] = useState('users');
   
@@ -75,16 +77,17 @@ export default function UserManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
+    if (!currentUser?.id) return;
     setIsLoadingUsers(true);
     setLastUserSubmission(null);
-    const result = await getAllUsersWithRolesAction();
+    const result = await getAllUsersWithRolesAction(currentUser.id);
     if (result.success && result.data) {
       setUsers(result.data as UserType[]); // Cast because passwordHash is omitted
     } else {
       toast({ title: 'Error Fetching Users', description: result.error, variant: 'destructive' });
     }
     setIsLoadingUsers(false);
-  }, [toast]);
+  }, [toast, currentUser]);
 
   const fetchRolesAndCompanies = useCallback(async () => {
     setIsLoadingRoles(true);
@@ -323,12 +326,12 @@ export default function UserManagementPage() {
               <RefreshCw className={`mr-2 h-4 w-4 ${(isLoadingUsers || isLoadingRoles) ? 'animate-spin' : ''}`} /> Refresh All
             </Button>
             {activeTab === 'users' && (
-                <Button onClick={handleAddUser} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button onClick={handleAddUser} disabled={!can('create', 'User')} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add User
                 </Button>
             )}
             {activeTab === 'roles' && (
-                <Button onClick={handleAddRole} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button onClick={handleAddRole} disabled={!can('create', 'Role')} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Role
                 </Button>
             )}
@@ -345,7 +348,7 @@ export default function UserManagementPage() {
           <Card className="bg-card border-border shadow-xl flex-1">
             <CardHeader>
               <CardTitle className="text-2xl text-card-foreground">User List</CardTitle>
-              <CardDescription className="text-muted-foreground">Manage registered users.</CardDescription>
+              <CardDescription className="text-muted-foreground">Manage registered users in your company.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingUsers && users.length === 0 ? (
@@ -383,8 +386,8 @@ export default function UserManagementPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-center space-x-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit3 className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)} disabled={!can('update', 'User')} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit3 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user)} disabled={!can('delete', 'User')} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -435,8 +438,8 @@ export default function UserManagementPage() {
                             <Badge variant="secondary">{role.permissions?.length || 0}</Badge>
                           </TableCell>
                           <TableCell className="text-center space-x-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditRole(role)} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit3 className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteRole(role)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleEditRole(role)} disabled={!can('update', 'Role')} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit3 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteRole(role)} disabled={!can('delete', 'Role')} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
                           </TableCell>
                         </TableRow>
                       ))}

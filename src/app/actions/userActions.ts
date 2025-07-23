@@ -45,18 +45,11 @@ export async function createUserAction(
      if (!role) {
          return { success: false, error: "Selected role does not exist." };
      }
-     if (role.name !== 'Admin' && (!restOfUserData.companyId || restOfUserData.companyId === 'null')) {
-         return { success: false, error: `A company must be assigned for the role '${role.name}'.` };
-     }
-     
-     // Super Admins should not be assigned a company
-     const companyIdToSave = role.name === 'Admin' ? null : restOfUserData.companyId;
 
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
       data: {
         ...restOfUserData,
-        companyId: companyIdToSave,
         passwordHash,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
@@ -95,13 +88,41 @@ export async function createUserAction(
   }
 }
 
-export async function getAllUsersWithRolesAction(): Promise<{
+export async function getAllUsersWithRolesAction(actorUserId: string | null): Promise<{
   success: boolean;
   data?: Omit<User, 'passwordHash'>[];
   error?: string;
 }> {
+  if (!actorUserId) {
+    return { success: false, error: "User not authenticated." };
+  }
   try {
+    const actorUser = await prisma.user.findUnique({
+        where: { id: actorUserId },
+        select: { companyId: true, role: { select: { name: true } } }
+    });
+
+    if (!actorUser) {
+        return { success: false, error: "Authenticated user not found." };
+    }
+    
+    const isSuperAdmin = actorUser.role?.name === 'Admin' && !actorUser.companyId;
+    
+    let whereClause: Prisma.UserWhereInput = {};
+
+    if (isSuperAdmin) {
+        // Super admin sees all users
+        whereClause = {};
+    } else if (actorUser.companyId) {
+        // Company users see only users from their own company
+        whereClause = { companyId: actorUser.companyId };
+    } else {
+        // A non-admin user without a company sees no one (edge case)
+        return { success: true, data: [] };
+    }
+
     const users = await prisma.user.findMany({
+      where: whereClause,
       include: { role: true, company: true },
       orderBy: { username: 'asc' },
     });
@@ -131,16 +152,9 @@ export async function updateUserAction(
     if (!role) {
       return { success: false, error: "Selected role does not exist." };
     }
-    if (role.name !== 'Admin' && (!restOfUserData.companyId || restOfUserData.companyId === 'null')) {
-      return { success: false, error: `A company must be assigned for the role '${role.name}'.` };
-    }
     
-    // Super Admins should not be assigned a company
-    const companyIdToSave = role.name === 'Admin' ? null : restOfUserData.companyId;
-
     const dataToUpdate: Prisma.UserUpdateInput = { 
         ...restOfUserData,
-        companyId: companyIdToSave,
         updatedByUserId: actorUserId
     };
     
