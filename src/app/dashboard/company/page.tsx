@@ -42,6 +42,8 @@ export default function CompanyDetailsPage() {
   const currentUser = useSelector(selectCurrentUser);
   const { can } = usePermissions();
   const canManageSettings = can('manage', 'Settings');
+  
+  const isSuperAdmin = currentUser?.role?.name === 'Admin';
 
   const [allCompanies, setAllCompanies] = useState<CompanyProfileFormData[]>([]);
   const [editingCompany, setEditingCompany] = useState<CompanyProfileFormData | null>(null);
@@ -65,16 +67,23 @@ export default function CompanyDetailsPage() {
   });
 
   const fetchAllCompanies = useCallback(async () => {
+    if (!currentUser?.id) {
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
-    const result = await getAllCompanyProfilesAction();
+    const result = await getAllCompanyProfilesAction(currentUser.id);
     if (result.success && result.data) {
       setAllCompanies(result.data);
+      if (result.data.length === 1 && !isSuperAdmin) {
+        handleEdit(result.data[0]);
+      }
     } else {
       toast({ title: 'Error', description: result.error || 'Could not fetch company profiles.', variant: 'destructive' });
       setAllCompanies([]);
     }
     setIsLoading(false);
-  }, [toast]);
+  }, [toast, currentUser, isSuperAdmin]);
 
   useEffect(() => {
     fetchAllCompanies();
@@ -152,7 +161,11 @@ export default function CompanyDetailsPage() {
       } else { // If it was an update
         handleEdit(result.data);
       }
-      setActiveTab('details');
+      if (isSuperAdmin) {
+        setActiveTab('list');
+      } else {
+        setActiveTab('details');
+      }
     } else {
       setFormSubmissionError(result.error || 'An unexpected error occurred.');
       if (result.fieldErrors) setFormSubmissionFieldErrors(result.fieldErrors);
@@ -190,15 +203,17 @@ export default function CompanyDetailsPage() {
             <Building className="mr-3 h-7 w-7" /> Company Profile Management
           </h1>
         </div>
-        <Button onClick={handleAddNew} disabled={!canManageSettings} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add New Company
-        </Button>
+        {isSuperAdmin && (
+            <Button onClick={handleAddNew} disabled={!canManageSettings} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Company
+            </Button>
+        )}
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details"><User className="mr-2 h-4 w-4" />{editingCompany ? 'Edit Company' : 'Create Company'}</TabsTrigger>
-            <TabsTrigger value="list"><List className="mr-2 h-4 w-4"/>All Companies</TabsTrigger>
+        <TabsList className={cn("grid w-full", isSuperAdmin ? "grid-cols-2" : "grid-cols-1")}>
+            <TabsTrigger value="details"><User className="mr-2 h-4 w-4" />{editingCompany ? 'Edit Company Profile' : 'Create Company'}</TabsTrigger>
+            {isSuperAdmin && <TabsTrigger value="list"><List className="mr-2 h-4 w-4"/>All Companies</TabsTrigger>}
         </TabsList>
         <TabsContent value="details" className="mt-4">
             <form onSubmit={handleSubmit(onSubmit)}>
@@ -260,23 +275,25 @@ export default function CompanyDetailsPage() {
                 </Card>
             </form>
         </TabsContent>
-        <TabsContent value="list" className="mt-4">
-             <Card className="bg-card border-border shadow-xl">
-                <CardHeader><CardTitle>All Companies</CardTitle><CardDescription>List of all saved company profiles.</CardDescription></CardHeader>
-                <CardContent>
-                    {isLoading ? <Skeleton className="h-40 w-full" /> : allCompanies.length === 0 ? <p className="text-muted-foreground text-center">No company profiles found. Create one in the 'Details' tab.</p> : (
-                        <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Email</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                            {allCompanies.map((company) => (<TableRow key={company.id}><TableCell>{company.name}</TableCell><TableCell>{company.phone || 'N/A'}</TableCell><TableCell>{company.email || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => handleEdit(company)} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => setCompanyToDelete(company)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>))}
-                            </TableBody>
-                        </Table>
-                        </div>
-                    )}
-                </CardContent>
-             </Card>
-        </TabsContent>
+        {isSuperAdmin && (
+            <TabsContent value="list" className="mt-4">
+                 <Card className="bg-card border-border shadow-xl">
+                    <CardHeader><CardTitle>All Companies</CardTitle><CardDescription>List of all saved company profiles.</CardDescription></CardHeader>
+                    <CardContent>
+                        {isLoading ? <Skeleton className="h-40 w-full" /> : allCompanies.length === 0 ? <p className="text-muted-foreground text-center">No company profiles found. Create one in the 'Details' tab.</p> : (
+                            <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Email</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                {allCompanies.map((company) => (<TableRow key={company.id}><TableCell>{company.name}</TableCell><TableCell>{company.phone || 'N/A'}</TableCell><TableCell>{company.email || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => handleEdit(company)} className="h-8 w-8 text-blue-500 hover:text-blue-600"><Edit className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => setCompanyToDelete(company)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>))}
+                                </TableBody>
+                            </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                 </Card>
+            </TabsContent>
+        )}
       </Tabs>
       {companyToDelete && (
         <AlertDialog open={!!companyToDelete} onOpenChange={() => setCompanyToDelete(null)}>

@@ -15,18 +15,43 @@ const unlinkAsync = promisify(fs.unlink);
 
 const LOGO_UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/company-logos');
 
-export async function getAllCompanyProfilesAction(): Promise<{
+export async function getAllCompanyProfilesAction(userId: string | null): Promise<{
   success: boolean;
   data?: CompanyProfileFormData[];
   error?: string;
 }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated." };
+  }
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true, role: { select: { name: true } } }
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found." };
+    }
+
+    const isSuperAdmin = user.role?.name === 'Admin';
+    const whereClause: Prisma.CompanyProfileWhereInput = {};
+
+    if (!isSuperAdmin && user.companyId) {
+      // If not a super admin, they must have a company, and can only see their own
+      whereClause.id = user.companyId;
+    } else if (!isSuperAdmin && !user.companyId) {
+      // A non-admin user without a company sees nothing
+      return { success: true, data: [] };
+    }
+    // If Super Admin, whereClause is empty, so they see all companies.
+
     const profiles = await prisma.companyProfile.findMany({
+      where: whereClause,
       orderBy: { name: 'asc' },
     });
     return { success: true, data: profiles as CompanyProfileFormData[] };
   } catch (error: any) {
-    console.error('Error fetching all company profiles:', error);
+    console.error('Error fetching company profiles:', error);
     return { success: false, error: 'Failed to fetch company profiles.' };
   }
 }
