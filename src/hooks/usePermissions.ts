@@ -14,19 +14,22 @@ export const usePermissions = () => {
   const { toast } = useToast();
 
   const can = useCallback((action: Action, subject: Subject): boolean => {
-    const permissions = currentUser?.role?.permissions;
+    // This is the array of RolePermission objects, which contain the actual permission
+    const rolePermissions = currentUser?.role?.permissions;
 
-    if (!permissions) {
+    if (!rolePermissions) {
       return false;
     }
 
     // Super admin ('manage', 'all') can do anything.
-    if (permissions.some(p => p.action === 'manage' && p.subject === 'all')) {
+    // CORRECTED: Check inside the nested `permission` object.
+    if (rolePermissions.some(rp => rp.permission?.action === 'manage' && rp.permission?.subject === 'all')) {
       return true;
     }
 
-    // Check for specific permission
-    return permissions.some(p => p.action === action && p.subject === subject);
+    // Check for specific permission.
+    // CORRECTED: Check inside the nested `permission` object.
+    return rolePermissions.some(rp => rp.permission?.action === action && rp.permission?.subject === subject);
     
   }, [currentUser]);
 
