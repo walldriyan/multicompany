@@ -103,7 +103,7 @@ export default function CashRegisterPage() {
         } else { setActiveShiftSummary(null); }
       } else { // No active shift, suggest opening balance
         setActiveShiftSummary(null);
-        const suggestionResult = await getOpeningBalanceSuggestionAction();
+        const suggestionResult = await getOpeningBalanceSuggestionAction(currentUser.id);
         if (suggestionResult.success && suggestionResult.data !== undefined) {
            reset({ openingBalance: suggestionResult.data, notes: '' });
         } else {
@@ -117,19 +117,24 @@ export default function CashRegisterPage() {
   }, [currentUser, toast, reset]);
   
   const fetchHistory = useCallback(async (page: number) => {
-    const historyResult = await getShiftHistoryAction(page, 10);
+    if (!currentUser?.id) return;
+    const historyResult = await getShiftHistoryAction(currentUser.id, page, 10);
     if (historyResult.success && historyResult.data) {
       setShiftHistory(historyResult.data.shifts);
       setHistoryTotalCount(historyResult.data.totalCount);
     } else {
       toast({ title: "Error", description: historyResult.error || "Could not fetch shift history.", variant: "destructive" });
     }
-  }, [toast]);
+  }, [toast, currentUser]);
 
   useEffect(() => {
-    fetchActiveShiftAndSummary();
-    fetchHistory(historyPage);
-  }, [fetchActiveShiftAndSummary, fetchHistory, historyPage]);
+    if (currentUser?.id) {
+        fetchActiveShiftAndSummary();
+        fetchHistory(historyPage);
+    } else {
+        setIsLoading(false);
+    }
+  }, [fetchActiveShiftAndSummary, fetchHistory, historyPage, currentUser]);
   
   const onFormSubmit = async (data: CashRegisterShiftFormData) => {
     if (!currentUser?.id) return;
@@ -438,3 +443,5 @@ export default function CashRegisterPage() {
     </div>
   );
 }
+
+    

@@ -171,6 +171,7 @@ export async function getShiftHistoryAction(
   data?: { shifts: CashRegisterShift[]; totalCount: number };
   error?: string;
 }> {
+  if (!userId) return { success: false, error: "User not authenticated." };
   try {
      const { companyId } = await getCurrentUserAndCompanyId(userId);
      if (!companyId) {
@@ -237,7 +238,7 @@ export async function getShiftSummaryAction(shiftId: string, userId: string): Pr
     });
 
     return { success: true, data: { totalSales, cashSales, cardSales } };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error getting shift summary:", error);
     return { success: false, error: error.message || "Failed to get shift summary." };
   }
@@ -302,6 +303,7 @@ export async function getOpeningBalanceSuggestionAction(userId: string): Promise
   data?: number;
   error?: string;
 }> {
+  if (!userId) return { success: false, error: "User not authenticated." };
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
     if (!companyId) {
@@ -325,5 +327,6 @@ export async function getOpeningBalanceSuggestionAction(userId: string): Promise
     return { success: false, error: error.message || "Failed to fetch opening balance suggestion." };
   }
 }
-
       
+
+    
