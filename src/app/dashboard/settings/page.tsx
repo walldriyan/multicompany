@@ -64,7 +64,10 @@ export default function SettingsPage() {
     const result = await backupFullDatabaseAction(currentUser.id);
 
     if (result.success && result.data) {
-        const blob = new Blob([result.data], { type: 'application/vnd.sqlite3' });
+        // The server action now returns an object with base64 data.
+        // We need to decode it back into a Buffer on the client to create the Blob.
+        const buffer = Buffer.from(result.data.data, 'base64');
+        const blob = new Blob([buffer], { type: 'application/vnd.sqlite3' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

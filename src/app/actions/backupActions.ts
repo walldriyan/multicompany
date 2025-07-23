@@ -67,7 +67,7 @@ export async function backupCompanyDataAction(
 // This action is for SUPER ADMINS ONLY to backup the entire database file.
 export async function backupFullDatabaseAction(
   userId: string
-): Promise<{ success: boolean; data?: Buffer; error?: string }> {
+): Promise<{ success: boolean; data?: { type: 'Buffer'; data: string }; error?: string }> {
     if (!userId) {
         return { success: false, error: "User not authenticated." };
     }
@@ -82,11 +82,18 @@ export async function backupFullDatabaseAction(
             return { success: false, error: "Permission denied. Only Super Admins can perform a full database backup." };
         }
 
-        // IMPORTANT: This path assumes the standard Prisma setup where the DB is in the `prisma` directory.
         const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
         const dbFileBuffer = await fs.readFile(dbPath);
 
-        return { success: true, data: dbFileBuffer };
+        // To make the Buffer serializable for the client, convert it to a Base64 string
+        // and wrap it in an object that the client can interpret.
+        return { 
+            success: true, 
+            data: {
+                type: 'Buffer',
+                data: dbFileBuffer.toString('base64'),
+            }
+        };
 
     } catch (error: any) {
         console.error('Error during full database backup:', error);
