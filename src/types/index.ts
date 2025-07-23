@@ -69,7 +69,7 @@ export interface Product {
   createdByUserId?: string | null;
   updatedByUserId?: string | null;
   productDiscountConfigurations?: ProductDiscountConfiguration[];
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface SaleItem extends Product {
@@ -98,7 +98,7 @@ export interface DiscountSet {
   updatedByUserId?: string | null;
   createdAt?: string;
   updatedAt?: string;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface ProductDiscountConfiguration {
@@ -227,7 +227,7 @@ export interface SaleRecord {
   createdByUserId: string;
   createdBy?: { username: string; }; // Added for reports
   _hasReturns?: boolean;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface ProductFormData { 
@@ -265,7 +265,7 @@ export interface Party {
   updatedByUserId?: string | null;
   createdAt?: string; 
   updatedAt?: string;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface PartyFormData {
@@ -323,7 +323,7 @@ export interface PurchaseBill {
   createdBy?: { username: string; };
   createdAt?: string;
   updatedAt?: string;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface PurchaseBillFormData {
@@ -460,7 +460,7 @@ export interface StockAdjustmentLog {
   adjustedAt: Date;
   userId: string;
   user?: { username: string; }; // Added for reports
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface StockAdjustmentFormData {
@@ -510,7 +510,7 @@ export interface FinancialTransaction {
   user?: { username: string; }; // Added for reports
   createdAt?: string;
   updatedAt?: string;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface FinancialTransactionFormData {
@@ -543,7 +543,7 @@ export interface CashRegisterShift {
   };
   createdAt?: string;
   updatedAt?: string;
-  companyId: string; // Multi-company support
+  companyId?: string | null; // Multi-company support
 }
 
 export interface CashRegisterShiftFormData {

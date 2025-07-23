@@ -100,7 +100,7 @@ export async function createProductAction(
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || !user.companyId) {
+  if (!user?.companyId) {
     return { success: false, error: "Could not find the user's company to associate the product with. Please ensure the user is assigned to a company." };
   }
   const companyId = user.companyId;
@@ -192,7 +192,7 @@ export async function createProductAction(
   }
 }
 
-export async function getAllProductsAction(): Promise<{
+export async function getAllProductsAction(userId: string): Promise<{
   success: boolean;
   data?: ProductType[];
   error?: string;
@@ -204,9 +204,18 @@ export async function getAllProductsAction(): Promise<{
   if (!prisma.product) {
     return { success: false, error: "Product model accessor is missing.", detailedError: "prisma.product was undefined." };
   }
+   if (!userId) {
+    return { success: false, error: "User is not authenticated." };
+  }
 
   try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.companyId) {
+       return { success: true, data: [] }; // Return empty array if user has no company
+    }
+
     const productsFromDB = await prisma.product.findMany({
+      where: { companyId: user.companyId },
       orderBy: { name: 'asc' },
       include: {
         productDiscountConfigurations: true,

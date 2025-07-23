@@ -65,9 +65,13 @@ export default function ProductManagementPage() {
 
 
   const fetchProducts = useCallback(async () => {
+    if (!currentUser?.id) {
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
     setLastSuccessfulSubmission(null); 
-    const result = await getAllProductsAction();
+    const result = await getAllProductsAction(currentUser.id);
     if (result.success && result.data) {
       dispatch(initializeAllProducts(result.data));
     } else {
@@ -79,15 +83,11 @@ export default function ProductManagementPage() {
       });
     }
     setIsLoading(false);
-  }, [dispatch, toast]);
+  }, [dispatch, toast, currentUser]);
 
   useEffect(() => {
-    if (products.length === 0) {
-      fetchProducts();
-    } else {
-      setIsLoading(false);
-    }
-  }, [fetchProducts, products.length]);
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleServicesToggle = (checked: boolean) => {
     setShowServicesOnly(checked);
