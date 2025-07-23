@@ -37,7 +37,7 @@ const Widget = ({ icon: Icon, title, description, link, permission, className = 
 
   return (
     <div className={cn(
-      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:border-primary bg-card/40 dark:bg-card/60 border border-border/30 backdrop-blur-xl overflow-hidden",
+      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between bg-card/40 dark:bg-card/60 border border-border/30 overflow-hidden hover:border-primary",
       sizeClasses[size],
       className
     )}>
@@ -180,10 +180,10 @@ export default function WelcomePage() {
             alt="Dashboard background"
             layout="fill"
             objectFit="cover"
-            className="absolute inset-0 w-full h-full -z-10 backdrop-blur-3xl opacity-30"
+            className="absolute inset-0 w-full h-full -z-10"
             data-ai-hint="abstract gradient"
         />
-        <div className="absolute inset-0 w-full h-full bg-black/50 backdrop-blur-3xl -z-10"></div>
+        <div className="absolute inset-0 w-full h-full bg-black/50 -z-10"></div>
 
         <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
         <p className="text-muted-foreground mb-6">
