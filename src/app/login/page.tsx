@@ -30,6 +30,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Use an effect to redirect if the user is already logged in.
+  // This is safer than conditional rendering which can lead to hook count mismatches.
   useEffect(() => {
     if (currentUser) {
       router.push('/');
@@ -46,7 +48,7 @@ export default function LoginPage() {
     if (result.success && result.user) {
       dispatch(setUser(result.user));
       toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
-      router.push('/');
+      // The useEffect hook will handle the redirect.
     } else {
       const errorMessage = result.error || 'An unknown error occurred.';
       setError(errorMessage);
@@ -56,7 +58,8 @@ export default function LoginPage() {
     setIsLoading(false);
   };
   
-  // If user is already logged in, show a loading/redirecting message
+  // If user is logged in (or becomes logged in), the useEffect will trigger a redirect.
+  // Until then, we can show a loading state or the login form.
   if (currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
