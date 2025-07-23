@@ -354,15 +354,19 @@ export default function DiscountManagementPage() {
   }, [toast]);
 
   const fetchDiscountCampaigns = useCallback(async () => {
+    if (!currentUser?.id) {
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
-    const result = await getDiscountSetsAction();
+    const result = await getDiscountSetsAction(currentUser.id);
     if (result.success && result.data) {
       dispatch(initializeDiscountSets(result.data as DiscountCampaignType[]));
     } else {
       toast({ title: "Error Fetching Discount Campaigns", description: result.error, variant: "destructive" });
     }
     setIsLoading(false);
-  }, [dispatch, toast]);
+  }, [dispatch, toast, currentUser]);
 
   useEffect(() => {
     fetchDiscountCampaigns();

@@ -93,21 +93,22 @@ export async function getDiscountSetsAction(userId: string): Promise<{
     return { success: false, error: "User is not authenticated." };
   }
   try {
-     const user = await prisma.user.findUnique({ where: { id: userId } });
-     if (!user?.companyId) {
-       // Super admin without a company can see all for setup.
-       if (user?.role?.name === 'Admin') {
-           const allDbSets = await prisma.discountSet.findMany({
-               orderBy: { name: 'asc' },
-               include: { productConfigurations: { include: { product: { include: { batches: true } } } } }
-           });
-           return { success: true, data: allDbSets.map(mapPrismaDiscountSetToType) };
-       }
+     const user = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+     if (!user) {
+         return { success: false, error: "User not found."};
+     }
+     
+     if (!user.companyId && user.role?.name !== 'Admin') {
        return { success: true, data: [] }; // Non-admin without company sees nothing.
      }
 
+    const whereClause: Prisma.DiscountSetWhereInput = {};
+    if (user.companyId) {
+        whereClause.companyId = user.companyId;
+    }
+
     const dbDiscountSets = await prisma.discountSet.findMany({
-      where: { companyId: user.companyId },
+      where: whereClause,
       orderBy: { name: 'asc' },
       include: {
         productConfigurations: {
