@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -14,6 +15,7 @@ import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIco
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
+import { store } from '@/store/store'; // Import the store directly
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -53,15 +55,19 @@ export function DashboardClientLayout({
   const router = useRouter();
   const dispatch: AppDispatch = useDispatch();
 
+  // Directly initialize the store with the server-provided user.
+  // This ensures the correct user state is available before the first render.
+  if (store.getState().auth.user?.id !== initialUser.id) {
+    store.dispatch(setUser(initialUser));
+  }
+
   const [activeView, setActiveView] = useState<DashboardView>('welcome');
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  // Set the user in Redux store as soon as the component mounts on the client
   useEffect(() => {
-    dispatch(setUser(initialUser));
     setIsClient(true);
-  }, [dispatch, initialUser]);
+  }, []);
   
   const currentUser = useSelector(selectCurrentUser);
   const { can } = usePermissions();
