@@ -17,11 +17,13 @@ export default async function DashboardLayout({
     return redirect('/login');
   }
 
-  // 3. Perform the permission check on the server
-  const permissions = user.role?.permissions ?? [];
+  // 3. Perform the permission check on the server, accessing the correct nested structure.
+  const rolePermissions = user.role?.permissions ?? [];
+
+  // Correctly map the nested permission objects
   const canAccessDashboard = 
-      permissions.some(p => p.action === 'manage' && p.subject === 'all') ||
-      permissions.some(p => p.action === 'access' && p.subject === 'Dashboard');
+      rolePermissions.some(rp => rp.permission?.action === 'manage' && rp.permission?.subject === 'all') ||
+      rolePermissions.some(rp => rp.permission?.action === 'access' && rp.permission?.subject === 'Dashboard');
   
   // 4. If permission is denied, show an error page from the server
   if (!canAccessDashboard) {
