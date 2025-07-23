@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
+import { usePermissions } from '@/hooks/usePermissions';
 
 
 interface ItemToReturnEntry extends SaleRecordItem {
@@ -51,6 +52,7 @@ export default function ReturnsPage() {
   const dispatch: AppDispatch = useDispatch();
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
+  const { can } = usePermissions(); // Use the hook
   const globalTaxRateFromStore = useSelector(selectTaxRate);
   const allGlobalDiscountSets = useSelector(selectAllGlobalDiscountSets);
   const discountSetsLoaded = useSelector(selectDiscountSetsLoaded);
@@ -87,10 +89,7 @@ export default function ReturnsPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsPopoverContentRef = useRef<HTMLDivElement>(null);
   
-  const hasUpdateSalePermission = useMemo(() => {
-    return currentUser?.role?.permissions?.some(p => p.action === 'update' && p.subject === 'Sale') ||
-           currentUser?.role?.permissions?.some(p => p.action === 'manage' && p.subject === 'all');
-  }, [currentUser]);
+  const hasUpdateSalePermission = can('update', 'Sale');
 
 
   useEffect(() => {
@@ -755,6 +754,3 @@ export default function ReturnsPage() {
     </div>
   );
 }
-
-
-
