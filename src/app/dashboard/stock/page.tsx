@@ -11,7 +11,6 @@ import {
 } from '@/app/actions/productActions';
 import {
   initializeAllProducts,
-  _internalUpdateProduct,
   selectAllProducts,
 } from '@/store/slices/saleSlice';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -100,21 +99,21 @@ export default function StockManagementPage() {
 
     setIsSubmitting(true);
     const result = await updateProductStockAction(adjustingProduct.id, change, currentUser.id);
-    setIsSubmitting(false);
-
+    
     if (result.success && result.data) {
-      const updatedProduct = result.data;
-      // Refetch all products to get the latest state including average cost price
-      const freshProductsResult = await getAllProductsAction(currentUser.id);
-      if (freshProductsResult.success && freshProductsResult.data) {
-          dispatch(initializeAllProducts(freshProductsResult.data));
-      }
-      toast({ title: 'Stock Updated', description: `Stock for "${updatedProduct.name}" has been adjusted.` });
+      toast({ title: 'Stock Updated', description: `Stock for "${result.data.name}" has been adjusted.` });
+      
+      // CRITICAL FIX: After a successful adjustment, always re-fetch the entire product list
+      // from the server to ensure the Redux store has the single source of truth.
+      await fetchProducts();
+      
       setIsStockSheetOpen(false);
       setAdjustingProduct(null);
     } else {
       toast({ title: 'Error Updating Stock', description: result.error || 'Could not update stock.', variant: 'destructive' });
     }
+    
+    setIsSubmitting(false);
   };
   
   const newStockPreview = useMemo(() => {
@@ -296,5 +295,3 @@ export default function StockManagementPage() {
       </div>
   );
 }
-
-    
