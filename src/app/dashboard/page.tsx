@@ -37,7 +37,7 @@ const Widget = ({ icon: Icon, title, description, link, permission, className = 
 
   return (
     <div className={cn(
-      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-2xl bg-card/40 dark:bg-card/60 border border-white/10 backdrop-blur-xl overflow-hidden",
+      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:border-primary bg-card/40 dark:bg-card/60 border border-border/30 backdrop-blur-xl overflow-hidden",
       sizeClasses[size],
       className
     )}>
