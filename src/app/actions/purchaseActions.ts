@@ -6,6 +6,18 @@ import { PurchaseBillCreateInputSchema, PurchaseBillStatusEnumSchema, PurchasePa
 import type { PurchaseBill, PurchaseBillCreateInput, Party, PurchasePayment, PurchaseBillStatusEnum } from '@/types';
 import { Prisma } from '@prisma/client';
 
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true }
+    });
+    if (!user?.companyId) {
+        throw new Error("User is not associated with a company.");
+    }
+    return { companyId: user.companyId };
+}
+
+
 // Helper to map Prisma PurchaseBill to our PurchaseBillType
 function mapPrismaPurchaseBillToType(
   prismaPurchaseBill: Prisma.PurchaseBillGetPayload<{ include: { supplier: true, items: true, payments: true } }>
@@ -40,6 +52,9 @@ export async function createPurchaseBillAction(
     console.error(errorMsg);
     return { success: false, error: "Prisma client is not available. This is a severe server misconfiguration." };
   }
+   if (!userId) {
+    return { success: false, error: "User is not authenticated. Cannot create purchase bill." };
+  }
 
   const validationResult = PurchaseBillCreateInputSchema.safeParse(purchaseData);
   if (!validationResult.success) {
@@ -50,6 +65,8 @@ export async function createPurchaseBillAction(
   const validatedData = validationResult.data;
 
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const totalAmount = validatedData.items.reduce((sum, item) => {
       return sum + (item.quantityPurchased * item.costPriceAtPurchase);
     }, 0);
@@ -80,6 +97,7 @@ export async function createPurchaseBillAction(
           amountPaid: amountActuallyPaid,
           paymentStatus: finalPaymentStatus,
           createdByUserId: userId,
+          companyId: companyId, // Associate with user's company
           items: {
             create: validatedData.items.map((item) => ({
               productId: item.productId,
@@ -187,35 +205,25 @@ export async function createPurchaseBillAction(
 }
 
 
-export async function getAllSuppliersAction(): Promise<{ success: boolean; data?: Party[]; error?: string }> {
-  const actionExecutionTime = new Date().toISOString();
-  console.log(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] Action invoked.`);
-
-  if (!prisma) {
-    console.error(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] CRITICAL: prisma instance is NULL or UNDEFINED.`);
-    return { success: false, error: "Prisma client is not available at all. This is a severe server misconfiguration." };
+export async function getAllSuppliersAction(userId: string): Promise<{ success: boolean; data?: Party[]; error?: string }> {
+  if (!userId) {
+    return { success: false, error: "User not authenticated. Cannot fetch suppliers." };
   }
-
-  if (!prisma.party) {
-    const errorMessage = "Prisma client or Party model not initialized. Please run 'npx prisma generate' and restart your server.";
-    console.error(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] Error:`, errorMessage);
-    return { success: false, error: errorMessage };
-  }
-   console.log(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] Prisma and Party model seem accessible.`);
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
     const suppliers = await prisma.party.findMany({
-      where: { type: 'SUPPLIER', isActive: true },
+      where: { companyId: companyId, type: 'SUPPLIER', isActive: true },
       orderBy: { name: 'asc' },
     });
-    console.log(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] Fetched ${suppliers.length} suppliers.`);
     return { success: true, data: suppliers as Party[] };
   } catch (error: any) {
-    console.error(`@@@ [Action: getAllSuppliersAction - ${actionExecutionTime}] Error fetching suppliers:`, error);
-    return { success: false, error: 'Failed to fetch suppliers.' };
+    console.error(`Error fetching suppliers:`, error);
+    return { success: false, error: error.message || 'Failed to fetch suppliers.' };
   }
 }
 
 export async function getUnpaidOrPartiallyPaidPurchaseBillsAction(
+  userId: string,
   limit: number = 50,
   filters?: {
     supplierId?: string | null;
@@ -223,11 +231,14 @@ export async function getUnpaidOrPartiallyPaidPurchaseBillsAction(
     endDate?: Date | null;
   }
 ): Promise<{ success: boolean; data?: PurchaseBill[]; error?: string }> {
-  if (!prisma || !prisma.purchaseBill) {
-    return { success: false, error: "Prisma client or PurchaseBill model not initialized." };
+   if (!userId) {
+    return { success: false, error: "User not authenticated." };
   }
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const whereClause: Prisma.PurchaseBillWhereInput = {
+      companyId: companyId, // Filter by company
       paymentStatus: {
         in: [PurchaseBillStatusEnumSchema.Enum.COMPLETED, PurchaseBillStatusEnumSchema.Enum.PARTIALLY_PAID],
       },
@@ -255,7 +266,8 @@ export async function getUnpaidOrPartiallyPaidPurchaseBillsAction(
       take: limit,
     });
     return { success: true, data: unpaidBills.map(mapPrismaPurchaseBillToType) };
-  } catch (error: any) {
+  } catch (error: any)
+   {
     console.error('Error fetching unpaid purchase bills:', error);
     return { success: false, error: 'Failed to fetch unpaid purchase bills.' };
   }
@@ -265,10 +277,6 @@ export async function recordPurchasePaymentAction(
   paymentData: unknown,
   userId: string
 ): Promise<{ success: boolean; data?: PurchaseBill; error?: string; fieldErrors?: Record<string, string[]> }> {
-  if (!prisma || !prisma.purchaseBill || !prisma.purchasePayment) {
-    return { success: false, error: "Prisma client or required models not initialized." };
-  }
-  
   if (!userId) {
     return { success: false, error: 'User is not authenticated. Cannot record payment.' };
   }
@@ -280,14 +288,16 @@ export async function recordPurchasePaymentAction(
   const { purchaseBillId, amountPaid, ...restOfPaymentData } = validationResult.data;
 
   try {
+     const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const updatedPurchaseBill = await prisma.$transaction(async (tx) => {
       const bill = await tx.purchaseBill.findUnique({
-        where: { id: purchaseBillId },
+        where: { id: purchaseBillId, companyId: companyId }, // Ensure bill belongs to user's company
         include: { payments: true }
       });
 
       if (!bill) {
-        throw new Error("Purchase bill not found.");
+        throw new Error("Purchase bill not found in your company.");
       }
       if (bill.paymentStatus === PurchaseBillStatusEnumSchema.Enum.PAID) {
         throw new Error("This purchase bill is already fully paid.");

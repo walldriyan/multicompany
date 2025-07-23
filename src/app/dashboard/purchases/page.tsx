@@ -70,12 +70,17 @@ export default function PurchasesPage() {
   });
 
   const fetchInitialData = useCallback(async () => {
+    if (!currentUser?.id) {
+        setIsLoadingSuppliers(false);
+        setIsLoadingProducts(false);
+        return;
+    }
     setIsLoadingSuppliers(true);
     setIsLoadingProducts(true);
     try {
       const [suppliersResult, productsResult] = await Promise.all([
-        getAllSuppliersAction(),
-        getAllProductsAction(),
+        getAllSuppliersAction(currentUser.id),
+        getAllProductsAction(currentUser.id),
       ]);
 
       if (suppliersResult.success && suppliersResult.data) {
@@ -96,7 +101,7 @@ export default function PurchasesPage() {
       setIsLoadingSuppliers(false);
       setIsLoadingProducts(false);
     }
-  }, [toast, dispatch]);
+  }, [toast, dispatch, currentUser]);
 
   useEffect(() => {
     fetchInitialData();
@@ -157,7 +162,7 @@ export default function PurchasesPage() {
     if (result.success && result.data) {
       toast({ title: "Purchase Bill Created", description: `Bill from supplier recorded. ID: ${result.data.id}. Status: ${result.data.paymentStatus}` });
       
-      const productsResult = await getAllProductsAction();
+      const productsResult = await getAllProductsAction(currentUser.id);
       if (productsResult.success && productsResult.data) {
           dispatch(initializeAllProducts(productsResult.data));
           setAllProducts(productsResult.data);
