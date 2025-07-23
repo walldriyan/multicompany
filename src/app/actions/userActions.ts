@@ -45,7 +45,7 @@ export async function createUserAction(
      if (!role) {
          return { success: false, error: "Selected role does not exist." };
      }
-     if (role.name !== 'Admin' && !restOfUserData.companyId) {
+     if (role.name !== 'Admin' && (!restOfUserData.companyId || restOfUserData.companyId === 'null')) {
          return { success: false, error: `A company must be assigned for the role '${role.name}'.` };
      }
      
@@ -226,5 +226,3 @@ export async function getCompaniesForUserFormAction(): Promise<{ success: boolea
     return { success: false, error: 'Failed to fetch companies for form.' };
   }
 }
-
-      
