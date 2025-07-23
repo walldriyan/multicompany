@@ -9,10 +9,12 @@ import { Prisma } from '@prisma/client';
 async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true }
+        select: { companyId: true, role: { select: { name: true } } }
     });
+
+    // Super Admin (no companyId) should not manage parties directly, this is a company-level task.
     if (!user?.companyId) {
-        throw new Error("User is not associated with a company.");
+        throw new Error("User is not associated with a company. Cannot manage parties.");
     }
     return { companyId: user.companyId };
 }
@@ -40,9 +42,10 @@ export async function createPartyAction(
   partyData: unknown,
   userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string, fieldErrors?: Record<string, string[]> }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized. Please run 'npx prisma generate'." };
+  if (!userId) {
+    return { success: false, error: "User is not authenticated. Cannot create party." };
   }
+  
   const validationResult = PartyCreateInputSchema.safeParse(partyData);
   if (!validationResult.success) {
     const fieldErrors = validationResult.error.flatten().fieldErrors;
@@ -88,8 +91,8 @@ export async function getAllPartiesAction(userId: string): Promise<{
   data?: PartyType[];
   error?: string;
 }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized." };
+  if (!userId) {
+    return { success: false, error: "User is not authenticated. Cannot fetch parties." };
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
@@ -110,8 +113,8 @@ export async function getAllCustomersAction(userId: string): Promise<{
   data?: PartyType[];
   error?: string;
 }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized." };
+   if (!userId) {
+    return { success: false, error: "User is not authenticated. Cannot fetch customers." };
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
@@ -132,8 +135,8 @@ export async function getPartyByIdAction(
   id: string,
   userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized." };
+  if (!userId) {
+    return { success: false, error: "User not authenticated. Cannot fetch party." };
   }
   if (!id) return { success: false, error: "Party ID is required." };
   try {
@@ -156,8 +159,8 @@ export async function updatePartyAction(
   partyData: unknown,
   userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string, fieldErrors?: Record<string, string[]> }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized." };
+  if (!userId) {
+    return { success: false, error: "User not authenticated. Cannot update party." };
   }
   if (!id) return { success: false, error: "Party ID is required for update." };
   
@@ -217,8 +220,8 @@ export async function deletePartyAction(
   id: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (!prisma || !prisma.party) {
-    return { success: false, error: "Prisma client or Party model not initialized." };
+  if (!userId) {
+    return { success: false, error: "User not authenticated. Cannot delete party." };
   }
   if (!id) return { success: false, error: "Party ID is required for deletion." };
   try {
@@ -242,5 +245,4 @@ export async function deletePartyAction(
     return { success: false, error: error.message || 'Failed to delete party.' };
   }
 }
-
       

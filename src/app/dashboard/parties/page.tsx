@@ -23,6 +23,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface LastSuccessfulSubmission {
   id: string;
@@ -33,6 +34,11 @@ interface LastSuccessfulSubmission {
 export default function PartiesPage() {
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
+  const { can, check } = usePermissions();
+  const canCreate = can('create', 'Party');
+  const canUpdate = can('update', 'Party');
+  const canDelete = can('delete', 'Party');
+
   const [parties, setParties] = useState<Party[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -46,16 +52,17 @@ export default function PartiesPage() {
 
 
   const fetchParties = useCallback(async () => {
+    if (!currentUser?.id) return;
     setIsLoading(true);
     setLastSuccessfulSubmission(null);
-    const result = await getAllPartiesAction();
+    const result = await getAllPartiesAction(currentUser.id);
     if (result.success && result.data) {
       setParties(result.data);
     } else {
       toast({ title: 'Error Fetching Parties', description: result.error || 'Could not load parties.', variant: 'destructive' });
     }
     setIsLoading(false);
-  }, [toast]);
+  }, [toast, currentUser]);
 
   useEffect(() => {
     fetchParties();
@@ -69,24 +76,30 @@ export default function PartiesPage() {
   };
 
   const handleAddParty = () => {
+    const { permitted, toast: permissionToast } = check('create', 'Party');
+    if (!permitted) { permissionToast(); return; }
     resetFormStateAndPrepareForNew();
     setIsSheetOpen(true);
   };
 
   const handleEditParty = (party: Party) => {
+    const { permitted, toast: permissionToast } = check('update', 'Party');
+    if (!permitted) { permissionToast(); return; }
     resetFormStateAndPrepareForNew();
     setEditingParty(party);
     setIsSheetOpen(true);
   };
 
   const handleDeleteParty = (party: Party) => {
+     const { permitted, toast: permissionToast } = check('delete', 'Party');
+     if (!permitted) { permissionToast(); return; }
      setPartyToDelete(party);
   };
 
   const confirmDeleteParty = async () => {
-    if (!partyToDelete) return;
+    if (!partyToDelete || !currentUser?.id) return;
     setIsSubmitting(true);
-    const result = await deletePartyAction(partyToDelete.id);
+    const result = await deletePartyAction(partyToDelete.id, currentUser.id);
     if (result.success) {
       setParties(prev => prev.filter(p => p.id !== partyToDelete.id));
       toast({ title: 'Party Deleted', description: `Party "${partyToDelete.name}" has been removed.` });
@@ -178,7 +191,7 @@ export default function PartiesPage() {
             Party Management (Customers & Suppliers)
           </h1>
         </div>
-        <Button onClick={handleAddParty} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
+        <Button onClick={handleAddParty} disabled={!canCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
           <PlusCircle className="mr-2 h-4 w-4" /> Add Party
         </Button>
       </header>
@@ -258,10 +271,10 @@ export default function PartiesPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-center space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditParty(party)} className="h-8 w-8 text-blue-500 hover:text-blue-600">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditParty(party)} disabled={!canUpdate} className="h-8 w-8 text-blue-500 hover:text-blue-600">
                           <Edit3 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteParty(party)} className="h-8 w-8 text-red-500 hover:text-red-600">
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteParty(party)} disabled={!canDelete} className="h-8 w-8 text-red-500 hover:text-red-600">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
