@@ -80,7 +80,7 @@ export async function loginAction(
       }
       
       const passwordHash = await bcrypt.hash('admin', 10);
-      const adminUser = await prisma.user.create({
+      let adminUser = await prisma.user.create({
         data: {
           username: 'admin',
           passwordHash,
@@ -88,6 +88,11 @@ export async function loginAction(
           isActive: true,
           // companyId is not needed for the super admin
         },
+      });
+
+      // Refetch user with all relations to ensure permissions are included
+      adminUser = await prisma.user.findUniqueOrThrow({
+        where: { id: adminUser.id },
         include: {
            role: {
             include: {
@@ -101,6 +106,7 @@ export async function loginAction(
           company: true,
         },
       });
+
       console.log("Default admin user created successfully via login action.");
 
       await createAndSetSession(adminUser);
