@@ -62,25 +62,27 @@ export default function ManagePurchasePaymentsPage() {
   });
 
   const fetchUnpaidBills = useCallback(async () => {
+    if (!currentUser?.id) return;
     setIsLoadingBills(true);
     const filterParams = {
         supplierId: activeFilters.supplierId === 'all' ? null : activeFilters.supplierId,
         startDate: activeFilters.dateRange?.from ? startOfDay(activeFilters.dateRange.from) : null,
         endDate: activeFilters.dateRange?.to ? endOfDay(activeFilters.dateRange.to) : activeFilters.dateRange?.from ? endOfDay(activeFilters.dateRange.from) : null,
     };
-    const result = await getUnpaidOrPartiallyPaidPurchaseBillsAction(100, filterParams);
+    const result = await getUnpaidOrPartiallyPaidPurchaseBillsAction(currentUser.id, 100, filterParams);
     if (result.success && result.data) {
       setUnpaidBills(result.data);
     } else {
       toast({ title: 'Error Fetching Bills', description: result.error || 'Could not fetch purchase bills.', variant: 'destructive' });
     }
     setIsLoadingBills(false);
-  }, [toast, activeFilters]);
+  }, [toast, activeFilters, currentUser]);
 
   useEffect(() => {
+    if (!currentUser?.id) return;
     const fetchSuppliers = async () => {
         setIsLoadingSuppliers(true);
-        const result = await getAllSuppliersAction();
+        const result = await getAllSuppliersAction(currentUser.id);
         if (result.success && result.data) {
             setSuppliers(result.data);
         } else {
@@ -89,7 +91,7 @@ export default function ManagePurchasePaymentsPage() {
         setIsLoadingSuppliers(false);
     };
     fetchSuppliers();
-  }, [toast]);
+  }, [toast, currentUser]);
 
   useEffect(() => {
     fetchUnpaidBills();
@@ -466,3 +468,4 @@ export default function ManagePurchasePaymentsPage() {
     </div>
   );
 }
+
