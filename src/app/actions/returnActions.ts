@@ -68,6 +68,12 @@ export async function processFullReturnWithRecalculationAction(
         throw new Error("Original or current sale state not found.");
       }
 
+      // **FIX**: Get the companyId from the original sale to apply to new records.
+      const companyId = pristineOriginalSale.companyId;
+      if (!companyId) {
+        throw new Error("Could not determine the company for this transaction. Original sale is missing a company ID.");
+      }
+
       const activeDiscountSetForOriginalSale = pristineOriginalSale.activeDiscountSetId
             ? allDiscountSetsForCalc.find(ds => ds.id === pristineOriginalSale.activeDiscountSetId)
             : null;
@@ -116,6 +122,7 @@ export async function processFullReturnWithRecalculationAction(
           status: 'RETURN_TRANSACTION_COMPLETED',
           originalSaleRecordId: pristineOriginalSale.id,
           createdByUserId: userId,
+          companyId: companyId, // **FIX**: Associate with company
         }
       });
       const newReturnTransactionId = returnTransactionRecord.id;
@@ -303,6 +310,7 @@ export async function processFullReturnWithRecalculationAction(
               creditLastPaymentDate: (pristineOriginalSale.creditLastPaymentDate as any),
               paymentInstallments: (pristineOriginalSale.paymentInstallments as any[] | undefined),
               createdByUserId: userId,
+              companyId: companyId, // **FIX**: Associate with company
           },
           update: {
               date: new Date(),
@@ -354,3 +362,6 @@ export async function processFullReturnWithRecalculationAction(
 
 
 
+
+
+    
