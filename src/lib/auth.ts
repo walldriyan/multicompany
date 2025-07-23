@@ -11,7 +11,8 @@ interface AuthUser extends Omit<User, 'passwordHash' | 'role'> {
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-default-secret-key-that-is-long-enough');
 
 export async function verifyAuth(): Promise<{ user: AuthUser | null }> {
-  const token = cookies().get('auth_token')?.value;
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth_token')?.value;
 
   if (!token) {
     return { user: null };

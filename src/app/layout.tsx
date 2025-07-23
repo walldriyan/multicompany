@@ -17,13 +17,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <StoreProvider>
-      <html lang="en" className="dark">{/* Apply dark class to html for default dark theme */}
-        <body className={`${inter.variable} font-sans antialiased`}>
+    <html lang="en" className="dark">{/* Apply dark class to html for default dark theme */}
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <StoreProvider>
           {children}
-          <Toaster />
-        </body>
-      </html>
-    </StoreProvider>
+        </StoreProvider>
+        <Toaster />
+      </body>
+    </html>
   );
 }
