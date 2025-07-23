@@ -39,13 +39,19 @@ export async function processFullReturnWithRecalculationAction(
   }
 
   try {
-    const allProductsForCalcResult = await fetchAllProductsForServerLogic();
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.companyId) {
+      return { success: false, error: 'Cannot process return: User is not associated with a company.' };
+    }
+    const actorCompanyId = user.companyId;
+
+    const allProductsForCalcResult = await fetchAllProductsForServerLogic(userId);
     if (!allProductsForCalcResult.success || !allProductsForCalcResult.data) {
       throw new Error("Failed to fetch products for discount recalculation.");
     }
     const allProductsForCalc = allProductsForCalcResult.data;
 
-    const allDiscountSetsResult = await getDiscountSetsAction();
+    const allDiscountSetsResult = await getDiscountSetsAction(userId);
     if (!allDiscountSetsResult.success || !allDiscountSetsResult.data) {
       throw new Error("Failed to fetch discount sets for recalculation.");
     }
@@ -70,8 +76,8 @@ export async function processFullReturnWithRecalculationAction(
 
       // **FIX**: Get the companyId from the original sale to apply to new records.
       const companyId = pristineOriginalSale.companyId;
-      if (!companyId) {
-        throw new Error("Could not determine the company for this transaction. Original sale is missing a company ID.");
+      if (!companyId || companyId !== actorCompanyId) {
+        throw new Error("Could not determine the company for this transaction or permission denied. Original sale is missing a company ID or does not belong to your company.");
       }
 
       const activeDiscountSetForOriginalSale = pristineOriginalSale.activeDiscountSetId
@@ -363,5 +369,7 @@ export async function processFullReturnWithRecalculationAction(
 
 
 
+
+    
 
     
