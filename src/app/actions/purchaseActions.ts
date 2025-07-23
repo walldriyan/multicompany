@@ -6,14 +6,29 @@ import { PurchaseBillCreateInputSchema, PurchaseBillStatusEnumSchema, PurchasePa
 import type { PurchaseBill, PurchaseBillCreateInput, Party, PurchasePayment, PurchaseBillStatusEnum } from '@/types';
 import { Prisma } from '@prisma/client';
 
-async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true }
+        select: { companyId: true, role: { select: { name: true } } }
     });
-    if (!user?.companyId) {
+
+    // A user must exist.
+    if (!user) {
+        throw new Error("User not found.");
+    }
+
+    // If the user is a Super Admin (role 'Admin'), they might not have a companyId.
+    // In this specific context (purchases), they can't create bills without one,
+    // but we shouldn't throw a generic error here. Let the calling action handle it.
+    if (user.role?.name === 'Admin') {
+        return { companyId: user.companyId };
+    }
+    
+    // For any other user, a companyId is mandatory.
+    if (!user.companyId) {
         throw new Error("User is not associated with a company.");
     }
+
     return { companyId: user.companyId };
 }
 
@@ -66,6 +81,9 @@ export async function createPurchaseBillAction(
 
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+        return { success: false, error: "Cannot create a purchase bill. The user is not associated with a specific company."};
+    }
 
     const totalAmount = validatedData.items.reduce((sum, item) => {
       return sum + (item.quantityPurchased * item.costPriceAtPurchase);
@@ -211,6 +229,10 @@ export async function getAllSuppliersAction(userId: string): Promise<{ success: 
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      // Super admin without a company sees no suppliers, as they are company-specific.
+      return { success: true, data: [] };
+    }
     const suppliers = await prisma.party.findMany({
       where: { companyId: companyId, type: 'SUPPLIER', isActive: true },
       orderBy: { name: 'asc' },
@@ -236,6 +258,9 @@ export async function getUnpaidOrPartiallyPaidPurchaseBillsAction(
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+     if (!companyId) {
+      return { success: true, data: [] };
+    }
 
     const whereClause: Prisma.PurchaseBillWhereInput = {
       companyId: companyId, // Filter by company
@@ -289,6 +314,9 @@ export async function recordPurchasePaymentAction(
 
   try {
      const { companyId } = await getCurrentUserAndCompanyId(userId);
+     if (!companyId) {
+        return { success: false, error: "Cannot record payment. User not associated with a company." };
+     }
 
     const updatedPurchaseBill = await prisma.$transaction(async (tx) => {
       const bill = await tx.purchaseBill.findUnique({
@@ -365,4 +393,5 @@ export async function getPaymentsForPurchaseBillAction(
     return { success: false, error: 'Failed to fetch payments for purchase bill.' };
   }
 }
+
 

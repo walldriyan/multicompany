@@ -11,12 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, ShoppingCartIcon, ArrowLeft, Search, DollarSign, Info, ListFilter, CreditCard } from 'lucide-react';
+import { CalendarIcon, PlusCircle, Trash2, ShoppingCartIcon, ArrowLeft, Search, DollarSign, Info, ListFilter, CreditCard, AlertTriangle } from 'lucide-react';
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
@@ -28,18 +28,24 @@ import { _internalUpdateProduct, _internalAddNewProduct, initializeAllProducts }
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
 import { Separator } from '@/components/ui/separator';
+import { usePermissions } from '@/hooks/usePermissions';
 
 
 export default function PurchasesPage() {
   const { toast } = useToast();
   const dispatch: AppDispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
+  const { can } = usePermissions();
+  const canCreatePurchase = can('create', 'PurchaseBill');
+  
   const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [allProducts, setAllProducts] = useState<ProductType[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
   const {
     control,
@@ -194,6 +200,8 @@ export default function PurchasesPage() {
   if (isLoadingSuppliers || isLoadingProducts) {
     return <div className="p-6 text-center text-muted-foreground">Loading initial data...</div>;
   }
+  
+  const isFormDisabled = !canCreatePurchase || isSuperAdminWithoutCompany;
 
   return (
     <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
@@ -217,7 +225,22 @@ export default function PurchasesPage() {
         </div>
       </header>
 
+      {isSuperAdminWithoutCompany && (
+        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
+              <p className="text-xs text-yellow-400">
+                Purchase bills are company-specific. To create a GRN, please ensure your Super Admin account is associated with a company in the User Management settings.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <form onSubmit={handleSubmit(onSubmitPurchase)} className="space-y-6">
+       <fieldset disabled={isFormDisabled} className="space-y-6">
         <Card className="bg-card border-border shadow-lg">
           <CardHeader>
             <CardTitle className="text-card-foreground">Supplier & Bill Information</CardTitle>
@@ -541,13 +564,13 @@ export default function PurchasesPage() {
             </p>}
           </CardContent>
         </Card>
-
+        </fieldset>
 
         <div className="flex justify-end items-center p-4">
           <Button
             type="submit"
             className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3"
-            disabled={isSubmitting || !isFormValid || fields.length === 0}
+            disabled={isSubmitting || !isFormValid || fields.length === 0 || isFormDisabled}
           >
             {isSubmitting ? 'Saving...' : 'Save Purchase Bill'}
           </Button>
