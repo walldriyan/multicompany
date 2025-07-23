@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { TransactionForm } from '@/components/dashboard/financials/TransactionForm';
 import type { FinancialTransaction, FinancialTransactionFormData, TransactionType } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, TrendingUp, PlusCircle, Edit3, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, TrendingUp, PlusCircle, Edit3, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSelector } from 'react-redux';
@@ -36,6 +36,8 @@ export default function FinancialsPage() {
   const currentUser = useSelector(selectCurrentUser);
   const { can, check } = usePermissions();
   const canManageSettings = can('manage', 'Settings');
+  
+  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -173,11 +175,25 @@ export default function FinancialsPage() {
             <Button onClick={fetchTransactions} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" disabled={isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
             </Button>
-            <Button onClick={handleAddTransaction} disabled={!canManageSettings} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button onClick={handleAddTransaction} disabled={!canManageSettings || isSuperAdminWithoutCompany} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Transaction
             </Button>
         </div>
       </header>
+      
+      {isSuperAdminWithoutCompany && (
+        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
+              <p className="text-xs text-yellow-400">
+                Financial transactions are company-specific. To manage income & expenses, please ensure your Super Admin account is associated with a company in the User Management settings.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-2">
@@ -198,7 +214,7 @@ export default function FinancialsPage() {
                         fieldErrors={formFieldErrors}
                         onSwitchToAddNew={resetFormState}
                         submissionDetails={lastSuccessfulSubmission}
-                        isFormDisabled={!canManageSettings}
+                        isFormDisabled={!canManageSettings || isSuperAdminWithoutCompany}
                     />
                 </CardContent>
             </Card>

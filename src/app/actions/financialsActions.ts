@@ -6,12 +6,21 @@ import { FinancialTransactionFormSchema } from '@/lib/zodSchemas';
 import type { FinancialTransaction, FinancialTransactionFormData } from '@/types';
 import { Prisma } from '@prisma/client';
 
-async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { companyId: true }
+        select: { companyId: true, role: { select: { name: true } } }
     });
-    if (!user?.companyId) {
+
+    if (!user) {
+        throw new Error("User not found.");
+    }
+    
+    if (user.role?.name === 'Admin') {
+        return { companyId: user.companyId }; // Can be null for Super Admin
+    }
+
+    if (!user.companyId) {
         throw new Error("User is not associated with a company.");
     }
     return { companyId: user.companyId };
@@ -41,6 +50,9 @@ export async function createTransactionAction(
   
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+        return { success: false, error: "Cannot create transaction. User is not associated with a company." };
+    }
 
     const newTransaction = await prisma.financialTransaction.create({
       data: {
@@ -66,6 +78,11 @@ export async function getTransactionsAction(userId: string): Promise<{
 }> {
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      // Super admin without a company sees no transactions. This is not an error.
+      return { success: true, data: [] };
+    }
+
     const transactions = await prisma.financialTransaction.findMany({
       where: { companyId: companyId }, // Filter by company
       orderBy: { date: 'desc' },
@@ -92,6 +109,10 @@ export async function updateTransactionAction(
 
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+        return { success: false, error: "Cannot update transaction. User is not associated with a company." };
+    }
+    
     // Ensure user can only update their own company's transaction
     const transaction = await prisma.financialTransaction.findFirst({
         where: { id, companyId: companyId },
@@ -121,6 +142,10 @@ export async function deleteTransactionAction(
   if (!id) return { success: false, error: "Transaction ID is required for deletion." };
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+     if (!companyId) {
+        return { success: false, error: "Cannot delete transaction. User is not associated with a company." };
+    }
+    
     // Ensure user can only delete their own company's transaction
     const transaction = await prisma.financialTransaction.findFirst({
         where: { id, companyId: companyId },
@@ -141,5 +166,4 @@ export async function deleteTransactionAction(
     return { success: false, error: error.message || 'Failed to delete transaction.' };
   }
 }
-
       
