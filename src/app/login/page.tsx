@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { setUser, setAuthLoading, setAuthError, selectCurrentUser } from '@/store/slices/authSlice';
+import { setUser, setAuthLoading, setAuthError, selectCurrentUser, selectAuthStatus } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
 import { loginAction } from '@/app/actions/authActions';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const dispatch: AppDispatch = useDispatch();
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
+  const authStatus = useSelector(selectAuthStatus);
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -27,19 +28,17 @@ export default function LoginPage() {
       password: 'admin',
     },
   });
-  const [isLoading, setIsLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
-  // Use an effect to redirect if the user is already logged in.
-  // This is safer than conditional rendering which can lead to hook count mismatches.
+  // This effect handles redirection after the auth state is confirmed.
   useEffect(() => {
-    if (currentUser) {
+    if (authStatus === 'succeeded' && currentUser) {
       router.push('/');
     }
-  }, [currentUser, router]);
+  }, [authStatus, currentUser, router]);
 
   const onSubmit = async (data: any) => {
-    setIsLoading(true);
     setError(null);
     dispatch(setAuthLoading());
 
@@ -48,22 +47,22 @@ export default function LoginPage() {
     if (result.success && result.user) {
       dispatch(setUser(result.user));
       toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
-      // The useEffect hook will handle the redirect.
+      // The useEffect above will handle the redirect once the state updates.
     } else {
       const errorMessage = result.error || 'An unknown error occurred.';
       setError(errorMessage);
       dispatch(setAuthError(errorMessage));
       toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
     }
-    setIsLoading(false);
   };
   
-  // If user is logged in (or becomes logged in), the useEffect will trigger a redirect.
-  // Until then, we can show a loading state or the login form.
-  if (currentUser) {
+  // While checking auth status, or if already logged in and waiting for redirect, show a loading state.
+  if (authStatus === 'loading' || (authStatus === 'succeeded' && currentUser)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-          <p className="text-muted-foreground">Already logged in. Redirecting...</p>
+          <p className="text-muted-foreground">
+            {currentUser ? 'Already logged in. Redirecting...' : 'Authenticating...'}
+          </p>
       </div>
     );
   }
@@ -95,6 +94,7 @@ export default function LoginPage() {
                 placeholder="Enter your username"
                 {...register('username', { required: 'Username is required' })}
                 className="bg-input border-border focus:ring-primary"
+                disabled={authStatus === 'loading'}
               />
               {errors.username && <p className="text-xs text-destructive mt-1">{errors.username.message}</p>}
             </div>
@@ -106,11 +106,12 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 {...register('password', { required: 'Password is required' })}
                 className="bg-input border-border focus:ring-primary"
+                disabled={authStatus === 'loading'}
               />
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message}</p>}
             </div>
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={authStatus === 'loading'}>
+              {authStatus === 'loading' ? 'Logging in...' : 'Login'}
             </Button>
           </form>
         </CardContent>

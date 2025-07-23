@@ -6,36 +6,41 @@ import bcrypt from 'bcryptjs';
 import type { User as UserType } from '@/types';
 import { Prisma } from '@prisma/client';
 import { seedPermissionsAction } from './permissionActions';
+import { cookies } from 'next/headers';
+import { SignJWT } from 'jose';
+
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-default-secret-key-that-is-long-enough');
 
 // Helper function to serialize the user object for Redux, converting Date objects to strings
 const serializeUserForRedux = (userWithDates: any): Omit<UserType, 'passwordHash'> => {
-  const { passwordHash, role, createdAt, updatedAt, company, ...rest } = userWithDates;
+  // Deep clone and serialize
+  const serializableUser = JSON.parse(JSON.stringify(userWithDates, (key, value) => {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value;
+  }));
 
-  const serializableRole = role ? {
-    ...role,
-    createdAt: role.createdAt?.toISOString(),
-    updatedAt: role.updatedAt?.toISOString(),
-    permissions: role.permissions?.map((p: any) => ({
-      ...p.permission,
-      createdAt: p.permission.createdAt?.toISOString(),
-      updatedAt: p.permission.updatedAt?.toISOString(),
-    })) || []
-  } : undefined;
-
-  const serializableCompany = company ? {
-      ...company,
-      createdAt: company.createdAt?.toISOString(),
-      updatedAt: company.updatedAt?.toISOString(),
-  } : undefined;
-
-  return {
-    ...rest,
-    createdAt: createdAt?.toISOString(),
-    updatedAt: updatedAt?.toISOString(),
-    role: serializableRole,
-    company: serializableCompany,
-  };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash, ...userWithoutPassword } = serializableUser;
+  return userWithoutPassword;
 };
+
+async function createAndSetSession(user: any) {
+    const session = await new SignJWT({ sub: user.id, role: user.role?.name })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1d') // Session expires in 1 day
+      .sign(secret);
+    
+    cookies().set('auth_token', session, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 1 day in seconds
+    });
+}
 
 export async function loginAction(
   credentials: Record<"username" | "password", string>
@@ -97,6 +102,8 @@ export async function loginAction(
         },
       });
       console.log("Default admin user created successfully via login action.");
+
+      await createAndSetSession(adminUser);
       
       return { success: true, user: serializeUserForRedux(adminUser) };
     }
@@ -122,6 +129,11 @@ export async function loginAction(
         return { success: false, error: 'Invalid username or password.' };
     }
 
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      return { success: false, error: 'Invalid username or password.' };
+    }
+
     // For non-super-admins, check for an open shift within their company
     if (user.companyId) {
         const openShiftInCompany = await prisma.cashRegisterShift.findFirst({
@@ -140,10 +152,7 @@ export async function loginAction(
         }
     }
     
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      return { success: false, error: 'Invalid username or password.' };
-    }
+    await createAndSetSession(user);
 
     return { success: true, user: serializeUserForRedux(user) };
 
@@ -198,4 +207,8 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
     console.error("verifyAdminPasswordAction error:", error);
     return { success: false, error: 'An error occurred during password verification.' };
   }
+}
+
+export async function logoutAction(): Promise<void> {
+  cookies().delete('auth_token');
 }
