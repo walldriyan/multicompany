@@ -66,14 +66,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const { toast } = useToast();
   const productSearchRef = useRef<ProductSearchHandle>(null);
 
-  // Initialize store with server-fetched data only once
-  useEffect(() => {
-    dispatch(initializeAllProducts(serverState.sale.allProducts));
-    dispatch(initializeDiscountSets(serverState.sale.discountSets));
-    dispatch(initializeTaxRate(serverState.sale.taxRate));
-  }, [dispatch, serverState]);
-
-
+  // All hooks are now at the top level
   const currentUser = useSelector(selectCurrentUser);
   const authStatus = useSelector(selectAuthStatus);
   const allProductsFromStore = useSelector(selectAllProducts);
@@ -82,32 +75,34 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const activeDiscountSetId = useSelector(selectActiveDiscountSetId);
   const activeDiscountSet = useSelector(selectActiveDiscountSet);
   const taxRate = useSelector(selectTaxRate);
-
   const subtotalOriginal = useSelector(selectSaleSubtotalOriginal);
   const tax = useSelector(selectCalculatedTax);
   const total = useSelector(selectSaleTotal);
-
   const calculatedDiscountsSelectorResult = useSelector(selectCalculatedDiscounts);
   const appliedDiscountSummaryFromSelector = useSelector(selectAppliedDiscountSummary);
-
 
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isDiscountInfoDialogOpen, setIsDiscountInfoDialogOpen] = useState(false);
   const [selectedDiscountRuleForInfo, setSelectedDiscountRuleForInfo] = useState<{ rule: AppliedRuleInfo, config?: SpecificDiscountRuleConfig } | null>(null);
-
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [currentPaymentMethod, setCurrentPaymentMethod] = useState<PaymentMethod | null>(null);
   const [currentBillNumber, setCurrentBillNumber] = useState('');
-  
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('popup');
   const [isInlinePaymentView, setIsInlinePaymentView] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-
-
   const [isClient, setIsClient] = useState(false);
+  const [isMounting, setIsMounting] = useState(true);
 
+  // Initialize store with server-fetched data only once
+  useEffect(() => {
+    dispatch(initializeAllProducts(serverState.sale.allProducts));
+    dispatch(initializeDiscountSets(serverState.sale.discountSets));
+    dispatch(initializeTaxRate(serverState.sale.taxRate));
+  }, [dispatch, serverState]);
+  
   useEffect(() => {
     setIsClient(true);
+    setIsMounting(false);
     const savedMode = localStorage.getItem('posCheckoutMode') as CheckoutMode;
     if (savedMode === 'inline' || savedMode === 'popup') {
       setCheckoutMode(savedMode);
@@ -486,33 +481,18 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     console.error("Barcode reader error:", err);
   }, []);
 
-  if (authStatus === 'loading' || !currentUser) {
+  // Conditional returns are now at the end
+  if (authStatus === 'loading' || !currentUser || (isMounting && isClient)) {
     return (
         <div className="flex h-screen bg-background text-foreground font-body items-center justify-center">
             <div className="flex flex-col items-center space-y-3">
                 <ShoppingBag className="h-16 w-16 text-primary animate-pulse" />
-                <p className="text-xl text-muted-foreground">Authenticating...</p>
+                <p className="text-xl text-muted-foreground">{authStatus === 'loading' ? 'Authenticating...' : 'Loading POS System...'}</p>
             </div>
         </div>
     );
   }
   
-  // This state is just to prevent FOUC, the actual loading is done on the server.
-  const [isMounting, setIsMounting] = useState(true);
-  useEffect(() => setIsMounting(false), []);
-
-  if (isMounting && isClient) {
-     return (
-        <div className="flex h-screen bg-background text-foreground font-body items-center justify-center">
-            <div className="flex flex-col items-center space-y-3">
-                <ShoppingBag className="h-16 w-16 text-primary animate-pulse" />
-                <p className="text-xl text-muted-foreground">Loading POS System...</p>
-            </div>
-        </div>
-    );
-  }
-
-  // Main Return Logic
   if (isInlinePaymentView) {
     return (
       <div className="h-screen bg-background text-foreground font-body flex flex-col">
