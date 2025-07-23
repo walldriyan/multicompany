@@ -70,12 +70,14 @@ export default function DashboardLayout({
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
   useEffect(() => {
-    // Wait until auth status is no longer loading.
+    // Wait until auth status is no longer loading and we are on the client.
     if (!isClient || authStatus === 'loading') {
       return;
     }
 
-    // If auth has resolved and there is NO user, redirect to login page.
+    // If auth has resolved and there is NO user in the Redux store,
+    // this indicates a problem (e.g., expired token), so redirect to login.
+    // The server-side check should have already caught this, but this is a safeguard.
     if (!currentUser) {
       router.push('/login');
       return;
@@ -92,6 +94,8 @@ export default function DashboardLayout({
 
     if (currentViewKey) {
         const permission = viewConfig[currentViewKey].permission;
+        // The primary permission check is now on the server. This client-side check
+        // is a secondary safeguard and helps keep the UI in sync.
         if (!can(permission.action as any, permission.subject as any)) {
              toast({
                 title: "Access Denied",
@@ -206,7 +210,7 @@ export default function DashboardLayout({
   if (!isClient || authStatus === 'loading' || !currentUser) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
-            <p className="text-muted-foreground">Authenticating...</p>
+            <p className="text-muted-foreground">Loading Dashboard...</p>
         </div>
     );
   }
@@ -240,3 +244,5 @@ export default function DashboardLayout({
     </SidebarProvider>
   );
 }
+
+    
