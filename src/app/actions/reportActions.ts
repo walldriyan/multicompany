@@ -5,44 +5,75 @@ import prisma from '@/lib/prisma';
 import type { ComprehensiveReport, SaleRecord, FinancialTransaction, StockAdjustmentLog, PurchaseBill, CashRegisterShift, Product, Party, User, SaleRecordItem } from '@/types';
 import { Prisma } from '@prisma/client';
 
+async function getCompanyIdForReport(userId?: string | null): Promise<string | null> {
+    if (!userId) return null;
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true }
+    });
+    return user?.companyId || null;
+}
+
+
 export async function getComprehensiveReportAction(
   startDate: Date,
   endDate: Date,
-  userId?: string | null
+  userIdForFilter?: string | null, // This is the user selected in the filter, could be 'all'
+  actorUserId?: string | null // This is the user *running* the report, for company scoping
 ): Promise<{ success: boolean; data?: ComprehensiveReport; error?: string }> {
   try {
-    const userFilterForSales = userId ? { createdByUserId: userId } : {};
-    const userFilterForFinancials = userId ? { userId: userId } : {};
-    const userFilterForStock = userId ? { userId: userId } : {};
-    const userFilterForPurchases = userId ? { createdByUserId: userId } : {};
-    const userFilterForProductsAndParties = userId ? { updatedByUserId: userId } : {};
 
-    // 1. Fetch all necessary data with user details included
+    // The report is always scoped to the company of the user RUNNING the report.
+    const companyId = await getCompanyIdForReport(actorUserId);
+    if (!companyId) {
+      // If the actor is a Super Admin without a company, maybe we show all? For now, let's restrict.
+      return { success: false, error: "Cannot generate report. You are not assigned to a company." };
+    }
+    
+    // The filter for a specific user is applied *within* the company's data.
+    const userFilter = userIdForFilter && userIdForFilter !== 'all' ? { createdByUserId: userIdForFilter } : {};
+    const companyFilter = { companyId: companyId };
+    
+    const combinedWhere = (extraFilter = {}) => ({
+        ...companyFilter,
+        ...userFilter,
+        ...extraFilter
+    });
+
     const salesAndReturns = await prisma.saleRecord.findMany({
-      where: { date: { gte: startDate, lte: endDate }, ...userFilterForSales },
+      where: { date: { gte: startDate, lte: endDate }, ...combinedWhere() },
       include: { customer: true, createdBy: { select: { username: true } } },
       orderBy: { date: 'asc' },
     });
+
     const financialTransactions = await prisma.financialTransaction.findMany({ 
-        where: { date: { gte: startDate, lte: endDate }, ...userFilterForFinancials }, 
+        where: { date: { gte: startDate, lte: endDate }, ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined }) }, 
         include: { user: { select: { username: true } } },
         orderBy: { date: 'asc' } 
     });
+
     const stockAdjustments = await prisma.stockAdjustmentLog.findMany({ 
-        where: { adjustedAt: { gte: startDate, lte: endDate }, ...userFilterForStock }, 
+        where: { adjustedAt: { gte: startDate, lte: endDate }, ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined }) }, 
         include: { product: { select: { name: true } }, user: { select: { username: true } } }, 
         orderBy: { adjustedAt: 'asc' } 
     });
+
     const purchases = await prisma.purchaseBill.findMany({ 
-        where: { purchaseDate: { gte: startDate, lte: endDate }, ...userFilterForPurchases }, 
+        where: { purchaseDate: { gte: startDate, lte: endDate }, ...combinedWhere() }, 
         include: { supplier: true, items: true, payments: true, createdBy: { select: { username: true } } } 
     });
+
     const cashRegisterShifts = await prisma.cashRegisterShift.findMany({ 
-        where: { startedAt: { lte: endDate }, OR: [{ closedAt: null }, { closedAt: { gte: startDate }}], ...userFilterForFinancials }, 
+        where: { 
+            startedAt: { lte: endDate }, 
+            OR: [{ closedAt: null }, { closedAt: { gte: startDate }}], 
+            ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined })
+        }, 
         include: { user: { select: { username: true } } } 
     });
-    const newOrUpdatedProducts = await prisma.product.findMany({ where: { updatedAt: { gte: startDate, lte: endDate }, ...userFilterForProductsAndParties } });
-    const newOrUpdatedParties = await prisma.party.findMany({ where: { updatedAt: { gte: startDate, lte: endDate }, ...userFilterForProductsAndParties } });
+    
+    const newOrUpdatedProducts = await prisma.product.findMany({ where: { updatedAt: { gte: startDate, lte: endDate }, ...companyFilter } });
+    const newOrUpdatedParties = await prisma.party.findMany({ where: { updatedAt: { gte: startDate, lte: endDate }, ...companyFilter } });
 
     const allSales = salesAndReturns.filter(r => r.recordType === 'SALE').map(s => ({...s, items: s.items as Prisma.JsonArray, returnedItemsLog: s.returnedItemsLog as Prisma.JsonArray, appliedDiscountSummary: s.appliedDiscountSummary as Prisma.JsonArray}) as any);
     const allReturns = salesAndReturns.filter(r => r.recordType === 'RETURN_TRANSACTION').map(s => ({...s, items: s.items as Prisma.JsonArray, returnedItemsLog: s.returnedItemsLog as Prisma.JsonArray, appliedDiscountSummary: s.appliedDiscountSummary as Prisma.JsonArray}) as any);
@@ -126,14 +157,26 @@ export async function getComprehensiveReportAction(
 }
 
 
-export async function getUsersForReportFilterAction(): Promise<{
+export async function getUsersForReportFilterAction(actorUserId: string): Promise<{
   success: boolean;
   data?: { id: string; username: string }[];
   error?: string;
 }> {
   try {
+    const companyId = await getCompanyIdForReport(actorUserId);
+    if (!companyId) {
+        // Super admin with no company assigned sees all users, others see none.
+        const actor = await prisma.user.findUnique({ where: { id: actorUserId }, include: { role: true }});
+        if (actor?.role?.name !== 'Admin') {
+            return { success: true, data: [] };
+        }
+    }
+
     const users = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        companyId: companyId || undefined // Filter by company if it exists
+      },
       select: {
         id: true,
         username: true,
@@ -148,3 +191,5 @@ export async function getUsersForReportFilterAction(): Promise<{
     return { success: false, error: 'Failed to load user list.' };
   }
 }
+
+      

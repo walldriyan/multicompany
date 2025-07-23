@@ -37,15 +37,26 @@ export async function createUserAction(
   if (!validationResult.success) {
     return { success: false, error: "Validation failed.", fieldErrors: validationResult.error.flatten().fieldErrors };
   }
-  // Destructure password AND confirmPassword out, as confirmPassword is not part of the DB schema
+  
   const { password, confirmPassword, ...restOfUserData } = validationResult.data;
 
   try {
+     const role = await prisma.role.findUnique({ where: { id: restOfUserData.roleId } });
+     if (!role) {
+         return { success: false, error: "Selected role does not exist." };
+     }
+     if (role.name !== 'Admin' && !restOfUserData.companyId) {
+         return { success: false, error: `A company must be assigned for the role '${role.name}'.` };
+     }
+     
+     // Super Admins should not be assigned a company
+     const companyIdToSave = role.name === 'Admin' ? null : restOfUserData.companyId;
+
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
       data: {
-        ...restOfUserData, // restOfUserData now correctly excludes password and confirmPassword
-        companyId: restOfUserData.companyId || undefined,
+        ...restOfUserData,
+        companyId: companyIdToSave,
         passwordHash,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
@@ -106,48 +117,42 @@ export async function updateUserAction(
   userData: unknown,
   actorUserId: string | null
 ): Promise<{ success: boolean; data?: Omit<User, 'passwordHash'>; error?: string; fieldErrors?: Record<string, string[]> }> {
-  console.log("[ACTION START] updateUserAction for user ID:", id);
-  console.log("[STEP 1] Raw data from form:", userData);
-
   if (!id) return { success: false, error: "User ID is required for update." };
   
   const validationResult = UserUpdateSchema.safeParse(userData);
   if (!validationResult.success) {
-    console.error("[VALIDATION FAIL] Zod validation failed:", validationResult.error.flatten().fieldErrors);
     return { success: false, error: "Validation failed.", fieldErrors: validationResult.error.flatten().fieldErrors };
   }
   
-  console.log("[STEP 2] Zod validation successful. Validated data:", validationResult.data);
   const { password, confirmPassword, ...restOfUserData } = validationResult.data;
 
-  const dataToUpdate: Prisma.UserUpdateInput = { 
-      ...restOfUserData,
-      updatedByUserId: actorUserId
-  };
-  
-  // Explicitly handle companyId to correctly set it to null if needed
-  if (restOfUserData.companyId === 'null' || restOfUserData.companyId === null || restOfUserData.companyId === undefined) {
-      dataToUpdate.companyId = null;
-  } else {
-      dataToUpdate.companyId = restOfUserData.companyId;
-  }
-
-  if (password && password.trim() !== "") {
-    dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
-    console.log("[STEP 3] New password provided and hashed.");
-  } else {
-    console.log("[STEP 3] No new password provided.");
-  }
-
-  console.log("[STEP 4] Final data payload being sent to Prisma:", dataToUpdate);
-
   try {
+    const role = await prisma.role.findUnique({ where: { id: restOfUserData.roleId } });
+    if (!role) {
+      return { success: false, error: "Selected role does not exist." };
+    }
+    if (role.name !== 'Admin' && (!restOfUserData.companyId || restOfUserData.companyId === 'null')) {
+      return { success: false, error: `A company must be assigned for the role '${role.name}'.` };
+    }
+    
+    // Super Admins should not be assigned a company
+    const companyIdToSave = role.name === 'Admin' ? null : restOfUserData.companyId;
+
+    const dataToUpdate: Prisma.UserUpdateInput = { 
+        ...restOfUserData,
+        companyId: companyIdToSave,
+        updatedByUserId: actorUserId
+    };
+    
+    if (password && password.trim() !== "") {
+      dataToUpdate.passwordHash = await bcrypt.hash(password, 10);
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: dataToUpdate,
       include: { role: true, company: true },
     });
-    console.log("[SUCCESS] Prisma update successful. Updated user:", updatedUser);
     return { success: true, data: mapPrismaUserToType(updatedUser) };
   } catch (error: any) {
     console.error('[ACTION FAIL] Critical error in updateUserAction:', error);
@@ -222,4 +227,4 @@ export async function getCompaniesForUserFormAction(): Promise<{ success: boolea
   }
 }
 
-    
+      

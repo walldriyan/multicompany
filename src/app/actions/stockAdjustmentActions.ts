@@ -13,6 +13,12 @@ export async function adjustStockAction(
   if (!userId) {
     return { success: false, error: 'User not authenticated. Cannot adjust stock.' };
   }
+  
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user?.companyId) {
+    return { success: false, error: "User is not associated with a company." };
+  }
+  const companyId = user.companyId;
 
   const validationResult = StockAdjustmentFormSchema.omit({userId: true}).safeParse(data);
   if (!validationResult.success) {
@@ -20,6 +26,14 @@ export async function adjustStockAction(
   }
 
   const { productId, quantity, reason, notes } = validationResult.data;
+
+  // Verify the product belongs to the user's company before adjusting
+  const productToAdjust = await prisma.product.findFirst({
+    where: { id: productId, companyId: companyId }
+  });
+  if (!productToAdjust) {
+    return { success: false, error: "Product not found in your company." };
+  }
 
   let changeInStock = 0;
   switch (reason) {
@@ -49,12 +63,17 @@ export async function adjustStockAction(
         reason,
         notes,
         userId: userId,
+        companyId: companyId, // Log the company for the adjustment
         adjustedAt: new Date(),
       }
     });
   } catch (logError) {
     console.error("Failed to log stock adjustment:", logError);
+    // Even if logging fails, the stock was updated, so we might not want to return a hard error.
+    // This could be enhanced with more robust logging.
   }
 
   return { success: true };
 }
+
+      

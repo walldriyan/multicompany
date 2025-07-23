@@ -6,12 +6,25 @@ import { FinancialTransactionFormSchema } from '@/lib/zodSchemas';
 import type { FinancialTransaction, FinancialTransactionFormData } from '@/types';
 import { Prisma } from '@prisma/client';
 
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true }
+    });
+    if (!user?.companyId) {
+        throw new Error("User is not associated with a company.");
+    }
+    return { companyId: user.companyId };
+}
+
+
 function mapPrismaToTransaction(transaction: any): FinancialTransaction {
   return {
     ...transaction,
     date: transaction.date.toISOString(),
     createdAt: transaction.createdAt?.toISOString(),
     updatedAt: transaction.updatedAt?.toISOString(),
+    companyId: transaction.companyId,
   };
 }
 
@@ -27,10 +40,13 @@ export async function createTransactionAction(
   const validatedData = validationResult.data;
   
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const newTransaction = await prisma.financialTransaction.create({
       data: {
         ...validatedData,
         userId: userId,
+        companyId: companyId, // Associate with user's company
       },
     });
     return { success: true, data: mapPrismaToTransaction(newTransaction) };
@@ -39,7 +55,7 @@ export async function createTransactionAction(
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       return { success: false, error: `Database error: ${error.message}` };
     }
-    return { success: false, error: "Failed to record transaction. Please check server logs." };
+    return { success: false, error: error.message || "Failed to record transaction. Please check server logs." };
   }
 }
 
@@ -49,14 +65,16 @@ export async function getTransactionsAction(userId: string): Promise<{
   error?: string;
 }> {
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
     const transactions = await prisma.financialTransaction.findMany({
-      where: { userId },
+      where: { companyId: companyId }, // Filter by company
       orderBy: { date: 'desc' },
+      include: { user: { select: { username: true } } }
     });
     return { success: true, data: transactions.map(mapPrismaToTransaction) };
   } catch (error: any) {
     console.error("Error fetching transactions:", error);
-    return { success: false, error: 'Failed to fetch transactions.' };
+    return { success: false, error: error.message || 'Failed to fetch transactions.' };
   }
 }
 
@@ -73,9 +91,10 @@ export async function updateTransactionAction(
   }
 
   try {
-    // Ensure user can only update their own transaction
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    // Ensure user can only update their own company's transaction
     const transaction = await prisma.financialTransaction.findFirst({
-        where: { id, userId },
+        where: { id, companyId: companyId },
     });
     if (!transaction) {
         return { success: false, error: 'Transaction not found or you do not have permission to edit it.' };
@@ -91,7 +110,7 @@ export async function updateTransactionAction(
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return { success: false, error: 'Transaction to update not found.' };
     }
-    return { success: false, error: 'Failed to update transaction.' };
+    return { success: false, error: error.message || 'Failed to update transaction.' };
   }
 }
 
@@ -101,9 +120,10 @@ export async function deleteTransactionAction(
 ): Promise<{ success: boolean; error?: string }> {
   if (!id) return { success: false, error: "Transaction ID is required for deletion." };
   try {
-    // Ensure user can only delete their own transaction
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    // Ensure user can only delete their own company's transaction
     const transaction = await prisma.financialTransaction.findFirst({
-        where: { id, userId },
+        where: { id, companyId: companyId },
     });
     if (!transaction) {
         return { success: false, error: 'Transaction not found or you do not have permission to delete it.' };
@@ -118,6 +138,8 @@ export async function deleteTransactionAction(
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return { success: false, error: 'Transaction to delete not found.' };
     }
-    return { success: false, error: 'Failed to delete transaction.' };
+    return { success: false, error: error.message || 'Failed to delete transaction.' };
   }
 }
+
+      

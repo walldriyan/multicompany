@@ -6,6 +6,18 @@ import { PartyCreateInputSchema, PartyUpdateInputSchema } from '@/lib/zodSchemas
 import type { Party as PartyType, PartyCreateInput, PartyUpdateInput, PartyTypeEnum } from '@/types';
 import { Prisma } from '@prisma/client';
 
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true }
+    });
+    if (!user?.companyId) {
+        throw new Error("User is not associated with a company.");
+    }
+    return { companyId: user.companyId };
+}
+
+
 // Helper to map Prisma Party to our PartyType
 function mapPrismaPartyToType(
   prismaParty: Prisma.PartyGetPayload<{}>,
@@ -20,13 +32,13 @@ function mapPrismaPartyToType(
     isActive: prismaParty.isActive,
     createdAt: prismaParty.createdAt?.toISOString(),
     updatedAt: prismaParty.updatedAt?.toISOString(),
-    // createdByUserId and updatedByUserId are intentionally omitted from the return type for security
+    companyId: prismaParty.companyId,
   };
 }
 
 export async function createPartyAction(
   partyData: unknown,
-  userId: string | null
+  userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string, fieldErrors?: Record<string, string[]> }> {
   if (!prisma || !prisma.party) {
     return { success: false, error: "Prisma client or Party model not initialized. Please run 'npx prisma generate'." };
@@ -39,9 +51,12 @@ export async function createPartyAction(
   const validatedData = validationResult.data;
 
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+
     const newParty = await prisma.party.create({
       data: {
         ...validatedData,
+        companyId: companyId, // Associate with user's company
         phone: validatedData.phone || undefined,
         email: validatedData.email || undefined,
         address: validatedData.address || undefined,
@@ -56,10 +71,10 @@ export async function createPartyAction(
       if (error.code === 'P2002' && error.meta?.target) {
          const target = error.meta.target as string[];
         if (target.includes('email') && validatedData.email) {
-          return { success: false, error: 'A party with this email already exists.' };
+          return { success: false, error: 'A party with this email already exists in this company.' };
         }
          if (target.includes('name') && validatedData.name) { 
-          return { success: false, error: 'A party with this name already exists (if name is set to be unique).' };
+          return { success: false, error: 'A party with this name already exists in this company.' };
         }
         return { success: false, error: `A unique constraint violation occurred on: ${target.join(', ')}` };
       }
@@ -68,7 +83,7 @@ export async function createPartyAction(
   }
 }
 
-export async function getAllPartiesAction(): Promise<{
+export async function getAllPartiesAction(userId: string): Promise<{
   success: boolean;
   data?: PartyType[];
   error?: string;
@@ -77,18 +92,20 @@ export async function getAllPartiesAction(): Promise<{
     return { success: false, error: "Prisma client or Party model not initialized." };
   }
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
     const partiesFromDB = await prisma.party.findMany({
+      where: { companyId: companyId }, // Filter by company
       orderBy: { name: 'asc' },
     });
     const mappedParties: PartyType[] = partiesFromDB.map(mapPrismaPartyToType);
     return { success: true, data: mappedParties };
   } catch (error: any) {
     console.error('Error fetching parties:', error);
-    return { success: false, error: 'Failed to fetch parties.' };
+    return { success: false, error: error.message || 'Failed to fetch parties.' };
   }
 }
 
-export async function getAllCustomersAction(): Promise<{
+export async function getAllCustomersAction(userId: string): Promise<{
   success: boolean;
   data?: PartyType[];
   error?: string;
@@ -97,44 +114,47 @@ export async function getAllCustomersAction(): Promise<{
     return { success: false, error: "Prisma client or Party model not initialized." };
   }
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
     const customersFromDB = await prisma.party.findMany({
-      where: { type: 'CUSTOMER', isActive: true },
+      where: { companyId: companyId, type: 'CUSTOMER', isActive: true }, // Filter by company
       orderBy: { name: 'asc' },
     });
     const mappedCustomers: PartyType[] = customersFromDB.map(mapPrismaPartyToType);
     return { success: true, data: mappedCustomers };
   } catch (error: any) {
     console.error('Error fetching customers:', error);
-    return { success: false, error: 'Failed to fetch customers.' };
+    return { success: false, error: error.message || 'Failed to fetch customers.' };
   }
 }
 
 
 export async function getPartyByIdAction(
-  id: string
+  id: string,
+  userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string }> {
   if (!prisma || !prisma.party) {
     return { success: false, error: "Prisma client or Party model not initialized." };
   }
   if (!id) return { success: false, error: "Party ID is required." };
   try {
-    const party = await prisma.party.findUnique({
-      where: { id },
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const party = await prisma.party.findFirst({
+      where: { id: id, companyId: companyId }, // Ensure party belongs to user's company
     });
     if (!party) {
-      return { success: false, error: 'Party not found.' };
+      return { success: false, error: 'Party not found in your company.' };
     }
     return { success: true, data: mapPrismaPartyToType(party) };
   } catch (error: any) {
     console.error(`Error fetching party by ID ${id}:`, error);
-    return { success: false, error: 'Failed to fetch party.' };
+    return { success: false, error: error.message || 'Failed to fetch party.' };
   }
 }
 
 export async function updatePartyAction(
   id: string,
   partyData: unknown,
-  userId: string | null
+  userId: string
 ): Promise<{ success: boolean; data?: PartyType; error?: string, fieldErrors?: Record<string, string[]> }> {
   if (!prisma || !prisma.party) {
     return { success: false, error: "Prisma client or Party model not initialized." };
@@ -161,6 +181,14 @@ export async function updatePartyAction(
   if (validatedData.hasOwnProperty('address')) dataToUpdate.address = validatedData.address === null ? null : validatedData.address;
 
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const partyToUpdate = await prisma.party.findFirst({
+        where: { id: id, companyId: companyId }
+    });
+    if (!partyToUpdate) {
+        return { success: false, error: 'Party not found or you do not have permission to edit it.' };
+    }
+
     const updatedParty = await prisma.party.update({
       where: { id },
       data: dataToUpdate,
@@ -172,27 +200,36 @@ export async function updatePartyAction(
       if (error.code === 'P2002' && error.meta?.target) {
          const target = error.meta.target as string[];
         if (target.includes('email') && validatedData.email) {
-          return { success: false, error: 'A party with this email already exists.' };
+          return { success: false, error: 'A party with this email already exists in this company.' };
         }
          if (target.includes('name') && validatedData.name) {
-          return { success: false, error: 'A party with this name already exists (if name is set to be unique).' };
+          return { success: false, error: 'A party with this name already exists in this company.' };
         }
         return { success: false, error: `A unique constraint violation occurred on: ${target.join(', ')}` };
       }
       if (error.code === 'P2025') return { success: false, error: 'Party to update not found.' };
     }
-    return { success: false, error: 'Failed to update party.' };
+    return { success: false, error: error.message || 'Failed to update party.' };
   }
 }
 
 export async function deletePartyAction(
-  id: string
+  id: string,
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!prisma || !prisma.party) {
     return { success: false, error: "Prisma client or Party model not initialized." };
   }
   if (!id) return { success: false, error: "Party ID is required for deletion." };
   try {
+    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const partyToDelete = await prisma.party.findFirst({
+        where: { id: id, companyId: companyId }
+    });
+    if (!partyToDelete) {
+        return { success: false, error: 'Party not found or you do not have permission to delete it.' };
+    }
+
     await prisma.party.delete({
       where: { id },
     });
@@ -202,6 +239,8 @@ export async function deletePartyAction(
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return { success: false, error: 'Party to delete not found.' };
     }
-    return { success: false, error: 'Failed to delete party.' };
+    return { success: false, error: error.message || 'Failed to delete party.' };
   }
 }
+
+      
