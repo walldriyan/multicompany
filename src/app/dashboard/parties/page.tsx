@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, PlusCircle, Edit3, Trash2, Search, CheckCircle, XCircle, FilePlus2 } from 'lucide-react';
+import { ArrowLeft, Users, PlusCircle, Edit3, Trash2, Search, CheckCircle, XCircle, FilePlus2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -38,6 +38,8 @@ export default function PartiesPage() {
   const canCreate = can('create', 'Party');
   const canUpdate = can('update', 'Party');
   const canDelete = can('delete', 'Party');
+  
+  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
   const [parties, setParties] = useState<Party[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +54,11 @@ export default function PartiesPage() {
 
 
   const fetchParties = useCallback(async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || isSuperAdminWithoutCompany) {
+        setIsLoading(false);
+        setParties([]);
+        return;
+    }
     setIsLoading(true);
     setLastSuccessfulSubmission(null);
     const result = await getAllPartiesAction(currentUser.id);
@@ -62,7 +68,7 @@ export default function PartiesPage() {
       toast({ title: 'Error Fetching Parties', description: result.error || 'Could not load parties.', variant: 'destructive' });
     }
     setIsLoading(false);
-  }, [toast, currentUser]);
+  }, [toast, currentUser, isSuperAdminWithoutCompany]);
 
   useEffect(() => {
     fetchParties();
@@ -191,10 +197,24 @@ export default function PartiesPage() {
             Party Management (Customers & Suppliers)
           </h1>
         </div>
-        <Button onClick={handleAddParty} disabled={!canCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
+        <Button onClick={handleAddParty} disabled={!canCreate || isSuperAdminWithoutCompany} className="bg-primary hover:bg-primary/90 text-primary-foreground self-end sm:self-center">
           <PlusCircle className="mr-2 h-4 w-4" /> Add Party
         </Button>
       </header>
+      
+      {isSuperAdminWithoutCompany && (
+        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
+              <p className="text-xs text-yellow-400">
+                Party management (customers/suppliers) is company-specific. To use this feature, please ensure your Super Admin account is associated with a company in the User Management settings.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-card border-border shadow-xl flex-1">
         <CardHeader>
@@ -215,7 +235,7 @@ export default function PartiesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && parties.length === 0 ? (
+          {isLoading && parties.length === 0 && !isSuperAdminWithoutCompany ? (
              Array.from({ length: 3 }).map((_, i) => (
                 <div key={`skel-party-${i}`} className="flex items-center space-x-4 p-4 border-b border-border/30">
                   <div className="space-y-2 flex-1">
@@ -229,9 +249,9 @@ export default function PartiesPage() {
             <div className="text-center py-10 text-muted-foreground">
               <Users className="mx-auto h-12 w-12 mb-4 text-primary" />
               <p className="text-lg font-medium">
-                {searchTerm ? `No parties found matching "${searchTerm}".` : 'No parties yet.'}
+                {searchTerm ? `No parties found matching "${searchTerm}".` : (isSuperAdminWithoutCompany ? 'No company selected.' : 'No parties yet.')}
               </p>
-              {!searchTerm && <p className="text-sm">Click "Add Party" to get started.</p>}
+              {!searchTerm && !isSuperAdminWithoutCompany && <p className="text-sm">Click "Add Party" to get started.</p>}
             </div>
           ) : (
             <div className="overflow-x-auto">
