@@ -24,6 +24,7 @@ import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from '@/lib/utils';
 
 const defaultCompanyProfile: CompanyProfileFormData = {
   name: '', address: '', phone: '', email: '', website: '', taxId: '', logoUrl: '',
@@ -73,13 +74,13 @@ export default function CompanyDetailsPage() {
     }
     setIsLoading(true);
     const result = await getAllCompanyProfilesAction(currentUser.id);
-    if (result.success && result.data) {
+    if (result && result.success && result.data) {
       setAllCompanies(result.data);
       if (result.data.length === 1 && !isSuperAdmin) {
         handleEdit(result.data[0]);
       }
     } else {
-      toast({ title: 'Error', description: result.error || 'Could not fetch company profiles.', variant: 'destructive' });
+      toast({ title: 'Error', description: result?.error || 'Could not fetch company profiles.', variant: 'destructive' });
       setAllCompanies([]);
     }
     setIsLoading(false);
@@ -306,3 +307,5 @@ export default function CompanyDetailsPage() {
     </div>
   );
 }
+
+    
