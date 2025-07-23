@@ -27,12 +27,15 @@ import { ArrowLeft, PackageSearch, RefreshCw, Edit, ArchiveIcon } from 'lucide-r
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function StockManagementPage() {
   const dispatch: AppDispatch = useDispatch();
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
   const productsFromStore = useSelector(selectAllProducts);
+  const { can } = usePermissions();
+  const canAdjustStock = can('update', 'Product');
 
   const [localProducts, setLocalProducts] = useState<ProductType[]>(productsFromStore);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,8 +47,12 @@ export default function StockManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchProducts = useCallback(async () => {
+    if (!currentUser?.id) {
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
-    const result = await getAllProductsAction();
+    const result = await getAllProductsAction(currentUser.id);
     if (result.success && result.data) {
       dispatch(initializeAllProducts(result.data));
       setLocalProducts(result.data);
@@ -58,16 +65,16 @@ export default function StockManagementPage() {
       setLocalProducts([]);
     }
     setIsLoading(false);
-  }, [dispatch, toast]);
+  }, [dispatch, toast, currentUser]);
 
   useEffect(() => {
-    if (productsFromStore.length === 0 || localProducts.length === 0) {
-        fetchProducts();
-    } else {
-        setLocalProducts(productsFromStore);
-        setIsLoading(false);
-    }
-  }, [fetchProducts, productsFromStore, localProducts.length]);
+    fetchProducts();
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    setLocalProducts(productsFromStore);
+  }, [productsFromStore]);
+
 
   const handleOpenStockAdjustSheet = (product: ProductType) => {
     if (product.isService) {
@@ -97,10 +104,11 @@ export default function StockManagementPage() {
 
     if (result.success && result.data) {
       const updatedProduct = result.data;
-      setLocalProducts(prevProducts => 
-        prevProducts.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-      );
-      dispatch(_internalUpdateProduct(updatedProduct)); 
+      // Refetch all products to get the latest state including average cost price
+      const freshProductsResult = await getAllProductsAction(currentUser.id);
+      if (freshProductsResult.success && freshProductsResult.data) {
+          dispatch(initializeAllProducts(freshProductsResult.data));
+      }
       toast({ title: 'Stock Updated', description: `Stock for "${updatedProduct.name}" has been adjusted.` });
       setIsStockSheetOpen(false);
       setAdjustingProduct(null);
@@ -218,7 +226,7 @@ export default function StockManagementPage() {
                                 variant="outline" 
                                 size="sm" 
                                 onClick={() => handleOpenStockAdjustSheet(product)}
-                                disabled={product.isService}
+                                disabled={product.isService || !canAdjustStock}
                                 className="h-8 border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Edit className="mr-1.5 h-3.5 w-3.5" /> Adjust Stock
@@ -288,3 +296,5 @@ export default function StockManagementPage() {
       </div>
   );
 }
+
+    
