@@ -15,7 +15,6 @@ import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIco
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
-import { store } from '@/store/store'; // Import the store directly
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -43,7 +42,6 @@ const viewConfig: Record<DashboardView, ViewConfigItem> = {
   settings: { name: 'Settings', icon: Settings, path: '/dashboard/settings', permission: { action: 'manage', subject: 'Settings' } },
 };
 
-// This is the new Client Component that receives the user from the server
 export function DashboardClientLayout({
   initialUser,
   children,
@@ -55,20 +53,20 @@ export function DashboardClientLayout({
   const router = useRouter();
   const dispatch: AppDispatch = useDispatch();
 
-  // Directly initialize the store with the server-provided user.
-  // This ensures the correct user state is available before the first render.
-  if (store.getState().auth.user?.id !== initialUser.id) {
-    store.dispatch(setUser(initialUser));
-  }
-
   const [activeView, setActiveView] = useState<DashboardView>('welcome');
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
+  // FIX: Move the dispatch into a useEffect hook.
+  // This ensures the store is updated only after the component has mounted,
+  // preventing the "Cannot update a component while rendering" error.
   useEffect(() => {
     setIsClient(true);
-  }, []);
-  
+    if (initialUser) {
+      dispatch(setUser(initialUser));
+    }
+  }, [dispatch, initialUser]);
+
   const currentUser = useSelector(selectCurrentUser);
   const { can } = usePermissions();
 
