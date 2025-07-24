@@ -200,14 +200,15 @@ export function PaymentFormContent({
     const [isLoadingCompanyProfile, setIsLoadingCompanyProfile] = useState(false);
 
      const saleRecordItemsForPrint: SaleRecordItem[] = currentSaleItemsFromStore.map(item => {
-        const originalItemPrice = item.sellingPrice ?? 0;
+        // **FIX**: Use `item.price` which is the actual batch/sale price, not `item.sellingPrice` (default product price).
+        const originalItemPrice = item.price ?? 0;
         const itemDiscountDetails = calculatedItemDiscountsMap.get(item.id);
         const totalDiscountAppliedToThisLine = itemDiscountDetails?.totalCalculatedDiscountForLine ?? 0;
         let effectivePricePaidPerUnitValue = originalItemPrice - (item.quantity > 0 ? totalDiscountAppliedToThisLine / item.quantity : 0);
         effectivePricePaidPerUnitValue = Math.max(0, effectivePricePaidPerUnitValue);
         const unitsForRecord = item.units || { baseUnit: 'pcs', derivedUnits: [] };
         return { 
-          productId: item.id, name: item.name, price: item.sellingPrice, category: item.category,
+          productId: item.id, name: item.name, price: originalItemPrice, category: item.category,
           imageUrl: item.imageUrl, units: unitsForRecord, quantity: item.quantity, priceAtSale: originalItemPrice,
           effectivePricePaidPerUnit: effectivePricePaidPerUnitValue, totalDiscountOnLine: totalDiscountAppliedToThisLine,
           costPriceAtSale: item.costPrice || 0,
