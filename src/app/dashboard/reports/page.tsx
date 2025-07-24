@@ -39,6 +39,8 @@ export default function ReportsPage() {
   const [reportData, setReportData] = useState<ComprehensiveReport | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   
+  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
+
   const salesTransactionGroups = useMemo(() => {
     if (!reportData) return [];
     
@@ -210,7 +212,7 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleGenerateReport} disabled={isLoading} className="self-end sm:ml-auto bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button onClick={handleGenerateReport} disabled={isLoading || isSuperAdminWithoutCompany} className="self-end sm:ml-auto bg-primary text-primary-foreground hover:bg-primary/90">
             {isLoading ? 'Generating...' : 'Generate Report'}
           </Button>
           <Button onClick={handlePrint} disabled={!reportData} variant="outline" className="self-end border-accent text-accent hover:bg-accent hover:text-accent-foreground">
@@ -218,10 +220,24 @@ export default function ReportsPage() {
           </Button>
         </CardContent>
       </Card>
+
+       {isSuperAdminWithoutCompany && (
+        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
+              <p className="text-xs text-yellow-400">
+                Reports are company-specific. To generate a report, please ensure your Super Admin account is associated with a company in the User Management settings.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {isLoading && <div className="text-center p-8"><p className="text-muted-foreground">Generating your report, please wait...</p></div>}
       
-      {!isLoading && !reportData && (
+      {!isLoading && !reportData && !isSuperAdminWithoutCompany && (
           <div className="text-center p-8 border-2 border-dashed border-border rounded-lg bg-card mt-4">
               <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 text-lg font-medium text-foreground">No Report Generated</h3>
