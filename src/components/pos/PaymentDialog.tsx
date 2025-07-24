@@ -15,6 +15,7 @@ import {
 } from '@/store/slices/saleSlice';
 import { getAllCustomersAction } from '@/app/actions/partyActions';
 import { getAllCompanyProfilesAction } from '@/app/actions/companyActions'; // Import new action
+import { selectCurrentUser } from '@/store/slices/authSlice'; // Import currentUser selector
 
 import {
   Dialog,
@@ -143,7 +144,7 @@ const BillPrintContent = ({
                     </>
                 )}
                  <div>
-                    <span className="label">Tax ({ (taxRate * 100).toFixed(taxRate === 0 ? 0 : (taxRate * 100 % 1 === 0 ? 0 : 2)) }%):</span>
+                    <span className="label">Tax ({ (taxRate * 100).toFixed(taxRate === 0 ? 0 : (taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span>
                     <span className="value">Rs. {tax.toFixed(2)}</span>
                 </div>
                 <hr className="separator" />
@@ -171,6 +172,7 @@ const BillPrintContent = ({
 export function PaymentFormContent({
     paymentMethod, billNumber, onPaymentSuccess, onBackToCart
 }: Omit<PaymentDialogProps, 'isOpen' | 'onOpenChange'>) {
+    const currentUser = useSelector(selectCurrentUser);
     const currentSaleItemsFromStore = useSelector(selectSaleItems);
     const taxRate = useSelector(selectTaxRate);
     const subtotalOriginal = useSelector(selectSaleSubtotalOriginal);
@@ -214,18 +216,20 @@ export function PaymentFormContent({
 
     useEffect(() => {
         const fetchInitialData = async () => {
+          if (!currentUser?.id) return;
           setIsLoadingCustomers(true);
           setIsLoadingCompanyProfile(true);
           setCustomerError(null);
           try {
             const [customersResult, companyProfilesResult] = await Promise.all([
-              getAllCustomersAction(), getAllCompanyProfilesAction()
+              getAllCustomersAction(currentUser.id), getAllCompanyProfilesAction(currentUser.id)
             ]);
             if (customersResult.success && customersResult.data) setAllCustomers(customersResult.data);
             else setCustomerError(customersResult.error || "Failed to load customers.");
             
             if (companyProfilesResult.success && companyProfilesResult.data && companyProfilesResult.data.length > 0) {
-                 setCompanyProfile(companyProfilesResult.data[0]); // Use the first company profile
+                 const userCompany = companyProfilesResult.data.find(c => c.id === currentUser.companyId);
+                 setCompanyProfile(userCompany || companyProfilesResult.data[0]);
             } else { 
                 console.warn("Could not load company profile for receipt:", companyProfilesResult.error); 
                 setCompanyProfile(null); 
@@ -239,7 +243,7 @@ export function PaymentFormContent({
         setCashAmountPaidStr(''); setCardAmountPaidNowStr(''); setChangeDue(0);
         if (paymentMethod === 'cash') setTimeout(() => amountPaidInputRef.current?.focus(), 100);
         setSelectedCustomer(null); setCustomerSearchTerm(''); setManualCustomerName(''); setIsBillVisibleForPrint(false);
-      }, [paymentMethod, total]);
+      }, [paymentMethod, total, currentUser]);
 
     useEffect(() => {
       if (paymentMethod === 'cash') {
