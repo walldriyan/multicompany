@@ -133,7 +133,7 @@ export function DashboardClientLayout({
             </div></SidebarMenuItem>
             <SidebarMenuItem>
                 <AlertDialogTrigger asChild>
-                    <SidebarMenuButton onClick={() => setIsLogoutDialogOpen(true)} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
+                    <SidebarMenuButton onClick={(e) => { e.preventDefault(); setIsLogoutDialogOpen(true); }} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
                         <LogOut className="h-5 w-5" />
                         <span className="group-data-[collapsible=icon]:hidden">Logout</span>
                     </SidebarMenuButton>
@@ -167,7 +167,7 @@ export function DashboardClientLayout({
                   <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
                     <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
                   </Button>
-                 <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                 <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
                     <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
                   </Button>
                 <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
