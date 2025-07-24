@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag } from "lucide-react";
+import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag, AlertTriangle } from "lucide-react";
 import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput } from '@/types';
 import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, saveSaleRecordAction } from '@/app/actions/saleActions';
 import { processFullReturnWithRecalculationAction } from '@/app/actions/returnActions';
@@ -26,6 +26,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReturnReceiptPrintContent } from '@/components/pos/ReturnReceiptPrintContent';
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
@@ -57,6 +58,8 @@ export default function ReturnsPage() {
   const allGlobalDiscountSets = useSelector(selectAllGlobalDiscountSets);
   const discountSetsLoaded = useSelector(selectDiscountSetsLoaded);
   const allProductsFromStore = useSelector(selectAllProductsFromStore);
+  
+  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
   const [billNumberSearch, setBillNumberSearch] = useState('');
   const [foundSaleState, setFoundSaleState] = useState<FoundSaleContextState>({ pristineOriginalSale: null, latestAdjustedOrOriginal: null });
@@ -94,15 +97,16 @@ export default function ReturnsPage() {
 
   useEffect(() => {
     const loadInitialData = async () => {
+        if (!currentUser?.id || isSuperAdminWithoutCompany) return;
         try {
-            const productsResult = await fetchAllProductsForServerLogic();
+            const productsResult = await fetchAllProductsForServerLogic(currentUser.id);
             if (productsResult.success && productsResult.data) {
                 setAllProducts(productsResult.data);
                 dispatch(initializeAllProducts(productsResult.data));
             }
 
             if (!discountSetsLoaded) {
-                const discountSetsResult = await getDiscountSetsAction();
+                const discountSetsResult = await getDiscountSetsAction(currentUser.id);
                 if (discountSetsResult.success && discountSetsResult.data) {
                     dispatch(initializeDiscountSets(discountSetsResult.data));
                 }
@@ -116,7 +120,7 @@ export default function ReturnsPage() {
         } catch (error) { console.error("Error loading initial data for returns page:", error); }
     };
     loadInitialData();
-  }, [dispatch, discountSetsLoaded, globalTaxRateFromStore]);
+  }, [dispatch, discountSetsLoaded, globalTaxRateFromStore, currentUser, isSuperAdminWithoutCompany]);
 
 
   const resetPageState = useCallback((keepSearchTerm = false) => {
@@ -132,7 +136,7 @@ export default function ReturnsPage() {
   }, []);
 
   const fetchSalesHistoryPage = useCallback(async (page: number) => {
-    if (!currentUser?.id) {
+    if (!currentUser?.id || isSuperAdminWithoutCompany) {
       setIsFetchingHistory(false);
       return;
     }
@@ -153,7 +157,7 @@ export default function ReturnsPage() {
     } finally {
       setIsFetchingHistory(false);
     }
-  }, [toast, currentUser]);
+  }, [toast, currentUser, isSuperAdminWithoutCompany]);
 
   useEffect(() => {
     if (currentUser) {
@@ -554,7 +558,7 @@ export default function ReturnsPage() {
         {totalItemDiscountFromRecord > 0 && (<div className={isAdjustedSummary ? "text-green-500" : "text-sky-400"}>Total Item Disc. ({isAdjustedSummary ? "Re-evaluated" : "Original"}): -Rs. {totalItemDiscountFromRecord.toFixed(2)}</div>)}
         {totalCartDiscountFromRecord > 0 && (<div className={isAdjustedSummary ? "text-green-500" : "text-sky-400"}>Total Cart Disc. ({isAdjustedSummary ? "Re-evaluated" : "Original"}): -Rs. {totalCartDiscountFromRecord.toFixed(2)}</div>)}
         <div>Net Subtotal (After relevant discounts): Rs. {netSubtotalFromRecord.toFixed(2)}</div>
-        <div>Tax ({ (saleRecord.taxRate).toFixed(saleRecord.taxRate === 0 ? 0 : (saleRecord.taxRate % 1 === 0 ? 0 : 2)) }%): Rs. {taxAmountForDisplay.toFixed(2)}</div>
+        <div>Tax ({ (saleRecord.taxRate * 100).toFixed(saleRecord.taxRate === 0 ? 0 : (saleRecord.taxRate % 1 === 0 ? 0 : 2)) }%): Rs. {taxAmountForDisplay.toFixed(2)}</div>
         <div className="font-bold">Total ({isAdjustedSummary ? "Net Bill" : "Paid"}): Rs. {finalTotalForDisplay.toFixed(2)}</div>
       </div>
     );
@@ -596,11 +600,26 @@ export default function ReturnsPage() {
         </Button>
       </header>
 
+      {isSuperAdminWithoutCompany ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Card className="w-full max-w-lg border-yellow-500/50 bg-yellow-950/30">
+              <CardContent className="p-6 flex items-center gap-4">
+                <AlertTriangle className="h-10 w-10 text-yellow-400 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg text-yellow-300">Feature Disabled for this User</h3>
+                  <p className="text-sm text-yellow-400 mt-1">
+                    Item returns are company-specific. To use this page, your Super Admin account must be associated with a company in User Management settings.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+      ) : (
       <div className="flex flex-1 overflow-hidden space-x-0 md:space-x-4">
         <div className="w-full md:w-1/3 flex flex-col space-y-4 overflow-y-auto p-1 pr-2 md:border-r md:border-border">
           <div>
             <Label htmlFor="bill-search" className="text-card-foreground">Search Original Bills (Bill No / Customer / Date)</Label>
-            <div className="flex space-x-2 mt-1 relative">
+            <fieldset disabled={isSuperAdminWithoutCompany} className="flex space-x-2 mt-1 relative">
             <Popover open={isSuggestionsOpen} onOpenChange={setIsSuggestionsOpen}>
                 <PopoverAnchor asChild>
                     <div className="relative w-full">
@@ -613,10 +632,10 @@ export default function ReturnsPage() {
                 </PopoverContent>
              </Popover>
               <Button onClick={() => handleSearchSaleContext(billNumberSearch.trim())} disabled={isLoading || !billNumberSearch.trim()} className="bg-primary text-primary-foreground hover:bg-primary/90"> <Search className="mr-2 h-4 w-4" /> {isLoading ? "Searching..." : "Search"} </Button>
-            </div>
+            </fieldset>
           </div>
           <Separator className="bg-border/50" />
-           <div className="flex-1 flex flex-col overflow-hidden">
+           <fieldset disabled={isSuperAdminWithoutCompany} className="flex-1 flex flex-col overflow-hidden">
                  <ScrollArea className="h-full border border-border rounded-md bg-card">
                     <div className="p-2 space-y-1">
                         {isFetchingHistory && allSalesForHistoryList.length === 0 ? (Array.from({ length: 5 }).map((_, i) => (<Skeleton key={`skel-orig-${i}`} className="h-12 w-full rounded-md bg-muted/50 mb-1" />)))
@@ -628,15 +647,16 @@ export default function ReturnsPage() {
                         ) : (<p className="text-sm text-muted-foreground text-center py-3">No original bills found.</p>)}
                     </div>
                 </ScrollArea>
-           </div>
+           </fieldset>
            <div className="flex justify-between items-center mt-2 flex-shrink-0">
-                <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isFetchingHistory} variant="outline" size="sm"> <ChevronLeft className="h-4 w-4 mr-1" /> Prev </Button>
+                <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isFetchingHistory || isSuperAdminWithoutCompany} variant="outline" size="sm"> <ChevronLeft className="h-4 w-4 mr-1" /> Prev </Button>
                 <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isFetchingHistory} variant="outline" size="sm"> Next <ChevronRight className="h-4 w-4 ml-1" /> </Button>
+                <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isFetchingHistory || isSuperAdminWithoutCompany} variant="outline" size="sm"> Next <ChevronRight className="h-4 w-4 ml-1" /> </Button>
             </div>
         </div>
 
         <div className="w-full md:w-2/3 flex flex-col space-y-3 overflow-y-auto p-1 md:pl-2">
+          <fieldset disabled={isSuperAdminWithoutCompany} className="flex-1 flex flex-col space-y-2 pt-0">
           {isLoading && !pristineOriginalSaleForDisplay && (<div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground"><Search className="h-12 w-12 mb-3 animate-pulse" /><p>Searching for sale...</p></div>)}
           
           <div className="flex-1 flex flex-col space-y-2 pt-0">
@@ -729,8 +749,10 @@ export default function ReturnsPage() {
           </div>
           
           {!pristineOriginalSaleForDisplay && !isLoading && !isFetchingHistory && (!billNumberSearch || searchSuggestions.length === 0) && (<div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-muted-foreground"><PackageOpen className="h-16 w-16 mb-3 text-primary" /><p className="text-lg">Search for a bill or select from the list to begin.</p><p className="text-sm">Loaded sale details will appear here.</p></div>)}
+        </fieldset>
         </div>
       </div>
+      )}
       {isReturnReceiptVisible && lastProcessedReturn && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<div id="printable-return-receipt-content-holder" style={{ display: 'none' }}><ReturnReceiptPrintContent originalSale={pristineOriginalSaleForDisplay} adjustedSale={lastProcessedReturn.currentAdjustedSaleAfterReturn} returnTransaction={lastProcessedReturn.returnTransactionRecord}/></div>)}
       {itemToUndo && (
         <AlertDialog open={undoConfirmationOpen} onOpenChange={setUndoConfirmationOpen}>
