@@ -155,15 +155,20 @@ export function DashboardClientLayout({
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
            <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>Confirm Logout</AlertDialogTitle><AlertDialogDescription>How would you like to proceed? Your current shift will remain open unless you end it.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                <AlertDialogDescription>
+                  How would you like to proceed? Your current shift will remain open unless you end it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
               <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                  <AlertDialogAction asChild>
-                      <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full"><DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page</Button>
-                  </AlertDialogAction>
-                  <AlertDialogAction asChild>
-                     <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full rounded-full"><LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)</Button>
-                  </AlertDialogAction>
-                  <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+                  <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                    <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                  </Button>
+                 <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                    <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                  </Button>
+                <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
            </AlertDialogContent>
         </AlertDialog>
