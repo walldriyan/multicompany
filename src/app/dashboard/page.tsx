@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Package, ShoppingCart, BarChart3, ReceiptText, WalletCards, Percent, TrendingUp, Users, Archive, ArchiveX, UserCog, Building, ArrowRight, ShoppingBag, LogOut } from 'lucide-react';
+import { Home, Package, ShoppingCart, BarChart3, ReceiptText, WalletCards, Percent, TrendingUp, Users, Archive, ArchiveX, UserCog, Building, ArrowRight, ShoppingBag, LogOut, DoorClosed } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, clearUser } from '@/store/slices/authSlice';
@@ -12,7 +12,7 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRouter } from 'next/navigation';
 import type { AppDispatch } from '@/store/store';
 
@@ -220,14 +220,17 @@ export default function WelcomePage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to log out? Any unsaved changes will be lost.
+                            How would you like to proceed? Your current shift will remain open unless you end it.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDirectLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Logout
-                        </AlertDialogAction>
+                    <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
+                         <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                            <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                          </Button>
+                         <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
+                            <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                          </Button>
+                        <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
