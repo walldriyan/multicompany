@@ -9,7 +9,7 @@ import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser, selectAuthStatus } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -57,9 +57,6 @@ export function DashboardClientLayout({
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  // FIX: Move the dispatch into a useEffect hook.
-  // This ensures the store is updated only after the component has mounted,
-  // preventing the "Cannot update a component while rendering" error.
   useEffect(() => {
     setIsClient(true);
     if (initialUser) {
@@ -160,8 +157,12 @@ export function DashboardClientLayout({
            <AlertDialogContent>
               <AlertDialogHeader><AlertDialogTitle>Confirm Logout</AlertDialogTitle><AlertDialogDescription>How would you like to proceed? Your current shift will remain open unless you end it.</AlertDialogDescription></AlertDialogHeader>
               <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                  <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full"><DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page</Button>
-                  <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full rounded-full"><LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)</Button>
+                  <AlertDialogAction asChild>
+                      <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full"><DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page</Button>
+                  </AlertDialogAction>
+                  <AlertDialogAction asChild>
+                     <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full rounded-full"><LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)</Button>
+                  </AlertDialogAction>
                   <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
            </AlertDialogContent>
