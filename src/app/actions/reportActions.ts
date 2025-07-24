@@ -31,44 +31,48 @@ export async function getComprehensiveReportAction(
     }
     
     // The filter for a specific user is applied *within* the company's data.
-    const userFilter = userIdForFilter && userIdForFilter !== 'all' ? { createdByUserId: userIdForFilter } : {};
+    const userFilterForSalesAndPurchases = userIdForFilter && userIdForFilter !== 'all' ? { createdByUserId: userIdForFilter } : {};
+    const userFilterForOtherRecords = userIdForFilter && userIdForFilter !== 'all' ? { userId: userIdForFilter } : {};
     const companyFilter = { companyId: companyId };
     
-    const combinedWhere = (extraFilter = {}) => ({
-        ...companyFilter,
-        ...userFilter,
-        ...extraFilter
-    });
+    // Use specific where clauses for each query to ensure correct field names are used.
+    const salesWhere = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
+    const financialsWhere = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForOtherRecords };
+    const stockWhere = { adjustedAt: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForOtherRecords };
+    const purchasesWhere = { purchaseDate: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
+    const shiftsWhere = { 
+        startedAt: { lte: endDate }, 
+        OR: [{ closedAt: null }, { closedAt: { gte: startDate }}], 
+        ...companyFilter, 
+        ...userFilterForOtherRecords
+    };
+
 
     const salesAndReturns = await prisma.saleRecord.findMany({
-      where: { date: { gte: startDate, lte: endDate }, ...combinedWhere() },
+      where: salesWhere,
       include: { customer: true, createdBy: { select: { username: true } } },
       orderBy: { date: 'asc' },
     });
 
     const financialTransactions = await prisma.financialTransaction.findMany({ 
-        where: { date: { gte: startDate, lte: endDate }, ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined }) }, 
+        where: financialsWhere,
         include: { user: { select: { username: true } } },
         orderBy: { date: 'asc' } 
     });
 
     const stockAdjustments = await prisma.stockAdjustmentLog.findMany({ 
-        where: { adjustedAt: { gte: startDate, lte: endDate }, ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined }) }, 
+        where: stockWhere,
         include: { product: { select: { name: true } }, user: { select: { username: true } } }, 
         orderBy: { adjustedAt: 'asc' } 
     });
 
     const purchases = await prisma.purchaseBill.findMany({ 
-        where: { purchaseDate: { gte: startDate, lte: endDate }, ...combinedWhere() }, 
+        where: purchasesWhere,
         include: { supplier: true, items: true, payments: true, createdBy: { select: { username: true } } } 
     });
 
     const cashRegisterShifts = await prisma.cashRegisterShift.findMany({ 
-        where: { 
-            startedAt: { lte: endDate }, 
-            OR: [{ closedAt: null }, { closedAt: { gte: startDate }}], 
-            ...combinedWhere({ userId: userIdForFilter && userIdForFilter !== 'all' ? userIdForFilter : undefined })
-        }, 
+        where: shiftsWhere,
         include: { user: { select: { username: true } } } 
     });
     
