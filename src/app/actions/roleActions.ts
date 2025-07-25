@@ -27,6 +27,10 @@ export async function createRoleAction(
   roleData: unknown,
   userId: string | null
 ): Promise<{ success: boolean; data?: RoleType; error?: string; fieldErrors?: Record<string, string[]> }> {
+  if (!userId) {
+    return { success: false, error: 'User is not authenticated.' };
+  }
+  
   const validationResult = RoleFormSchema.safeParse(roleData);
   if (!validationResult.success) {
     return { success: false, error: "Validation failed.", fieldErrors: validationResult.error.flatten().fieldErrors };
@@ -81,6 +85,7 @@ export async function updateRoleAction(
   userId: string | null
 ): Promise<{ success: boolean; data?: RoleType; error?: string; fieldErrors?: Record<string, string[]> }> {
   if (!id) return { success: false, error: "Role ID is required for update." };
+  if (!userId) return { success: false, error: "User is not authenticated." };
 
   const validationResult = RoleFormSchema.safeParse(roleData);
   if (!validationResult.success) {
