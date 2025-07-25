@@ -34,14 +34,17 @@ export default function LoginPage() {
   // This effect clears any existing user session when the login page loads.
   // This prevents the "Already logged in" issue when trying to switch users.
   useEffect(() => {
-    if (authStatus !== 'idle') {
+    // Force clear user state on component mount if a user exists
+    // This ensures a clean slate for every visit to the login page.
+    if (currentUser) {
       dispatch(clearUser());
     }
-  }, [dispatch, authStatus]);
+  }, [dispatch, currentUser]);
 
 
   // This effect handles redirection after a *new* auth state is confirmed.
   useEffect(() => {
+    // Redirect only when the status has successfully transitioned.
     if (authStatus === 'succeeded' && currentUser) {
       router.push('/');
     }
@@ -51,17 +54,24 @@ export default function LoginPage() {
     setError(null);
     dispatch(setAuthLoading());
 
-    const result = await loginAction(data);
+    try {
+        const result = await loginAction(data);
 
-    if (result.success && result.user) {
-      dispatch(setUser(result.user));
-      toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
-      // The useEffect above will handle the redirect once the state updates.
-    } else {
-      const errorMessage = result.error || 'An unknown error occurred.';
-      setError(errorMessage);
-      dispatch(setAuthError(errorMessage));
-      toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
+        if (result.success && result.user) {
+          dispatch(setUser(result.user));
+          toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
+          // The useEffect above will handle the redirect once the state updates.
+        } else {
+          const errorMessage = result.error || 'An unknown error occurred.';
+          setError(errorMessage);
+          dispatch(setAuthError(errorMessage));
+          toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
+        }
+    } catch (e: any) {
+        const errorMessage = e.message || "A critical error occurred during login.";
+        setError(errorMessage);
+        dispatch(setAuthError(errorMessage));
+        toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
     }
   };
   
