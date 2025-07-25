@@ -92,20 +92,29 @@ export async function getDiscountSetsAction(userId: string): Promise<{
    if (!userId) {
     return { success: false, error: "User is not authenticated." };
   }
+   if (userId === 'root-user') {
+      const allDiscountSets = await prisma.discountSet.findMany({
+        orderBy: { name: 'asc' },
+        include: { productConfigurations: { include: { product: { include: { batches: true } } } } }
+      });
+      return { success: true, data: allDiscountSets.map(mapPrismaDiscountSetToType) };
+   }
   try {
      const user = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
      if (!user) {
          return { success: false, error: "User not found."};
      }
      
-     if (!user.companyId && user.role?.name !== 'Admin') {
+     const isSuperAdmin = user.role?.name === 'Admin';
+     const whereClause: Prisma.DiscountSetWhereInput = {};
+
+     if (isSuperAdmin && !user.companyId) {
+        // Super admin with no company sees all campaigns
+     } else if (user.companyId) {
+        whereClause.companyId = user.companyId;
+     } else {
        return { success: true, data: [] }; // Non-admin without company sees nothing.
      }
-
-    const whereClause: Prisma.DiscountSetWhereInput = {};
-    if (user.companyId) {
-        whereClause.companyId = user.companyId;
-    }
 
     const dbDiscountSets = await prisma.discountSet.findMany({
       where: whereClause,
@@ -137,11 +146,20 @@ export async function saveDiscountSetAction(
   if (!userId) {
     return { success: false, error: 'User is not authenticated.' };
   }
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user?.companyId) {
-    return { success: false, error: "Cannot save discount set: User is not associated with a company." };
+  
+  if (userId === 'root-user' && !formData.id) {
+    return { success: false, error: "Root user cannot create new campaigns directly without assigning a company. This must be handled in the UI." };
   }
-  const companyId = user.companyId;
+  
+  let companyId: string | null = null;
+  if(userId !== 'root-user') {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user?.companyId) {
+        return { success: false, error: "Cannot save discount set: User is not associated with a company." };
+      }
+      companyId = user.companyId;
+  }
+
 
   const validationResult = DiscountSetValidationSchema.safeParse(formData);
   if (!validationResult.success) {
@@ -152,9 +170,12 @@ export async function saveDiscountSetAction(
 
   try {
     const savedDbSet = await prisma.$transaction(async (tx) => {
-      if (discountSetData.isDefault) {
+      
+      const companyIdForDefaultCheck = companyId || (await tx.discountSet.findUnique({where: { id: discountSetId!}}))?.companyId;
+      
+      if (discountSetData.isDefault && companyIdForDefaultCheck) {
         await tx.discountSet.updateMany({
-          where: { companyId: companyId, isDefault: true, NOT: { id: discountSetId || undefined } },
+          where: { companyId: companyIdForDefaultCheck, isDefault: true, NOT: { id: discountSetId || undefined } },
           data: { isDefault: false },
         });
       }
@@ -184,6 +205,9 @@ export async function saveDiscountSetAction(
           include: { productConfigurations: true },
         });
       } else {
+        if (!companyId) { // Should be caught by root user check, but as a safeguard
+            throw new Error("Company ID is required to create a new discount campaign.");
+        }
         currentDiscountSet = await tx.discountSet.create({
           data: {
             ...dataForDiscountSet,
