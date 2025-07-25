@@ -16,15 +16,18 @@ import { verifyAuth } from '@/lib/auth';
 
 // This is now a Server Component
 export default async function PosPageContainer() {
-  // Verify user authentication on the server
-  const result = await verifyAuth();
-  if (!result.user) {
+  // Verify user authentication on the server before rendering anything.
+  const { user } = await verifyAuth();
+  
+  // If no valid user session is found from the cookie, redirect to login from the server.
+  // This prevents the client from ever rendering in a "logged out" state, which causes the flicker.
+  if (!user) {
     return redirect('/login');
   }
 
   // Fetch all initial data on the server, scoped to the user's company
-  const productsResult = await getAllProductsAction(result.user.id);
-  const discountSetsResult = await getDiscountSetsAction(result.user.id);
+  const productsResult = await getAllProductsAction(user.id);
+  const discountSetsResult = await getDiscountSetsAction(user.id);
   const taxRateResult = await getTaxRateAction();
 
   // Prepare initial state for Redux on the server
@@ -36,13 +39,13 @@ export default async function PosPageContainer() {
   store.dispatch(initializeAllProducts(products));
   store.dispatch(initializeDiscountSets(discountSets));
   store.dispatch(initializeTaxRate(taxRate));
-  store.dispatch(setUser(result.user));
+  store.dispatch(setUser(user));
   
   // Get the initial state from the server-side store
   const initialReduxState = store.getState();
 
-  // Pass the initial state to the client component
-  // The client component will then initialize its store with this server-fetched data
+  // Pass the initial state to the client component. The client component will then
+  // hydrate the Redux store with this complete, server-fetched data.
   return (
       <POSClientComponent serverState={initialReduxState} />
   );

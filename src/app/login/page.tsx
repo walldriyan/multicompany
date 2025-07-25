@@ -31,22 +31,11 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null);
 
+  // This effect runs when the component mounts on the client.
+  // It clears any previous user state from Redux, ensuring a fresh login attempt.
   useEffect(() => {
-    // This effect ensures that whenever the user lands on the login page,
-    // any existing session state in Redux is cleared. This prevents the
-    // "already logged in" issue when trying to switch users or after a logout.
-    if (authStatus !== 'idle' || currentUser) {
-      dispatch(clearUser());
-    }
+    dispatch(clearUser());
   }, [dispatch]);
-
-
-  useEffect(() => {
-    // This effect handles redirection after a *new* auth state is confirmed.
-    if (authStatus === 'succeeded' && currentUser) {
-      router.push('/');
-    }
-  }, [authStatus, currentUser, router]);
 
   const onSubmit = async (data: any) => {
     setError(null);
@@ -58,7 +47,8 @@ export default function LoginPage() {
         if (result.success && result.user) {
           dispatch(setUser(result.user));
           toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
-          // The useEffect above will handle the redirect once the state updates.
+          // On successful state update, redirect to the main page.
+          router.push('/');
         } else {
           const errorMessage = result.error || 'An unknown error occurred.';
           setError(errorMessage);
@@ -73,17 +63,6 @@ export default function LoginPage() {
     }
   };
   
-  // While checking auth status, or if the login process is running, show loading.
-  if (authStatus === 'loading' && !error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-          <p className="text-muted-foreground">
-            Authenticating...
-          </p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm mx-auto bg-card border-border shadow-2xl">

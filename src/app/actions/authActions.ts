@@ -54,6 +54,7 @@ async function createRootUserSession(username: string) {
         },
         company: null,
         companyId: null,
+        isActive: true, // Ensure root user is active
     };
     await createAndSetSession(rootUser);
     return rootUser;
@@ -68,7 +69,7 @@ export async function loginAction(
     return { success: false, error: 'Username and password are required.' };
   }
 
-  // --- [NEW] Root User Check from .env ---
+  // --- Root User Check from .env ---
   const rootUsername = process.env.ROOT_USER_USERNAME;
   const rootPassword = process.env.ROOT_USER_PASSWORD;
 
@@ -83,7 +84,7 @@ export async function loginAction(
         return { success: false, error: 'Invalid username or password.' };
     }
   }
-  // --- [END] Root User Check ---
+  // --- END Root User Check ---
 
   try {
     const userCount = await prisma.user.count();
@@ -120,7 +121,6 @@ export async function loginAction(
           passwordHash,
           roleId: adminRole.id,
           isActive: true,
-          // companyId is not needed for the super admin
         },
       });
 
@@ -173,9 +173,13 @@ export async function loginAction(
     if (!isPasswordValid) {
       return { success: false, error: 'Invalid username or password.' };
     }
+    
+    if (!user.isActive) {
+        return { success: false, error: 'Your account has been disabled. Please contact an administrator.' };
+    }
 
     // For non-super-admins, check for an open shift within their company
-    if (user.companyId) {
+    if (user.companyId && user.role?.name !== 'Admin') {
         const openShiftInCompany = await prisma.cashRegisterShift.findFirst({
             where: { 
                 companyId: user.companyId,
@@ -223,12 +227,12 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
     return { success: false, error: 'Password is required.' };
   }
 
-  // --- [NEW] Root User Check from .env ---
+  // --- Root User Check from .env ---
   const rootPassword = process.env.ROOT_USER_PASSWORD;
   if (rootPassword && password === rootPassword) {
       return { success: true };
   }
-  // --- [END] Root User Check ---
+  // --- End Root User Check ---
 
   try {
     const adminUsers = await prisma.user.findMany({
