@@ -24,6 +24,8 @@ import {
   updateTransactionAction,
   deleteTransactionAction,
 } from '@/app/actions/financialsActions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 
 interface LastSuccessfulSubmission {
   id: string;
@@ -182,17 +184,13 @@ export default function FinancialsPage() {
       </header>
       
       {isSuperAdminWithoutCompany && (
-        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="h-6 w-6 text-yellow-400" />
-            <div>
-              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
-              <p className="text-xs text-yellow-400">
-                Financial transactions are company-specific. To manage income & expenses, please ensure your Super Admin account is associated with a company in the User Management settings.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive" className="mb-4 border-yellow-500/50 bg-yellow-950/30 text-yellow-300 [&>svg]:text-yellow-400">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Feature Disabled for this User</AlertTitle>
+            <AlertDescription>
+                Financial transactions are company-specific. This page is disabled because your Super Admin account is not associated with a company. Please use a company-specific user account or assign your admin account to a company in User Management.
+            </AlertDescription>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -227,7 +225,7 @@ export default function FinancialsPage() {
               <CardDescription className="text-muted-foreground">View and manage your income and expenses.</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading && transactions.length === 0 ? (
+              {isLoading && transactions.length === 0 && !isSuperAdminWithoutCompany ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -258,7 +256,7 @@ export default function FinancialsPage() {
               ) : !isLoading && transactions.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
                   <TrendingUp className="mx-auto h-12 w-12 mb-4 text-primary" />
-                  <p className="text-lg font-medium">No transactions recorded yet.</p>
+                  <p className="text-lg font-medium">{isSuperAdminWithoutCompany ? "No company selected." : "No transactions recorded yet."}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
