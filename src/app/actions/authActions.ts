@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { seedPermissionsAction } from './permissionActions';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
+import 'dotenv/config';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-default-secret-key-that-is-long-enough');
 
@@ -42,6 +43,22 @@ async function createAndSetSession(user: any) {
     });
 }
 
+async function createRootUserSession(username: string) {
+    const allPermissions = await prisma.permission.findMany();
+    const rootUser = {
+        id: 'root-user',
+        username: username,
+        role: {
+            name: process.env.ROOT_USER_ROLE_NAME || 'SuperAdmin',
+            permissions: allPermissions.map(p => ({ permission: p }))
+        },
+        company: null,
+        companyId: null,
+    };
+    await createAndSetSession(rootUser);
+    return rootUser;
+}
+
 export async function loginAction(
   credentials: Record<"username" | "password", string>
 ): Promise<{ success: boolean; user?: Omit<UserType, 'passwordHash'>; error?: string }> {
@@ -50,6 +67,19 @@ export async function loginAction(
   if (!username || !password) {
     return { success: false, error: 'Username and password are required.' };
   }
+
+  // --- [NEW] Root User Check from .env ---
+  const rootUsername = process.env.ROOT_USER_USERNAME;
+  const rootPassword = process.env.ROOT_USER_PASSWORD;
+
+  if (rootUsername && rootPassword) {
+    if (username === rootUsername && password === rootPassword) {
+      console.log(`[AUTH] Root user login attempt successful for: ${username}`);
+      const rootUserSession = await createRootUserSession(username);
+      return { success: true, user: serializeUserForRedux(rootUserSession) };
+    }
+  }
+  // --- [END] Root User Check ---
 
   try {
     const userCount = await prisma.user.count();
@@ -183,6 +213,13 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
     return { success: false, error: 'Password is required.' };
   }
 
+  // --- [NEW] Root User Check from .env ---
+  const rootPassword = process.env.ROOT_USER_PASSWORD;
+  if (rootPassword && password === rootPassword) {
+      return { success: true };
+  }
+  // --- [END] Root User Check ---
+
   try {
     const adminUsers = await prisma.user.findMany({
       where: {
@@ -211,12 +248,3 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
 
   } catch (error) {
     console.error("verifyAdminPasswordAction error:", error);
-    return { success: false, error: 'An error occurred during password verification.' };
-  }
-}
-
-export async function logoutAction(): Promise<void> {
-  cookies().delete('auth_token');
-}
-
-    
