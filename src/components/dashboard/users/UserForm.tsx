@@ -75,10 +75,12 @@ export function UserForm({
   
   const selectedRoleId = watch('roleId');
   const selectedRoleName = selectedRoleId ? roles.find(r => r.id === selectedRoleId)?.name : '';
-  const isSuperAdminRole = selectedRoleName === 'Admin';
+  const isSelectedRoleAdmin = selectedRoleName === 'Admin';
   
-  // This is the key change: Allow root user to ignore company requirement
-  const isCompanyRequired = !isSuperAdminRole;
+  // This is the key logic change:
+  // A company is only required if the actor is NOT the root user AND the selected role is NOT 'Admin'.
+  const isCompanyRequired = actor?.id !== 'root-user' && !isSelectedRoleAdmin;
+
 
   useEffect(() => {
     if (user) {
@@ -101,18 +103,15 @@ export function UserForm({
   const handleFormSubmit = async (data: UserFormData) => {
     setServerFormError(null);
     setServerFieldErrors(undefined);
-
-    // If company is not required and not provided, ensure it's sent as null
-    if (!isCompanyRequired && !data.companyId) {
-        data.companyId = null;
-    }
     
+    // Manual validation before submitting to action
     if (isCompanyRequired && !data.companyId) {
         setLocalError("companyId", { type: 'manual', message: "Company is required for this role."});
         return;
     }
-
+    
     const result = await onSubmit(data, user?.id);
+
     if (!result.success) {
       setServerFormError(result.error || 'An unexpected error occurred.');
       setServerFieldErrors(result.fieldErrors);
@@ -246,7 +245,7 @@ export function UserForm({
             render={({ field }) => (
               <Select 
                 onValueChange={(value) => field.onChange(value === 'none' ? null : value)} 
-                value={field.value || "none"} 
+                value={field.value || 'none'}
                 disabled={companies.length === 0}
               >
                 <SelectTrigger id="companyId" className="bg-input border-border focus:ring-primary text-sm">
@@ -264,7 +263,8 @@ export function UserForm({
            {(combinedFieldErrors.companyId || serverFieldErrors?.companyId) && (
             <p className="text-xs text-destructive mt-1">{combinedFieldErrors.companyId?.message || serverFieldErrors?.companyId?.[0]}</p>
           )}
-          {isSuperAdminRole && <p className="text-xs text-muted-foreground mt-1">Super Admins are not tied to a specific company.</p>}
+          {actor?.id === 'root-user' && <p className="text-xs text-muted-foreground mt-1">As root user, you can create users without a company, even for non-Admin roles.</p>}
+          {actor?.id !== 'root-user' && isSelectedRoleAdmin && <p className="text-xs text-muted-foreground mt-1">You can assign this Admin to a specific company, or leave it blank to make them a super admin.</p>}
         </div>
 
       <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">
