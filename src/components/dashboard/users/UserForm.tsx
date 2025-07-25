@@ -78,7 +78,7 @@ export function UserForm({
   const isSuperAdminRole = selectedRoleName === 'Admin';
   
   // This is the key change: Allow root user to ignore company requirement
-  const isCompanyRequired = !isSuperAdminRole && actor?.id !== 'root-user';
+  const isCompanyRequired = !isSuperAdminRole;
 
   useEffect(() => {
     if (user) {
@@ -245,15 +245,15 @@ export function UserForm({
             control={control}
             render={({ field }) => (
               <Select 
-                onValueChange={field.onChange} 
-                value={field.value || ""} 
+                onValueChange={(value) => field.onChange(value === 'none' ? null : value)} 
+                value={field.value || "none"} 
                 disabled={companies.length === 0}
               >
                 <SelectTrigger id="companyId" className="bg-input border-border focus:ring-primary text-sm">
                   <SelectValue placeholder={companies.length === 0 ? "No companies available" : "Select a company"} />
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value="">No Company Assigned</SelectItem>
+                   <SelectItem value="none">No Company Assigned</SelectItem>
                   {companies.map(company => (
                     <SelectItem key={company.id} value={company.id!}>{company.name}</SelectItem>
                   ))}
