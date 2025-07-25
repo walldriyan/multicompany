@@ -48,7 +48,7 @@ export async function createUserAction(
 
     // A non-super-admin user MUST have a companyId.
     // The root super admin does not, but other 'Admin' roles might if they are company-specific admins.
-    if (role.name !== 'Admin' && !restOfUserData.companyId) {
+    if (actorUserId !== 'root-user' && role.name !== 'Admin' && !restOfUserData.companyId) {
         return { success: false, error: "A company must be assigned to non-Admin users.", fieldErrors: { companyId: ["Company is required for this role."] }};
     }
 
@@ -59,8 +59,9 @@ export async function createUserAction(
         passwordHash,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
-        // Ensure companyId is null if the role is Admin and no company is selected
-        companyId: role.name === 'Admin' ? restOfUserData.companyId : restOfUserData.companyId,
+        // If the actor is root user, they can create users without a company.
+        // Otherwise, companyId is determined by the role.
+        companyId: actorUserId === 'root-user' ? restOfUserData.companyId : (role.name === 'Admin' ? restOfUserData.companyId : restOfUserData.companyId),
       },
       include: { role: true, company: true },
     });
@@ -172,14 +173,14 @@ export async function updateUserAction(
     }
 
     // A non-super-admin user MUST have a companyId.
-    if (role.name !== 'Admin' && !restOfUserData.companyId) {
+    if (actorUserId !== 'root-user' && role.name !== 'Admin' && !restOfUserData.companyId) {
         return { success: false, error: "A company must be assigned to non-Admin users.", fieldErrors: { companyId: ["Company is required for this role."] }};
     }
     
     const dataToUpdate: Prisma.UserUpdateInput = { 
         ...restOfUserData,
         updatedByUserId: actorUserId,
-        companyId: role.name === 'Admin' ? restOfUserData.companyId : restOfUserData.companyId,
+        companyId: actorUserId === 'root-user' ? restOfUserData.companyId : (role.name === 'Admin' ? restOfUserData.companyId : restOfUserData.companyId),
     };
     
     if (password && password.trim() !== "") {

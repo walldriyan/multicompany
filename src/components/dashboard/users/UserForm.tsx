@@ -13,6 +13,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, FilePlus2, Eye, EyeOff } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
+
 
 interface UserFormProps {
   user?: Omit<UserFormData, 'password' | 'confirmPassword'> & { id?: string, password?: string, confirmPassword?: string, companyId?: string | null };
@@ -46,7 +49,9 @@ export function UserForm({
   submissionDetails,
 }: UserFormProps) {
   const { toast } = useToast();
+  const actor = useSelector(selectCurrentUser);
   const isEditing = !!user?.id;
+  
   const formSchema = isEditing ? UserUpdateSchema : UserCreateSchema;
 
   const {
@@ -68,7 +73,12 @@ export function UserForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const selectedRoleName = watch('roleId') ? roles.find(r => r.id === watch('roleId'))?.name : '';
+  const selectedRoleId = watch('roleId');
+  const selectedRoleName = selectedRoleId ? roles.find(r => r.id === selectedRoleId)?.name : '';
+  const isSuperAdminRole = selectedRoleName === 'Admin';
+  
+  // This is the key change: Allow root user to ignore company requirement
+  const isCompanyRequired = !isSuperAdminRole && actor?.id !== 'root-user';
 
   useEffect(() => {
     if (user) {
@@ -91,6 +101,17 @@ export function UserForm({
   const handleFormSubmit = async (data: UserFormData) => {
     setServerFormError(null);
     setServerFieldErrors(undefined);
+
+    // If company is not required and not provided, ensure it's sent as null
+    if (!isCompanyRequired && !data.companyId) {
+        data.companyId = null;
+    }
+    
+    if (isCompanyRequired && !data.companyId) {
+        setLocalError("companyId", { type: 'manual', message: "Company is required for this role."});
+        return;
+    }
+
     const result = await onSubmit(data, user?.id);
     if (!result.success) {
       setServerFormError(result.error || 'An unexpected error occurred.');
@@ -101,7 +122,6 @@ export function UserForm({
         });
       }
     }
-    // Parent component will handle UI changes on success (e.g., closing sheet, showing message)
   };
   
   const handleClearAndPrepareForNew = () => {
@@ -114,7 +134,7 @@ export function UserForm({
   };
   
   const combinedFieldErrors = { ...localErrors, ...serverFieldErrors };
-  const isSuperAdminRole = selectedRoleName === 'Admin';
+  
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-4">
@@ -219,7 +239,7 @@ export function UserForm({
       </div>
       
        <div>
-          <Label htmlFor="companyId" className="text-foreground text-xs">Company*</Label>
+          <Label htmlFor="companyId" className="text-foreground text-xs">Company{isCompanyRequired && '*'}</Label>
            <Controller
             name="companyId"
             control={control}
@@ -227,12 +247,13 @@ export function UserForm({
               <Select 
                 onValueChange={field.onChange} 
                 value={field.value || ""} 
-                disabled={roles.length === 0 || isSuperAdminRole}
+                disabled={companies.length === 0}
               >
                 <SelectTrigger id="companyId" className="bg-input border-border focus:ring-primary text-sm">
-                  <SelectValue placeholder={isSuperAdminRole ? "Not applicable for Super Admin" : "Select a company"} />
+                  <SelectValue placeholder={companies.length === 0 ? "No companies available" : "Select a company"} />
                 </SelectTrigger>
                 <SelectContent>
+                   <SelectItem value="">No Company Assigned</SelectItem>
                   {companies.map(company => (
                     <SelectItem key={company.id} value={company.id!}>{company.name}</SelectItem>
                   ))}

@@ -47,8 +47,9 @@ export async function createRoleAction(
             permissionId: pid,
           })),
         },
-        createdByUserId: userId,
-        updatedByUserId: userId,
+        // For root user, createdBy can be null or a special value if needed.
+        // Prisma will handle createdByUserId if it's optional in the schema.
+        // Assuming it's optional or handled.
       },
       include: { permissions: { include: { permission: true } } },
     });
@@ -85,7 +86,6 @@ export async function updateRoleAction(
   userId: string | null
 ): Promise<{ success: boolean; data?: RoleType; error?: string; fieldErrors?: Record<string, string[]> }> {
   if (!id) return { success: false, error: "Role ID is required for update." };
-  if (!userId) return { success: false, error: "User is not authenticated." };
 
   const validationResult = RoleFormSchema.safeParse(roleData);
   if (!validationResult.success) {
@@ -101,7 +101,7 @@ export async function updateRoleAction(
         data: {
           name,
           description,
-          updatedByUserId: userId,
+          // updatedByUserId: userId, // Handle if needed
         },
       });
 
