@@ -601,7 +601,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                           </AlertDialogTrigger>
                       </DropdownMenuContent>
                   </DropdownMenu>
-                  <AlertDialogContent>
+                   <AlertDialogContent>
                       <AlertDialogHeader>
                           <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                           <AlertDialogDescription>
@@ -618,7 +618,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                           <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
                       </AlertDialogFooter>
                   </AlertDialogContent>
-              </AlertDialog>
+                </AlertDialog>
             </div>
 
             <div className="px-4 space-y-3">
