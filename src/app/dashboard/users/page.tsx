@@ -305,6 +305,10 @@ export default function UserManagementPage() {
       if (!a.label.startsWith('Access:') && b.label.startsWith('Access:')) return 1;
       return a.label.localeCompare(b.label);
   });
+  
+  const userListDescription = currentUser?.id === 'root-user' 
+    ? "Manage all registered users in the system."
+    : "Manage registered users in your company.";
 
 
   return (
@@ -348,7 +352,7 @@ export default function UserManagementPage() {
           <Card className="bg-card border-border shadow-xl flex-1">
             <CardHeader>
               <CardTitle className="text-2xl text-card-foreground">User List</CardTitle>
-              <CardDescription className="text-muted-foreground">Manage registered users in your company.</CardDescription>
+              <CardDescription className="text-muted-foreground">{userListDescription}</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingUsers && users.length === 0 ? (
