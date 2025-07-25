@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { setUser, setAuthLoading, setAuthError, selectCurrentUser, selectAuthStatus } from '@/store/slices/authSlice';
+import { setUser, setAuthLoading, setAuthError, selectCurrentUser, selectAuthStatus, clearUser } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
 import { loginAction } from '@/app/actions/authActions';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,16 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null);
 
-  // This effect handles redirection after the auth state is confirmed.
+  // This effect clears any existing user session when the login page loads.
+  // This prevents the "Already logged in" issue when trying to switch users.
+  useEffect(() => {
+    if (authStatus !== 'idle') {
+      dispatch(clearUser());
+    }
+  }, [dispatch, authStatus]);
+
+
+  // This effect handles redirection after a *new* auth state is confirmed.
   useEffect(() => {
     if (authStatus === 'succeeded' && currentUser) {
       router.push('/');
@@ -56,12 +65,12 @@ export default function LoginPage() {
     }
   };
   
-  // While checking auth status, or if already logged in and waiting for redirect, show a loading state.
-  if (authStatus === 'loading' || (authStatus === 'succeeded' && currentUser)) {
+  // While checking auth status, or if the login process is running, show loading.
+  if (authStatus === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
           <p className="text-muted-foreground">
-            {currentUser ? 'Already logged in. Redirecting...' : 'Authenticating...'}
+            Authenticating...
           </p>
       </div>
     );
