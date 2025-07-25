@@ -212,6 +212,12 @@ export async function loginAction(
   }
 }
 
+export async function logoutAction() {
+    cookies().delete('auth_token');
+    return { success: true };
+}
+
+
 export async function verifyAdminPasswordAction(password: string): Promise<{ success: boolean; error?: string }> {
   if (!password) {
     return { success: false, error: 'Password is required.' };

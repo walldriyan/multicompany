@@ -33,6 +33,7 @@ import { selectCurrentUser, selectAuthStatus, clearUser, setUser } from '@/store
 
 
 import { saveSaleRecordAction } from '@/app/actions/saleActions';
+import { logoutAction } from '@/app/actions/authActions';
 import { getAllProductsAction } from '@/app/actions/productActions'; // Import the action to fetch products
 import type { Product, SaleItem, DiscountSet, AppliedRuleInfo, SpecificDiscountRuleConfig, PaymentMethod, SaleRecordType, SaleStatus, SaleRecordItemInput, SaleRecordInput, UnitDefinition, CreditPaymentStatus, ProductBatch } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -252,7 +253,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     }
   };
   
-   const handleDirectLogout = () => {
+   const handleLogout = async () => {
+    await logoutAction();
     dispatch(clearUser());
     router.push('/login');
   };
@@ -590,10 +592,12 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                             <span>POS Screen Settings</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setIsLogoutDialogOpen(true)} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
-                            <LogOut className="mr-2 h-4 w-4" />
-                            <span>Logout</span>
-                        </DropdownMenuItem>
+                        <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Logout</span>
+                            </DropdownMenuItem>
+                        </AlertDialogTrigger>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -725,7 +729,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                 <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full">
                     Go to End Shift Page
                 </Button>
-                <Button variant="secondary" onClick={handleDirectLogout} className="w-full rounded-full">
+                <Button variant="secondary" onClick={handleLogout} className="w-full">
                     Logout Only (Keep Shift Open)
                 </Button>
                 <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>

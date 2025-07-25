@@ -15,6 +15,8 @@ import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIco
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
+import { logoutAction } from '@/app/actions/authActions';
+
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -78,10 +80,15 @@ export function DashboardClientLayout({
         setActiveView(currentViewKey);
     }
   }, [pathname]);
-
-  const handleDirectLogout = () => {
+  
+  const handleLogout = async () => {
+    await logoutAction();
     dispatch(clearUser());
     router.push('/login');
+  };
+
+  const handleDirectLogout = () => {
+    handleLogout();
   };
 
   const visibleViews = (Object.keys(viewConfig) as DashboardView[]).filter(viewKey => 
