@@ -23,6 +23,12 @@ export async function getAllCompanyProfilesAction(userId: string | null): Promis
   if (!userId) {
     return { success: false, error: "User not authenticated." };
   }
+  
+  if (userId === 'root-user') {
+      const profiles = await prisma.companyProfile.findMany({ orderBy: { name: 'asc' } });
+      return { success: true, data: profiles as CompanyProfileFormData[] };
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -37,13 +43,10 @@ export async function getAllCompanyProfilesAction(userId: string | null): Promis
     const whereClause: Prisma.CompanyProfileWhereInput = {};
 
     if (!isSuperAdmin && user.companyId) {
-      // If not a super admin, they must have a company, and can only see their own
       whereClause.id = user.companyId;
     } else if (!isSuperAdmin && !user.companyId) {
-      // A non-admin user without a company sees nothing
       return { success: true, data: [] };
     }
-    // If Super Admin, whereClause is empty, so they see all companies.
 
     const profiles = await prisma.companyProfile.findMany({
       where: whereClause,
@@ -65,6 +68,15 @@ export async function saveCompanyProfileAction(
   if (!userId) {
     return { success: false, error: 'User is not authenticated. Cannot update company profile.' };
   }
+  
+  // Safe check for root user without hitting DB
+  const isRootUser = userId === 'root-user';
+  if (!isRootUser) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!user) {
+        return { success: false, error: "User not found. Cannot save profile." };
+      }
+  }
   console.log("[ACTION START] saveCompanyProfileAction invoked by user:", userId);
 
   const rawDataFromForm: Record<string, any> = {};
@@ -78,7 +90,6 @@ export async function saveCompanyProfileAction(
   const clearLogo = formData.get('clearLogo') === 'true';
   console.log(`[DATA PREP] Logo File present: ${!!logoFile}, Clear Logo flag: ${clearLogo}`);
 
-  // Handle ID from form for updates
   const profileId = formData.get('id') as string | null;
   if (profileId && profileId !== 'undefined' && profileId !== 'null') {
     rawDataFromForm.id = profileId;
@@ -162,23 +173,21 @@ export async function saveCompanyProfileAction(
     
     let savedProfile: CompanyProfileFormData;
 
-    if (profileId) { // This is an update
+    if (profileId) { 
       console.log("[DB] Updating existing profile with ID:", profileId);
       savedProfile = await prisma.companyProfile.update({
         where: { id: profileId },
         data: finalData,
       });
-    } else { // This is a create
+    } else { 
        console.log("[DB] Creating new profile.");
 
-        // Check if this is the very first company being created.
        const companyCount = await prisma.companyProfile.count();
 
        savedProfile = await prisma.companyProfile.create({
          data: { ...finalData, createdByUserId: userId }
        });
 
-       // If it was the first company, assign the admin user to it.
        if (companyCount === 0) {
             const adminUser = await prisma.user.findFirst({
                 where: { role: { name: 'Admin' } }
@@ -205,9 +214,15 @@ export async function saveCompanyProfileAction(
   }
 }
 
-export async function deleteCompanyProfileAction(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCompanyProfileAction(id: string, actorUserId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Also delete the associated logo file if it exists
+     if (actorUserId !== 'root-user') {
+       const user = await prisma.user.findUnique({ where: { id: actorUserId } });
+       if (user?.role?.name !== 'Admin') {
+           return { success: false, error: 'Permission Denied.' };
+       }
+     }
+
     const profileToDelete = await prisma.companyProfile.findUnique({ where: { id } });
     if (profileToDelete?.logoUrl) {
       const logoPath = path.join(process.cwd(), 'public', profileToDelete.logoUrl);

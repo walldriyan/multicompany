@@ -44,7 +44,7 @@ export default function CompanyDetailsPage() {
   const { can } = usePermissions();
   const canManageSettings = can('manage', 'Settings');
   
-  const isSuperAdmin = currentUser?.role?.name === 'Admin';
+  const isSuperAdmin = currentUser?.role?.name === 'Admin' || currentUser?.id === 'root-user';
 
   const [allCompanies, setAllCompanies] = useState<CompanyProfileFormData[]>([]);
   const [editingCompany, setEditingCompany] = useState<CompanyProfileFormData | null>(null);
@@ -52,7 +52,10 @@ export default function CompanyDetailsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
+  
+  const initialTab = isSuperAdmin ? 'list' : 'details';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -78,6 +81,9 @@ export default function CompanyDetailsPage() {
       setAllCompanies(result.data);
       if (result.data.length === 1 && !isSuperAdmin) {
         handleEdit(result.data[0]);
+        setActiveTab('details');
+      } else if (result.data.length === 0) {
+        setActiveTab('details');
       }
     } else {
       toast({ title: 'Error', description: result?.error || 'Could not fetch company profiles.', variant: 'destructive' });
@@ -112,18 +118,18 @@ export default function CompanyDetailsPage() {
   };
   
   const handleDelete = async () => {
-    if (!companyToDelete || !canManageSettings) {
+    if (!companyToDelete || !canManageSettings || !currentUser?.id) {
         toast({ title: 'Error', description: companyToDelete ? 'Permission denied.' : 'No company selected for deletion.', variant: 'destructive'});
         setCompanyToDelete(null);
         return;
     }
     setIsSubmitting(true);
-    const result = await deleteCompanyProfileAction(companyToDelete.id!);
+    const result = await deleteCompanyProfileAction(companyToDelete.id!, currentUser.id);
     if (result.success) {
         toast({ title: 'Success', description: 'Company profile deleted successfully.'});
-        fetchAllCompanies(); // Refresh the list
+        fetchAllCompanies(); 
         if (editingCompany?.id === companyToDelete.id) {
-            handleAddNew(); // Clear form if deleted company was being edited
+            handleAddNew(); 
         }
     } else {
         toast({ title: 'Error', description: result.error || 'Failed to delete company.', variant: 'destructive'});
@@ -157,9 +163,9 @@ export default function CompanyDetailsPage() {
     if (result.success && result.data) {
       toast({ title: 'Success', description: `Company profile ${editingCompany ? 'updated' : 'created'} successfully.` });
       fetchAllCompanies();
-      if (!editingCompany) { // If it was a create action
-        handleEdit(result.data); // Switch to editing the newly created profile
-      } else { // If it was an update
+      if (!editingCompany) { 
+        handleEdit(result.data); 
+      } else { 
         handleEdit(result.data);
       }
       if (isSuperAdmin) {
@@ -307,5 +313,3 @@ export default function CompanyDetailsPage() {
     </div>
   );
 }
-
-    
