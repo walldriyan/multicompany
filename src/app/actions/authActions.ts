@@ -73,14 +73,15 @@ export async function loginAction(
   const rootUsername = process.env.ROOT_USER_USERNAME;
   const rootPassword = process.env.ROOT_USER_PASSWORD;
 
-  if (rootUsername && rootPassword && username === rootUsername) {
-    if (password === rootPassword) {
+  if (rootUsername && username === rootUsername) {
+    if (rootPassword && password === rootPassword) {
       console.log(`[AUTH] Root user login attempt successful for: ${username}`);
       const rootUserSession = await createRootUserSession(username);
       return { success: true, user: serializeUserForRedux(rootUserSession) };
     } else {
         // If username matches root but password doesn't, fail immediately.
         // Do not proceed to check the database for the same username.
+        console.log(`[AUTH] Root user login attempt FAILED for: ${username}`);
         return { success: false, error: 'Invalid username or password.' };
     }
   }
