@@ -29,7 +29,7 @@ import {
   initializeAllProducts,
   _internalUpdateMultipleProductStock,
 } from '@/store/slices/saleSlice';
-import { selectCurrentUser, selectAuthStatus, clearUser } from '@/store/slices/authSlice';
+import { selectCurrentUser, selectAuthStatus, clearUser, setUser } from '@/store/slices/authSlice';
 
 
 import { saveSaleRecordAction } from '@/app/actions/saleActions';
@@ -67,6 +67,17 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const { toast } = useToast();
   const productSearchRef = useRef<ProductSearchHandle>(null);
 
+  // Initialize store with server-fetched data only once
+   useEffect(() => {
+    dispatch(initializeAllProducts(serverState.sale.allProducts));
+    dispatch(initializeDiscountSets(serverState.sale.discountSets));
+    dispatch(initializeTaxRate(serverState.sale.taxRate));
+    if (serverState.auth.user) {
+        dispatch(setUser(serverState.auth.user));
+    }
+  }, [dispatch, serverState]);
+
+
   // All hooks are now at the top level
   const currentUser = useSelector(selectCurrentUser);
   const authStatus = useSelector(selectAuthStatus);
@@ -94,12 +105,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const [isClient, setIsClient] = useState(false);
   const [isMounting, setIsMounting] = useState(true);
 
-  // Initialize store with server-fetched data only once
-  useEffect(() => {
-    dispatch(initializeAllProducts(serverState.sale.allProducts));
-    dispatch(initializeDiscountSets(serverState.sale.discountSets));
-    dispatch(initializeTaxRate(serverState.sale.taxRate));
-  }, [dispatch, serverState]);
   
   useEffect(() => {
     setIsClient(true);
