@@ -24,27 +24,25 @@ export default function LoginPage() {
   
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
-      username: 'admin',
-      password: 'admin',
+      username: 'rootadmin',
+      password: 'password123',
     },
   });
 
   const [error, setError] = useState<string | null>(null);
 
-  // This effect clears any existing user session when the login page loads.
-  // This prevents the "Already logged in" issue when trying to switch users.
   useEffect(() => {
-    // Force clear user state on component mount if a user exists
-    // This ensures a clean slate for every visit to the login page.
-    if (currentUser) {
+    // This effect ensures that whenever the user lands on the login page,
+    // any existing session state in Redux is cleared. This prevents the
+    // "already logged in" issue when trying to switch users or after a logout.
+    if (authStatus !== 'idle' || currentUser) {
       dispatch(clearUser());
     }
-  }, [dispatch, currentUser]);
+  }, [dispatch]);
 
 
-  // This effect handles redirection after a *new* auth state is confirmed.
   useEffect(() => {
-    // Redirect only when the status has successfully transitioned.
+    // This effect handles redirection after a *new* auth state is confirmed.
     if (authStatus === 'succeeded' && currentUser) {
       router.push('/');
     }
@@ -76,7 +74,7 @@ export default function LoginPage() {
   };
   
   // While checking auth status, or if the login process is running, show loading.
-  if (authStatus === 'loading') {
+  if (authStatus === 'loading' && !error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
           <p className="text-muted-foreground">
