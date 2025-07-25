@@ -248,3 +248,6 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
 
   } catch (error) {
     console.error("verifyAdminPasswordAction error:", error);
+    return { success: false, error: "An unexpected error occurred during password verification." };
+  }
+}
