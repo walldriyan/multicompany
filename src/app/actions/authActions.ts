@@ -70,8 +70,7 @@ export async function loginAction(
   }
   
   try {
-    // --- DATABASE FIRST APPROACH ---
-    // 1. Check for a regular user in the database first.
+    // --- PRIORITY 1: DATABASE FIRST APPROACH ---
     const user = await prisma.user.findUnique({
       where: { username },
       include: {
@@ -88,8 +87,8 @@ export async function loginAction(
       },
     });
 
+    // If a user is found in the database, authenticate against them.
     if (user) {
-      // If a database user is found, validate their password.
       const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
       if (!isPasswordValid) {
         return { success: false, error: 'Invalid username or password.' };
@@ -121,23 +120,26 @@ export async function loginAction(
       return { success: true, user: serializeUserForRedux(user) };
     }
 
-    // 2. If NO user is found in the database, THEN check for the root user.
+    // --- PRIORITY 2: .ENV ROOT USER (FALLBACK) ---
+    // This block is only reached if the user was NOT found in the database.
     const rootUsername = process.env.ROOT_USER_USERNAME;
     const rootPassword = process.env.ROOT_USER_PASSWORD;
 
     if (rootUsername && username === rootUsername) {
+      // Since the username matches the root user, we now check the password.
       if (rootPassword && password === rootPassword) {
         console.log(`[AUTH] Root user login attempt successful for: ${username}`);
         const rootUserSession = await createRootUserSession(username);
         return { success: true, user: serializeUserForRedux(rootUserSession) };
       } else {
-        // Username matches root but password doesn't.
-        console.log(`[AUTH] Root user login attempt FAILED for: ${username}`);
+        // Username matches root, but password does not. This is a failed login attempt.
+        console.log(`[AUTH] Root user login attempt FAILED (wrong password) for: ${username}`);
         return { success: false, error: 'Invalid username or password.' };
       }
     }
 
-    // 3. If it's neither a DB user nor the root user, it's an invalid login.
+    // --- FINAL CASE: USER NOT FOUND ---
+    // If the code reaches here, the user was not in the DB and did not match the root user.
     return { success: false, error: 'Invalid username or password.' };
 
   } catch (error: any) {

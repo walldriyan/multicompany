@@ -19,23 +19,23 @@ export default function LoginPage() {
   const router = useRouter();
   const dispatch: AppDispatch = useDispatch();
   const { toast } = useToast();
-  const currentUser = useSelector(selectCurrentUser);
-  const authStatus = useSelector(selectAuthStatus);
   
+  // This effect runs once when the component mounts on the client.
+  // It dispatches the action to clear any previous user state from Redux, 
+  // ensuring a completely fresh login attempt every time the login page is visited.
+  useEffect(() => {
+    dispatch(clearUser());
+  }, [dispatch]);
+
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
-      username: 'rootadmin',
-      password: 'password123',
+      username: 'admin',
+      password: 'admin',
     },
   });
 
   const [error, setError] = useState<string | null>(null);
-
-  // This effect runs when the component mounts on the client.
-  // It clears any previous user state from Redux, ensuring a fresh login attempt.
-  useEffect(() => {
-    dispatch(clearUser());
-  }, [dispatch]);
+  const authStatus = useSelector(selectAuthStatus);
 
   const onSubmit = async (data: any) => {
     setError(null);
