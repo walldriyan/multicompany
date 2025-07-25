@@ -68,88 +68,10 @@ export async function loginAction(
   if (!username || !password) {
     return { success: false, error: 'Username and password are required.' };
   }
-
-  // --- Root User Check from .env ---
-  const rootUsername = process.env.ROOT_USER_USERNAME;
-  const rootPassword = process.env.ROOT_USER_PASSWORD;
-
-  if (rootUsername && username === rootUsername) {
-    if (rootPassword && password === rootPassword) {
-      console.log(`[AUTH] Root user login attempt successful for: ${username}`);
-      const rootUserSession = await createRootUserSession(username);
-      return { success: true, user: serializeUserForRedux(rootUserSession) };
-    } else {
-        // If username matches root but password doesn't, fail immediately.
-        // Do not proceed to check the database for the same username.
-        console.log(`[AUTH] Root user login attempt FAILED for: ${username}`);
-        return { success: false, error: 'Invalid username or password.' };
-    }
-  }
-  // --- END Root User Check ---
-
+  
   try {
-    const userCount = await prisma.user.count();
-
-    // First-run: If no users exist, create a default admin user.
-    if (userCount === 0 && username === 'admin' && password === 'admin') {
-      console.log("No users found. Creating default admin user via login action...");
-      
-      // Ensure all permissions are seeded before creating the Admin role.
-      await seedPermissionsAction();
-      
-      let adminRole = await prisma.role.findUnique({ where: { name: 'Admin' } });
-      if (!adminRole) {
-        // Now that permissions are seeded, get all of them.
-        const allPermissions = await prisma.permission.findMany();
-
-        adminRole = await prisma.role.create({
-          data: {
-            name: 'Admin',
-            description: 'Super Administrator with all permissions.',
-            permissions: {
-              create: allPermissions.map(p => ({
-                permissionId: p.id,
-              })),
-            },
-          },
-        });
-      }
-      
-      const passwordHash = await bcrypt.hash('admin', 10);
-      let adminUser = await prisma.user.create({
-        data: {
-          username: 'admin',
-          passwordHash,
-          roleId: adminRole.id,
-          isActive: true,
-        },
-      });
-
-      // Refetch user with all relations to ensure permissions are included
-      adminUser = await prisma.user.findUniqueOrThrow({
-        where: { id: adminUser.id },
-        include: {
-           role: {
-            include: {
-              permissions: {
-                include: {
-                  permission: true
-                }
-              }
-            }
-          },
-          company: true,
-        },
-      });
-
-      console.log("Default admin user created successfully via login action.");
-
-      await createAndSetSession(adminUser);
-      
-      return { success: true, user: serializeUserForRedux(adminUser) };
-    }
-
-    // Normal Login
+    // --- DATABASE FIRST APPROACH ---
+    // 1. Check for a regular user in the database first.
     const user = await prisma.user.findUnique({
       where: { username },
       include: {
@@ -166,40 +88,57 @@ export async function loginAction(
       },
     });
 
-    if (!user) {
+    if (user) {
+      // If a database user is found, validate their password.
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isPasswordValid) {
         return { success: false, error: 'Invalid username or password.' };
+      }
+      
+      if (!user.isActive) {
+          return { success: false, error: 'Your account has been disabled. Please contact an administrator.' };
+      }
+
+      // For non-super-admins, check for an open shift within their company
+      if (user.companyId && user.role?.name !== 'Admin') {
+          const openShiftInCompany = await prisma.cashRegisterShift.findFirst({
+              where: { 
+                  companyId: user.companyId,
+                  status: 'OPEN' 
+              },
+              include: { user: { select: { id: true, username: true } } }
+          });
+
+          if (openShiftInCompany && user.id !== openShiftInCompany.userId) {
+              return { 
+                  success: false, 
+                  error: `Login blocked. User '${openShiftInCompany.user.username}' has an open shift that must be closed first.` 
+              };
+          }
+      }
+      
+      await createAndSetSession(user);
+      return { success: true, user: serializeUserForRedux(user) };
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      return { success: false, error: 'Invalid username or password.' };
-    }
-    
-    if (!user.isActive) {
-        return { success: false, error: 'Your account has been disabled. Please contact an administrator.' };
+    // 2. If NO user is found in the database, THEN check for the root user.
+    const rootUsername = process.env.ROOT_USER_USERNAME;
+    const rootPassword = process.env.ROOT_USER_PASSWORD;
+
+    if (rootUsername && username === rootUsername) {
+      if (rootPassword && password === rootPassword) {
+        console.log(`[AUTH] Root user login attempt successful for: ${username}`);
+        const rootUserSession = await createRootUserSession(username);
+        return { success: true, user: serializeUserForRedux(rootUserSession) };
+      } else {
+        // Username matches root but password doesn't.
+        console.log(`[AUTH] Root user login attempt FAILED for: ${username}`);
+        return { success: false, error: 'Invalid username or password.' };
+      }
     }
 
-    // For non-super-admins, check for an open shift within their company
-    if (user.companyId && user.role?.name !== 'Admin') {
-        const openShiftInCompany = await prisma.cashRegisterShift.findFirst({
-            where: { 
-                companyId: user.companyId,
-                status: 'OPEN' 
-            },
-            include: { user: { select: { id: true, username: true } } }
-        });
-
-        if (openShiftInCompany && user.id !== openShiftInCompany.userId) {
-            return { 
-                success: false, 
-                error: `Login blocked. User '${openShiftInCompany.user.username}' has an open shift that must be closed first.` 
-            };
-        }
-    }
-    
-    await createAndSetSession(user);
-
-    return { success: true, user: serializeUserForRedux(user) };
+    // 3. If it's neither a DB user nor the root user, it's an invalid login.
+    return { success: false, error: 'Invalid username or password.' };
 
   } catch (error: any) {
     console.error("Login action error:", error);
