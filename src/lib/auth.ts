@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import type { User, Role } from '@/types';
 import prisma from './prisma';
+import 'dotenv/config';
 
 interface AuthUser extends Omit<User, 'passwordHash' | 'role'> {
   role?: Role;
@@ -25,6 +26,27 @@ export async function verifyAuth(): Promise<{ user: AuthUser | null }> {
     if (!userId) {
       return { user: null };
     }
+    
+    // --- Root User Check ---
+    if (userId === 'root-user' && payload.role === process.env.ROOT_USER_ROLE_NAME) {
+        const allPermissions = await prisma.permission.findMany();
+        const rootUserSession = {
+            id: 'root-user',
+            username: process.env.ROOT_USER_USERNAME || 'root',
+            role: {
+                name: process.env.ROOT_USER_ROLE_NAME || 'SuperAdmin',
+                permissions: allPermissions.map(p => ({ permission: p }))
+            },
+            company: null,
+            companyId: null,
+            isActive: true,
+        };
+        // Serialize for Redux compatibility
+        const serializableUser = JSON.parse(JSON.stringify(rootUserSession));
+        return { user: serializableUser };
+    }
+    // --- End Root User Check ---
+
 
     const userFromDb = await prisma.user.findUnique({
       where: { id: userId },

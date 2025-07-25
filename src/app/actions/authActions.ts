@@ -36,8 +36,8 @@ async function createAndSetSession(user: any) {
     
     cookies().set('auth_token', session, {
       httpOnly: true,
-      secure: true, // Required for sameSite: 'none'
-      sameSite: 'none', // Allow cookie to be set in cross-site contexts like iframes
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', 
       path: '/',
       maxAge: 60 * 60 * 24, // 1 day in seconds
     });

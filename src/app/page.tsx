@@ -47,5 +47,3 @@ export default async function PosPageContainer() {
       <POSClientComponent serverState={initialReduxState} />
   );
 }
-
-    
