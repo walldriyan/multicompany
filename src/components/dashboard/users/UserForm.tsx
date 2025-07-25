@@ -77,8 +77,6 @@ export function UserForm({
   const selectedRoleName = selectedRoleId ? roles.find(r => r.id === selectedRoleId)?.name : '';
   const isSelectedRoleAdmin = selectedRoleName === 'Admin';
   
-  // This is the key logic change:
-  // A company is only required if the actor is NOT the root user AND the selected role is NOT 'Admin'.
   const isCompanyRequired = actor?.id !== 'root-user' && !isSelectedRoleAdmin;
 
 
@@ -90,7 +88,7 @@ export function UserForm({
         roleId: user.roleId || '',
         companyId: user.companyId || null,
         isActive: user.isActive !== undefined ? user.isActive : true,
-        password: '', // Always clear password fields on edit
+        password: '', 
         confirmPassword: '',
       });
     } else {
@@ -104,7 +102,6 @@ export function UserForm({
     setServerFormError(null);
     setServerFieldErrors(undefined);
     
-    // Manual validation before submitting to action
     if (isCompanyRequired && !data.companyId) {
         setLocalError("companyId", { type: 'manual', message: "Company is required for this role."});
         return;

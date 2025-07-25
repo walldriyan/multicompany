@@ -46,7 +46,7 @@ export async function createUserAction(
          return { success: false, error: "Selected role does not exist." };
      }
 
-    // Server-side validation: A non-root actor creating a non-Admin user MUST provide a companyId.
+    // A company is required for non-Admin roles, EXCEPT when the creator is the root user.
     if (actorUserId !== 'root-user' && role.name !== 'Admin' && !restOfUserData.companyId) {
         return { success: false, error: "A company must be assigned to non-Admin users.", fieldErrors: { companyId: ["Company is required for this role."] }};
     }
@@ -56,7 +56,8 @@ export async function createUserAction(
       data: {
         ...restOfUserData,
         passwordHash,
-        companyId: restOfUserData.companyId, // Directly use the value from form (can be null for root user)
+        // Root user can create users with null companyId regardless of role.
+        companyId: restOfUserData.companyId, 
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
       },
@@ -122,8 +123,8 @@ export async function getAllUsersWithRolesAction(actorUserId: string | null): Pr
         return { success: false, error: "Authenticated user not found." };
     }
     
-    // Super admin (DB user with role 'Admin' and no company) sees all users
-    const isSuperAdmin = actorUser.role?.name === 'Admin' && !actorUser.companyId;
+    // A db user with Admin role is considered a Super Admin. They can see all users.
+    const isSuperAdmin = actorUser.role?.name === 'Admin';
     
     let whereClause: Prisma.UserWhereInput = {};
 
@@ -164,12 +165,12 @@ export async function updateUserAction(
   const { password, confirmPassword, ...restOfUserData } = validationResult.data;
 
   try {
-    const role = await prisma.role.findUnique({ where: { id: restOfUserData.roleId } });
-    if (!role) {
-      return { success: false, error: "Selected role does not exist." };
-    }
-
-    // Server-side validation: A non-root actor creating a non-Admin user MUST provide a companyId.
+     const role = await prisma.role.findUnique({ where: { id: restOfUserData.roleId } });
+     if (!role) {
+         return { success: false, error: "Selected role does not exist." };
+     }
+    
+    // A company is required for non-Admin roles, EXCEPT when the creator is the root user.
     if (actorUserId !== 'root-user' && role.name !== 'Admin' && !restOfUserData.companyId) {
         return { success: false, error: "A company must be assigned to non-Admin users.", fieldErrors: { companyId: ["Company is required for this role."] }};
     }
