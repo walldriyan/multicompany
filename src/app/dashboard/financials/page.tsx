@@ -51,7 +51,10 @@ export default function FinancialsPage() {
   const [lastSuccessfulSubmission, setLastSuccessfulSubmission] = useState<LastSuccessfulSubmission | null>(null);
 
   const fetchTransactions = useCallback(async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) {
+        setIsLoading(false);
+        return;
+    };
     setIsLoading(true);
     const result = await getTransactionsAction(currentUser.id);
     if (result.success && result.data) {
