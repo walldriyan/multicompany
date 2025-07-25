@@ -556,50 +556,69 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
           <>
              <div className="p-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-card-foreground">Sale Summary &amp; Actions</h2>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-9 w-9 p-0">
-                            <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/20 text-primary font-semibold">
-                                {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
-                                </AvatarFallback>
-                            </Avatar>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuLabel className="font-normal">
-                            <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">{currentUser.username}</p>
-                                <p className="text-xs leading-none text-muted-foreground">{currentUser.role?.name}</p>
-                                <p className="text-xs leading-none text-primary/80">{currentUser.company?.name || 'Super Admin'}</p>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuGroup>
-                            <DropdownMenuLabel className="text-xs">Checkout Mode</DropdownMenuLabel>
-                             <DropdownMenuItem onSelect={() => handleCheckoutModeChange('popup')}>
-                                {checkoutMode === 'popup' ? <CheckSquare className="mr-2 h-4 w-4 text-primary" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                <span>Popup Dialog</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleCheckoutModeChange('inline')}>
-                                 {checkoutMode === 'inline' ? <CheckSquare className="mr-2 h-4 w-4 text-primary" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                <span>Inline View</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setIsSettingsDialogOpen(true)}>
-                            <SettingsIcon className="mr-2 h-4 w-4" />
-                            <span>POS Screen Settings</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
-                                <LogOut className="mr-2 h-4 w-4" />
-                                <span>Logout</span>
-                            </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+                  <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-9 w-9 p-0">
+                              <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                                  {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
+                                  </AvatarFallback>
+                              </Avatar>
+                          </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                          <DropdownMenuLabel className="font-normal">
+                              <div className="flex flex-col space-y-1">
+                                  <p className="text-sm font-medium leading-none">{currentUser.username}</p>
+                                  <p className="text-xs leading-none text-muted-foreground">{currentUser.role?.name}</p>
+                                  <p className="text-xs leading-none text-primary/80">{currentUser.company?.name || 'Super Admin'}</p>
+                              </div>
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuGroup>
+                              <DropdownMenuLabel className="text-xs">Checkout Mode</DropdownMenuLabel>
+                              <DropdownMenuItem onSelect={() => handleCheckoutModeChange('popup')}>
+                                  {checkoutMode === 'popup' ? <CheckSquare className="mr-2 h-4 w-4 text-primary" /> : <XCircle className="mr-2 h-4 w-4" />}
+                                  <span>Popup Dialog</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleCheckoutModeChange('inline')}>
+                                  {checkoutMode === 'inline' ? <CheckSquare className="mr-2 h-4 w-4 text-primary" /> : <XCircle className="mr-2 h-4 w-4" />}
+                                  <span>Inline View</span>
+                              </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => setIsSettingsDialogOpen(true)}>
+                              <SettingsIcon className="mr-2 h-4 w-4" />
+                              <span>POS Screen Settings</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                           <AlertDialogTrigger asChild>
+                               <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
+                                  <LogOut className="mr-2 h-4 w-4" />
+                                  <span>Logout</span>
+                              </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                      </DropdownMenuContent>
+                  </DropdownMenu>
+                  <AlertDialogContent>
+                      <AlertDialogHeader>
+                          <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                          <AlertDialogDescription>
+                          How would you like to proceed? Your current shift will remain open unless you end it.
+                          </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
+                          <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full">
+                              Go to End Shift Page
+                          </Button>
+                          <Button variant="secondary" onClick={handleLogout} className="w-full">
+                              Logout Only (Keep Shift Open)
+                          </Button>
+                          <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+                      </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
             </div>
 
             <div className="px-4 space-y-3">
@@ -716,27 +735,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             onPaymentSuccess={handlePaymentSuccess}
         />
       )}
-      
-       <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-                <AlertDialogDescription>
-                How would you like to proceed? Your current shift will remain open unless you end it.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full">
-                    Go to End Shift Page
-                </Button>
-                <Button variant="secondary" onClick={handleLogout} className="w-full">
-                    Logout Only (Keep Shift Open)
-                </Button>
-                <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-
     </div>
   );
 }
