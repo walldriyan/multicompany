@@ -131,7 +131,7 @@ export function DashboardClientLayout({
             })}
         </SidebarMenu></SidebarContent>
         <SidebarFooter className="border-t border-border/30"><SidebarMenu>
-            <SidebarMenuItem><div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 group-data-[collapsible=icon]:justify-center">
+            <SidebarMenuItem><div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2">
                 <Avatar className="h-7 w-7 shrink-0"><AvatarFallback className="bg-primary/20 text-primary font-semibold">{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}</AvatarFallback></Avatar>
                 <div className="flex-grow overflow-hidden group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-semibold text-foreground truncate">{currentUser?.username}</p>
@@ -165,9 +165,9 @@ export function DashboardClientLayout({
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
-           <AlertDialogContent className="grid-rows-[auto_1fr_auto] p-0">
-                <div className="relative p-6 flex flex-col flex-grow h-[400px]">
-                     <AlertDialogHeader className="text-center mb-4">
+           <AlertDialogContent>
+                <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
+                    <AlertDialogHeader className="text-center mb-6">
                         <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                         <AlertDialogDescription>
                             How would you like to proceed? Your shift will remain open.
@@ -189,24 +189,22 @@ export function DashboardClientLayout({
                         </TooltipContent>
                     </Tooltip>
 
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }}
-                                    className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
-                                    aria-label="Logout Only (Keep Shift Open)"
-                                >
-                                    <LogOut className="h-10 w-10 text-foreground" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Logout Only (Keep Shift Open)</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }}
+                                className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                                aria-label="Logout Only (Keep Shift Open)"
+                            >
+                                <LogOut className="h-10 w-10 text-foreground" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Logout Only (Keep Shift Open)</p>
+                        </TooltipContent>
+                    </Tooltip>
 
-                    <div className="mt-6">
+                    <div className="w-full mt-8">
                         <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
                     </div>
                 </div>
