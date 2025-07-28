@@ -8,7 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag } from 'lucide-react';
@@ -112,6 +112,7 @@ export function DashboardClientLayout({
             <ShoppingBag className="h-6 w-6 text-primary" />
             <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
           </Link>
+           <SidebarTrigger className="hidden md:flex text-foreground"/>
           {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
         </SidebarHeader>
         <SidebarContent><SidebarMenu>
