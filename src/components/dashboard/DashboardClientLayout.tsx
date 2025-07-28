@@ -6,15 +6,17 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch } from '@/store/store';
-import { clearUser, setUser, selectCurrentUser, selectAuthStatus } from '@/store/slices/authSlice';
+import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
+import { logoutAction } from '@/app/actions/authActions';
+
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -55,13 +57,9 @@ export function DashboardClientLayout({
 
   const [activeView, setActiveView] = useState<DashboardView>('welcome');
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-
-  // FIX: Move the dispatch into a useEffect hook.
-  // This ensures the store is updated only after the component has mounted,
-  // preventing the "Cannot update a component while rendering" error.
+  
+  // This effect runs once on the client to set the user from server props
   useEffect(() => {
-    setIsClient(true);
     if (initialUser) {
       dispatch(setUser(initialUser));
     }
@@ -81,20 +79,25 @@ export function DashboardClientLayout({
         setActiveView(currentViewKey);
     }
   }, [pathname]);
-
-  const handleDirectLogout = () => {
+  
+  const handleLogout = async () => {
+    await logoutAction();
     dispatch(clearUser());
     router.push('/login');
+  };
+
+  const handleDirectLogout = () => {
+    handleLogout();
   };
 
   const visibleViews = (Object.keys(viewConfig) as DashboardView[]).filter(viewKey => 
     can(viewConfig[viewKey].permission?.action as any, viewConfig[viewKey].permission?.subject as any)
   );
   
-  if (!isClient || !currentUser) {
+  if (!currentUser) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
-            <p className="text-muted-foreground">Loading Dashboard...</p>
+            <p className="text-muted-foreground">Loading...</p>
         </div>
     );
   }
@@ -109,6 +112,7 @@ export function DashboardClientLayout({
             <ShoppingBag className="h-6 w-6 text-primary" />
             <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
           </Link>
+           <SidebarTrigger className="hidden md:flex text-foreground"/>
           {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
         </SidebarHeader>
         <SidebarContent><SidebarMenu>
@@ -134,12 +138,14 @@ export function DashboardClientLayout({
                     <p className="text-xs text-primary/80 truncate">{currentUser?.company?.name || 'Super Admin'}</p>
                 </div>
             </div></SidebarMenuItem>
-            <SidebarMenuItem><AlertDialogTrigger asChild>
-                <SidebarMenuButton onClick={() => setIsLogoutDialogOpen(true)} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
-                    <LogOut className="h-5 w-5" />
-                    <span className="group-data-[collapsible=icon]:hidden">Logout</span>
-                </SidebarMenuButton>
-            </AlertDialogTrigger></SidebarMenuItem>
+            <SidebarMenuItem>
+                <AlertDialogTrigger asChild>
+                    <SidebarMenuButton onClick={(e) => { e.preventDefault(); setIsLogoutDialogOpen(true); }} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
+                        <LogOut className="h-5 w-5" />
+                        <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+                    </SidebarMenuButton>
+                </AlertDialogTrigger>
+            </SidebarMenuItem>
         </SidebarMenu></SidebarFooter>
       </Sidebar>
     );
@@ -158,11 +164,20 @@ export function DashboardClientLayout({
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
            <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>Confirm Logout</AlertDialogTitle><AlertDialogDescription>How would you like to proceed? Your current shift will remain open unless you end it.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                <AlertDialogDescription>
+                  How would you like to proceed? Your current shift will remain open unless you end it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
               <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                  <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full"><DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page</Button>
-                  <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full rounded-full"><LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)</Button>
-                  <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+                  <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                    <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                  </Button>
+                 <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
+                    <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                  </Button>
+                <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
            </AlertDialogContent>
         </AlertDialog>

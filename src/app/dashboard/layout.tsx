@@ -1,7 +1,10 @@
+
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { verifyAuth } from '@/lib/auth';
 import { DashboardClientLayout } from '@/components/dashboard/DashboardClientLayout';
+import { store } from '@/store/store';
+import { setUser } from '@/store/slices/authSlice';
 
 // This is now a SERVER COMPONENT
 export default async function DashboardLayout({
@@ -12,12 +15,15 @@ export default async function DashboardLayout({
   // 1. Verify authentication on the server before rendering anything
   const { user } = await verifyAuth();
 
-  // 2. If no user, redirect to login from the server
+  // 2. If no user, redirect to login from the server. This is the key fix for the flicker.
   if (!user) {
     return redirect('/login');
   }
 
-  // 3. Perform the permission check on the server, accessing the correct nested structure.
+  // 3. Dispatch user to server-side store so client layout can access it for permissions
+  store.dispatch(setUser(user));
+
+  // 4. Perform the permission check on the server, accessing the correct nested structure.
   const rolePermissions = user.role?.permissions ?? [];
 
   // Correctly map the nested permission objects
@@ -25,7 +31,7 @@ export default async function DashboardLayout({
       rolePermissions.some(rp => rp.permission?.action === 'manage' && rp.permission?.subject === 'all') ||
       rolePermissions.some(rp => rp.permission?.action === 'access' && rp.permission?.subject === 'Dashboard');
   
-  // 4. If permission is denied, show an error page from the server
+  // 5. If permission is denied, show an error page from the server
   if (!canAccessDashboard) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
@@ -42,7 +48,7 @@ export default async function DashboardLayout({
     );
   }
 
-  // 5. If everything is OK, render a CLIENT component and pass the user data down
+  // 6. If everything is OK, render a CLIENT component and pass the user data down
   // This separates server logic from client logic cleanly.
   return (
     <DashboardClientLayout initialUser={user}>

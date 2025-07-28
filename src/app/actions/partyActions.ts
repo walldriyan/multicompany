@@ -6,15 +6,28 @@ import { PartyCreateInputSchema, PartyUpdateInputSchema } from '@/lib/zodSchemas
 import type { Party as PartyType, PartyCreateInput, PartyUpdateInput, PartyTypeEnum } from '@/types';
 import { Prisma } from '@prisma/client';
 
-async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
+    if (userId === 'root-user') {
+      return { companyId: null };
+    }
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { companyId: true, role: { select: { name: true } } }
     });
 
-    // Super Admin (no companyId) should not manage parties directly, this is a company-level task.
-    if (!user?.companyId) {
-        throw new Error("User is not associated with a company. Cannot manage parties.");
+    if (!user) {
+        throw new Error("User not found.");
+    }
+    
+    // Allow Super Admin to not have a company
+    if (user.role?.name === 'Admin') {
+        return { companyId: user.companyId };
+    }
+
+    if (!user.companyId) {
+        // For regular users, a company is required to manage parties.
+        // Instead of throwing, we return null, and the action can decide how to handle it.
+        return { companyId: null };
     }
     return { companyId: user.companyId };
 }
@@ -55,6 +68,9 @@ export async function createPartyAction(
 
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+     if (!companyId) {
+      return { success: false, error: "User is not associated with a company. Cannot manage parties." };
+    }
 
     const newParty = await prisma.party.create({
       data: {
@@ -96,6 +112,10 @@ export async function getAllPartiesAction(userId: string): Promise<{
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    // If no companyId (e.g., root user), return empty array gracefully.
+    if (!companyId) {
+      return { success: true, data: [] };
+    }
     const partiesFromDB = await prisma.party.findMany({
       where: { companyId: companyId }, // Filter by company
       orderBy: { name: 'asc' },
@@ -118,6 +138,10 @@ export async function getAllCustomersAction(userId: string): Promise<{
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    // If no companyId (e.g., root user), return empty array gracefully.
+    if (!companyId) {
+      return { success: true, data: [] };
+    }
     const customersFromDB = await prisma.party.findMany({
       where: { companyId: companyId, type: 'CUSTOMER', isActive: true }, // Filter by company
       orderBy: { name: 'asc' },

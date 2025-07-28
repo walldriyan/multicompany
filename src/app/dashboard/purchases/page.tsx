@@ -45,7 +45,7 @@ export default function PurchasesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
+  const isSuperAdminWithoutCompany = currentUser?.id === 'root-user' || (currentUser?.role?.name === 'Admin' && !currentUser?.companyId);
 
   const {
     control,
@@ -76,7 +76,7 @@ export default function PurchasesPage() {
   });
 
   const fetchInitialData = useCallback(async () => {
-    if (!currentUser?.id) {
+    if (!currentUser?.id || isSuperAdminWithoutCompany) {
         setIsLoadingSuppliers(false);
         setIsLoadingProducts(false);
         return;
@@ -92,14 +92,18 @@ export default function PurchasesPage() {
       if (suppliersResult.success && suppliersResult.data) {
         setSuppliers(suppliersResult.data);
       } else {
-        toast({ title: "Error fetching suppliers", description: suppliersResult.error, variant: "destructive" });
+        if (!isSuperAdminWithoutCompany) { // Only show toast if it's an actual error for a company user
+            toast({ title: "Error fetching suppliers", description: suppliersResult.error, variant: "destructive" });
+        }
       }
 
       if (productsResult.success && productsResult.data) {
         setAllProducts(productsResult.data);
         dispatch(initializeAllProducts(productsResult.data));
       } else {
-        toast({ title: "Error fetching products", description: productsResult.error, variant: "destructive" });
+         if (!isSuperAdminWithoutCompany) {
+            toast({ title: "Error fetching products", description: productsResult.error, variant: "destructive" });
+         }
       }
     } catch (error) {
       toast({ title: "Error fetching initial data", variant: "destructive" });
@@ -107,7 +111,7 @@ export default function PurchasesPage() {
       setIsLoadingSuppliers(false);
       setIsLoadingProducts(false);
     }
-  }, [toast, dispatch, currentUser]);
+  }, [toast, dispatch, currentUser, isSuperAdminWithoutCompany]);
 
   useEffect(() => {
     fetchInitialData();
@@ -232,7 +236,7 @@ export default function PurchasesPage() {
             <div>
               <p className="font-semibold text-yellow-300">Super Admin Notice</p>
               <p className="text-xs text-yellow-400">
-                Purchase bills are company-specific. To create a GRN, please ensure your Super Admin account is associated with a company in the User Management settings.
+                Purchase bills are company-specific. This feature is disabled because your Super Admin account is not associated with a company.
               </p>
             </div>
           </CardContent>

@@ -7,6 +7,9 @@ import type { PurchaseBill, PurchaseBillCreateInput, Party, PurchasePayment, Pur
 import { Prisma } from '@prisma/client';
 
 async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
+    if (userId === 'root-user') {
+      return { companyId: null };
+    }
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { companyId: true, role: { select: { name: true } } }
@@ -230,7 +233,7 @@ export async function getAllSuppliersAction(userId: string): Promise<{ success: 
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
     if (!companyId) {
-      // Super admin without a company sees no suppliers, as they are company-specific.
+      // Super admin without a company or root user sees no suppliers, as they are company-specific. This is not an error.
       return { success: true, data: [] };
     }
     const suppliers = await prisma.party.findMany({
@@ -393,5 +396,6 @@ export async function getPaymentsForPurchaseBillAction(
     return { success: false, error: 'Failed to fetch payments for purchase bill.' };
   }
 }
+
 
 

@@ -112,6 +112,7 @@ export function TransactionForm({
                 <PopoverTrigger asChild>
                   <Button
                     variant={"outline"}
+                    disabled={isFormDisabled}
                     className={cn("w-full justify-start text-left font-normal bg-input border-border hover:bg-input/80", !field.value && "text-muted-foreground")}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -133,7 +134,7 @@ export function TransactionForm({
             name="type"
             control={control}
             render={({ field }) => (
-              <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
+              <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4" disabled={isFormDisabled}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="INCOME" id="type-income" />
                   <Label htmlFor="type-income" className="text-xs">Income</Label>

@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, WalletCards, RefreshCw, BadgeDollarSign, DoorOpen, DoorClosed, History, Edit3, Trash2, TrendingUp, CreditCard, AlertCircle, CheckCircle, User, LogOut, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, WalletCards, RefreshCw, BadgeDollarSign, DoorOpen, DoorClosed, History, Edit3, Trash2, TrendingUp, CreditCard, AlertCircle, CheckCircle, User, LogOut, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -51,6 +51,8 @@ export default function CashRegisterPage() {
   const currentUser = useSelector(selectCurrentUser);
   const dispatch: AppDispatch = useDispatch();
   const router = useRouter();
+  
+  const isSuperAdminWithoutCompany = currentUser?.id === 'root-user' || (currentUser?.role?.name === 'Admin' && !currentUser?.companyId);
 
   const [activeShift, setActiveShift] = useState<CashRegisterShift | null>(null);
   const [activeShiftSummary, setActiveShiftSummary] = useState<ShiftSummary | null>(null);
@@ -89,7 +91,10 @@ export default function CashRegisterPage() {
   };
 
   const fetchActiveShiftAndSummary = useCallback(async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || isSuperAdminWithoutCompany) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     const result = await getActiveShiftForUserAction(currentUser.id);
     if (result.success) {
@@ -114,10 +119,14 @@ export default function CashRegisterPage() {
       toast({ title: "Error", description: result.error || "Could not fetch active shift.", variant: "destructive" });
     }
     setIsLoading(false);
-  }, [currentUser, toast, reset]);
+  }, [currentUser, toast, reset, isSuperAdminWithoutCompany]);
   
   const fetchHistory = useCallback(async (page: number) => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || isSuperAdminWithoutCompany) {
+      setShiftHistory([]);
+      setHistoryTotalCount(0);
+      return;
+    }
     const historyResult = await getShiftHistoryAction(currentUser.id, page, 10);
     if (historyResult.success && historyResult.data) {
       setShiftHistory(historyResult.data.shifts);
@@ -125,7 +134,7 @@ export default function CashRegisterPage() {
     } else {
       toast({ title: "Error", description: historyResult.error || "Could not fetch shift history.", variant: "destructive" });
     }
-  }, [toast, currentUser]);
+  }, [toast, currentUser, isSuperAdminWithoutCompany]);
 
   useEffect(() => {
     if (currentUser?.id) {
@@ -208,11 +217,11 @@ export default function CashRegisterPage() {
   const historyPages = Math.ceil(historyTotalCount / 10);
 
   const renderActiveShiftSection = () => {
-    if (isLoading) return <Skeleton className="h-96 w-full" />;
+    if (isLoading && !isSuperAdminWithoutCompany) return <Skeleton className="h-96 w-full" />;
     
     if (activeShift) { // Close Shift Form and Summary
       return (
-        <div className="grid md:grid-cols-2 gap-6">
+        <fieldset disabled={isSuperAdminWithoutCompany} className="grid md:grid-cols-2 gap-6">
           <Card className="bg-card border-border shadow-xl h-fit">
             <CardHeader><CardTitle className="flex items-center"><BadgeDollarSign className="mr-2 text-primary"/> Shift Actions</CardTitle></CardHeader>
             <CardContent>
@@ -270,44 +279,46 @@ export default function CashRegisterPage() {
                 ) : <p className="text-muted-foreground text-center py-4">Loading summary...</p>}
               </CardContent>
            </Card>
-        </div>
+        </fieldset>
       );
     } else { // Start Shift Form
       return (
         <Card className="md:col-span-1 bg-card border-border shadow-xl h-fit max-w-md mx-auto">
           <CardHeader><CardTitle className="flex items-center"><BadgeDollarSign className="mr-2 text-primary"/> Shift Actions</CardTitle></CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-              <CardTitle className="text-xl text-card-foreground flex items-center"><DoorOpen className="mr-2 text-primary"/> Start New Shift</CardTitle>
-              <CardDescription>Enter the initial cash amount in the drawer to start your shift.</CardDescription>
-              <div>
-                <Label htmlFor="openingBalance" className="text-card-foreground">Opening Balance*</Label>
-                <div className="flex items-center space-x-2">
-                    <Input 
-                      id="openingBalance" 
-                      type="number" 
-                      step="0.01" 
-                      {...register('openingBalance', { valueAsNumber: true })} 
-                      className="bg-input border-border" 
-                      placeholder="e.g., 5000.00"
-                      readOnly={openingBalanceLocked}
-                    />
-                    <Button type="button" variant="outline" size="icon" onClick={() => setIsUnlockDialogOpen(true)} title={openingBalanceLocked ? "Unlock to edit" : "Balance is unlocked"}>
-                        {openingBalanceLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4 text-green-500" />}
-                    </Button>
+            <fieldset disabled={isSuperAdminWithoutCompany}>
+                <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+                <CardTitle className="text-xl text-card-foreground flex items-center"><DoorOpen className="mr-2 text-primary"/> Start New Shift</CardTitle>
+                <CardDescription>Enter the initial cash amount in the drawer to start your shift.</CardDescription>
+                <div>
+                    <Label htmlFor="openingBalance" className="text-card-foreground">Opening Balance*</Label>
+                    <div className="flex items-center space-x-2">
+                        <Input 
+                        id="openingBalance" 
+                        type="number" 
+                        step="0.01" 
+                        {...register('openingBalance', { valueAsNumber: true })} 
+                        className="bg-input border-border" 
+                        placeholder="e.g., 5000.00"
+                        readOnly={openingBalanceLocked}
+                        />
+                        <Button type="button" variant="outline" size="icon" onClick={() => setIsUnlockDialogOpen(true)} title={openingBalanceLocked ? "Unlock to edit" : "Balance is unlocked"}>
+                            {openingBalanceLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4 text-green-500" />}
+                        </Button>
+                    </div>
+                    {errors.openingBalance && <p className="text-xs text-destructive mt-1">{errors.openingBalance.message}</p>}
+                    <p className="text-xs text-muted-foreground mt-1">Suggested from last shift's closing. Use Override for corrections.</p>
                 </div>
-                {errors.openingBalance && <p className="text-xs text-destructive mt-1">{errors.openingBalance.message}</p>}
-                <p className="text-xs text-muted-foreground mt-1">Suggested from last shift's closing. Use Override for corrections.</p>
-              </div>
-              <div>
-                <Label htmlFor="notes" className="text-card-foreground">Notes (Optional)</Label>
-                <Textarea id="notes" {...register('notes')} className="bg-input border-border min-h-[60px]" placeholder="Initial shift notes..."/>
-                {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
-              </div>
-              <Button type="submit" disabled={isSubmitting || !isValid} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                {isSubmitting ? 'Starting...' : 'Start Shift'}
-              </Button>
-            </form>
+                <div>
+                    <Label htmlFor="notes" className="text-card-foreground">Notes (Optional)</Label>
+                    <Textarea id="notes" {...register('notes')} className="bg-input border-border min-h-[60px]" placeholder="Initial shift notes..."/>
+                    {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
+                </div>
+                <Button type="submit" disabled={isSubmitting || !isValid} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    {isSubmitting ? 'Starting...' : 'Start Shift'}
+                </Button>
+                </form>
+            </fieldset>
           </CardContent>
         </Card>
       );
@@ -338,54 +349,71 @@ export default function CashRegisterPage() {
             </Button>
         </div>
       </header>
+      
+      {isSuperAdminWithoutCompany && (
+        <Card className="mb-4 border-yellow-500/50 bg-yellow-950/30">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="font-semibold text-yellow-300">Super Admin Notice</p>
+              <p className="text-xs text-yellow-400">
+                Cash Register & Shift Management is company-specific. This feature is disabled for root users without a company assignment.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       <div className="space-y-6">
         {renderActiveShiftSection()}
         
-        <Card className="bg-card border-border shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center"><History className="mr-2 text-primary"/> Shift History</CardTitle>
-            <CardDescription>View past shift records for all users. You can edit or delete records if needed.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow>
-                    <TableHead className="text-muted-foreground">Start Time</TableHead>
-                    <TableHead className="text-muted-foreground">End Time</TableHead>
-                    <TableHead className="text-muted-foreground">User</TableHead>
-                    <TableHead className="text-right text-muted-foreground">Opening</TableHead>
-                    <TableHead className="text-right text-muted-foreground">Closing</TableHead>
-                    <TableHead className="text-center text-muted-foreground">Status</TableHead>
-                    <TableHead className="text-center text-muted-foreground">Actions</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {isLoading && shiftHistory.length === 0 ? (
-                    Array.from({ length: 5 }).map((_, i) => (<TableRow key={`skel-shift-${i}`}><TableCell colSpan={7}><Skeleton className="h-6 w-full bg-muted/50" /></TableCell></TableRow>))
-                  ) : shiftHistory.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">No shift history found.</TableCell></TableRow>
-                  ) : (
-                    shiftHistory.map(shift => (
-                      <TableRow key={shift.id}>
-                        <TableCell className="text-xs text-card-foreground">{new Date(shift.startedAt).toLocaleString()}</TableCell>
-                        <TableCell className="text-xs text-card-foreground">{shift.closedAt ? new Date(shift.closedAt).toLocaleString() : 'N/A'}</TableCell>
-                        <TableCell className="text-xs text-card-foreground">{shift.user?.username || 'N/A'}</TableCell>
-                        <TableCell className="text-right text-green-400">Rs. {shift.openingBalance.toFixed(2)}</TableCell>
-                        <TableCell className="text-right text-red-400">{shift.closingBalance ? `Rs. ${shift.closingBalance.toFixed(2)}` : 'N/A'}</TableCell>
-                        <TableCell className="text-center"><Badge variant={shift.status === 'OPEN' ? 'default' : 'secondary'} className={shift.status === 'OPEN' ? 'bg-green-500/80 hover:bg-green-600' : ''}>{shift.status}</Badge></TableCell>
-                        <TableCell className="text-center space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(shift)} className="h-8 w-8 text-blue-500 hover:text-blue-600" disabled={shift.status === 'OPEN'}><Edit3 className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setShiftToDelete(shift)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            {historyPages > 1 && (<div className="flex justify-between items-center pt-4"><Button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1} variant="outline" size="sm">Previous</Button><span className="text-xs text-muted-foreground">Page {historyPage} of {historyPages}</span><Button onClick={() => setHistoryPage(p => Math.min(historyPages, p + 1))} disabled={historyPage === historyPages} variant="outline" size="sm">Next</Button></div>)}
-          </CardContent>
-        </Card>
+        <fieldset disabled={isSuperAdminWithoutCompany}>
+            <Card className="bg-card border-border shadow-xl">
+            <CardHeader>
+                <CardTitle className="flex items-center"><History className="mr-2 text-primary"/> Shift History</CardTitle>
+                <CardDescription>View past shift records for all users. You can edit or delete records if needed.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader><TableRow>
+                        <TableHead className="text-muted-foreground">Start Time</TableHead>
+                        <TableHead className="text-muted-foreground">End Time</TableHead>
+                        <TableHead className="text-muted-foreground">User</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Opening</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Closing</TableHead>
+                        <TableHead className="text-center text-muted-foreground">Status</TableHead>
+                        <TableHead className="text-center text-muted-foreground">Actions</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                    {isLoading && shiftHistory.length === 0 ? (
+                        Array.from({ length: 5 }).map((_, i) => (<TableRow key={`skel-shift-${i}`}><TableCell colSpan={7}><Skeleton className="h-6 w-full bg-muted/50" /></TableCell></TableRow>))
+                    ) : shiftHistory.length === 0 ? (
+                        <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">No shift history found.</TableCell></TableRow>
+                    ) : (
+                        shiftHistory.map(shift => (
+                        <TableRow key={shift.id}>
+                            <TableCell className="text-xs text-card-foreground">{new Date(shift.startedAt).toLocaleString()}</TableCell>
+                            <TableCell className="text-xs text-card-foreground">{shift.closedAt ? new Date(shift.closedAt).toLocaleString() : 'N/A'}</TableCell>
+                            <TableCell className="text-xs text-card-foreground">{shift.user?.username || 'N/A'}</TableCell>
+                            <TableCell className="text-right text-green-400">Rs. {shift.openingBalance.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-red-400">{shift.closingBalance ? `Rs. ${shift.closingBalance.toFixed(2)}` : 'N/A'}</TableCell>
+                            <TableCell className="text-center"><Badge variant={shift.status === 'OPEN' ? 'default' : 'secondary'} className={shift.status === 'OPEN' ? 'bg-green-500/80 hover:bg-green-600' : ''}>{shift.status}</Badge></TableCell>
+                            <TableCell className="text-center space-x-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditClick(shift)} className="h-8 w-8 text-blue-500 hover:text-blue-600" disabled={shift.status === 'OPEN'}><Edit3 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setShiftToDelete(shift)} className="h-8 w-8 text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                            </TableCell>
+                        </TableRow>
+                        ))
+                    )}
+                    </TableBody>
+                </Table>
+                </div>
+                {historyPages > 1 && (<div className="flex justify-between items-center pt-4"><Button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1} variant="outline" size="sm">Previous</Button><span className="text-xs text-muted-foreground">Page {historyPage} of {historyPages}</span><Button onClick={() => setHistoryPage(p => Math.min(historyPages, p + 1))} disabled={historyPage === historyPages} variant="outline" size="sm">Next</Button></div>)}
+            </CardContent>
+            </Card>
+        </fieldset>
       </div>
 
        {isEditSheetOpen && editingShift && (
@@ -443,5 +471,3 @@ export default function CashRegisterPage() {
     </div>
   );
 }
-
-    

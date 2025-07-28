@@ -7,6 +7,10 @@ import type { FinancialTransaction, FinancialTransactionFormData } from '@/types
 import { Prisma } from '@prisma/client';
 
 async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
+    if (userId === 'root-user') {
+        return { companyId: null };
+    }
+
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { companyId: true, role: { select: { name: true } } }
@@ -79,7 +83,7 @@ export async function getTransactionsAction(userId: string): Promise<{
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
     if (!companyId) {
-      // Super admin without a company sees no transactions. This is not an error.
+      // Root admin or admin without a company sees no transactions. This is not an error.
       return { success: true, data: [] };
     }
 

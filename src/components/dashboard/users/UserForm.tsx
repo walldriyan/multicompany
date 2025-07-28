@@ -13,6 +13,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, FilePlus2, Eye, EyeOff } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
+
 
 interface UserFormProps {
   user?: Omit<UserFormData, 'password' | 'confirmPassword'> & { id?: string, password?: string, confirmPassword?: string, companyId?: string | null };
@@ -46,7 +49,9 @@ export function UserForm({
   submissionDetails,
 }: UserFormProps) {
   const { toast } = useToast();
+  const actor = useSelector(selectCurrentUser);
   const isEditing = !!user?.id;
+  
   const formSchema = isEditing ? UserUpdateSchema : UserCreateSchema;
 
   const {
@@ -68,7 +73,12 @@ export function UserForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const selectedRoleName = watch('roleId') ? roles.find(r => r.id === watch('roleId'))?.name : '';
+  const selectedRoleId = watch('roleId');
+  const selectedRoleName = selectedRoleId ? roles.find(r => r.id === selectedRoleId)?.name : '';
+  const isSelectedRoleAdmin = selectedRoleName === 'Admin';
+  
+  const isCompanyRequired = actor?.id !== 'root-user' && !isSelectedRoleAdmin;
+
 
   useEffect(() => {
     if (user) {
@@ -78,7 +88,7 @@ export function UserForm({
         roleId: user.roleId || '',
         companyId: user.companyId || null,
         isActive: user.isActive !== undefined ? user.isActive : true,
-        password: '', // Always clear password fields on edit
+        password: '', 
         confirmPassword: '',
       });
     } else {
@@ -91,7 +101,14 @@ export function UserForm({
   const handleFormSubmit = async (data: UserFormData) => {
     setServerFormError(null);
     setServerFieldErrors(undefined);
+    
+    if (isCompanyRequired && !data.companyId) {
+        setLocalError("companyId", { type: 'manual', message: "Company is required for this role."});
+        return;
+    }
+    
     const result = await onSubmit(data, user?.id);
+
     if (!result.success) {
       setServerFormError(result.error || 'An unexpected error occurred.');
       setServerFieldErrors(result.fieldErrors);
@@ -101,7 +118,6 @@ export function UserForm({
         });
       }
     }
-    // Parent component will handle UI changes on success (e.g., closing sheet, showing message)
   };
   
   const handleClearAndPrepareForNew = () => {
@@ -114,7 +130,7 @@ export function UserForm({
   };
   
   const combinedFieldErrors = { ...localErrors, ...serverFieldErrors };
-  const isSuperAdminRole = selectedRoleName === 'Admin';
+  
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-4">
@@ -219,20 +235,21 @@ export function UserForm({
       </div>
       
        <div>
-          <Label htmlFor="companyId" className="text-foreground text-xs">Company*</Label>
+          <Label htmlFor="companyId" className="text-foreground text-xs">Company{isCompanyRequired && '*'}</Label>
            <Controller
             name="companyId"
             control={control}
             render={({ field }) => (
               <Select 
-                onValueChange={field.onChange} 
-                value={field.value || ""} 
-                disabled={roles.length === 0 || isSuperAdminRole}
+                onValueChange={(value) => field.onChange(value === 'none' ? null : value)} 
+                value={field.value || 'none'}
+                disabled={companies.length === 0}
               >
                 <SelectTrigger id="companyId" className="bg-input border-border focus:ring-primary text-sm">
-                  <SelectValue placeholder={isSuperAdminRole ? "Not applicable for Super Admin" : "Select a company"} />
+                  <SelectValue placeholder={companies.length === 0 ? "No companies available" : "Select a company"} />
                 </SelectTrigger>
                 <SelectContent>
+                   <SelectItem value="none">No Company Assigned</SelectItem>
                   {companies.map(company => (
                     <SelectItem key={company.id} value={company.id!}>{company.name}</SelectItem>
                   ))}
@@ -243,7 +260,8 @@ export function UserForm({
            {(combinedFieldErrors.companyId || serverFieldErrors?.companyId) && (
             <p className="text-xs text-destructive mt-1">{combinedFieldErrors.companyId?.message || serverFieldErrors?.companyId?.[0]}</p>
           )}
-          {isSuperAdminRole && <p className="text-xs text-muted-foreground mt-1">Super Admins are not tied to a specific company.</p>}
+          {actor?.id === 'root-user' && <p className="text-xs text-muted-foreground mt-1">As root user, you can create users without a company, even for non-Admin roles.</p>}
+          {actor?.id !== 'root-user' && isSelectedRoleAdmin && <p className="text-xs text-muted-foreground mt-1">You can assign this Admin to a specific company, or leave it blank to make them a super admin.</p>}
         </div>
 
       <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">

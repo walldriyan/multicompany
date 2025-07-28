@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { setUser, setAuthLoading, setAuthError, selectCurrentUser, selectAuthStatus } from '@/store/slices/authSlice';
+import { setUser, setAuthLoading, setAuthError, selectCurrentUser, selectAuthStatus, clearUser } from '@/store/slices/authSlice';
 import type { AppDispatch } from '@/store/store';
 import { loginAction } from '@/app/actions/authActions';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,14 @@ export default function LoginPage() {
   const router = useRouter();
   const dispatch: AppDispatch = useDispatch();
   const { toast } = useToast();
-  const currentUser = useSelector(selectCurrentUser);
-  const authStatus = useSelector(selectAuthStatus);
   
+  // This effect runs once when the component mounts on the client.
+  // It dispatches the action to clear any previous user state from Redux, 
+  // ensuring a completely fresh login attempt every time the login page is visited.
+  useEffect(() => {
+    dispatch(clearUser());
+  }, [dispatch]);
+
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       username: 'admin',
@@ -30,43 +35,34 @@ export default function LoginPage() {
   });
 
   const [error, setError] = useState<string | null>(null);
-
-  // This effect handles redirection after the auth state is confirmed.
-  useEffect(() => {
-    if (authStatus === 'succeeded' && currentUser) {
-      router.push('/');
-    }
-  }, [authStatus, currentUser, router]);
+  const authStatus = useSelector(selectAuthStatus);
 
   const onSubmit = async (data: any) => {
     setError(null);
     dispatch(setAuthLoading());
 
-    const result = await loginAction(data);
+    try {
+        const result = await loginAction(data);
 
-    if (result.success && result.user) {
-      dispatch(setUser(result.user));
-      toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
-      // The useEffect above will handle the redirect once the state updates.
-    } else {
-      const errorMessage = result.error || 'An unknown error occurred.';
-      setError(errorMessage);
-      dispatch(setAuthError(errorMessage));
-      toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
+        if (result.success && result.user) {
+          dispatch(setUser(result.user));
+          toast({ title: 'Login Successful', description: `Welcome, ${result.user.username}!` });
+          // On successful state update, redirect to the main page.
+          router.push('/');
+        } else {
+          const errorMessage = result.error || 'An unknown error occurred.';
+          setError(errorMessage);
+          dispatch(setAuthError(errorMessage));
+          toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
+        }
+    } catch (e: any) {
+        const errorMessage = e.message || "A critical error occurred during login.";
+        setError(errorMessage);
+        dispatch(setAuthError(errorMessage));
+        toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' });
     }
   };
   
-  // While checking auth status, or if already logged in and waiting for redirect, show a loading state.
-  if (authStatus === 'loading' || (authStatus === 'succeeded' && currentUser)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-          <p className="text-muted-foreground">
-            {currentUser ? 'Already logged in. Redirecting...' : 'Authenticating...'}
-          </p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm mx-auto bg-card border-border shadow-2xl">
