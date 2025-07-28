@@ -335,8 +335,7 @@ export default function CreditManagementPage() {
         </Card>
       )}
 
-      {!isSuperAdminWithoutCompany && (
-        <div className="flex flex-1 gap-4 overflow-hidden">
+      <fieldset className="flex flex-1 gap-4 overflow-hidden" disabled={isSuperAdminWithoutCompany}>
           <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
             <CardHeader>
               <CardTitle className="text-card-foreground">Open Credit Bills</CardTitle>
@@ -629,8 +628,7 @@ export default function CreditManagementPage() {
               </CardContent>
             </ScrollArea>
           </Card>
-        </div>
-      )}
+      </fieldset>
       {isPrintingBill && selectedSale && (
         <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
           <CreditBillPrintContent

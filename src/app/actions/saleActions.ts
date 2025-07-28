@@ -9,14 +9,19 @@ import { z } from 'zod';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
 import { getTaxRateAction } from './settingsActions';
 
-async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string }> {
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ companyId: string | null }> {
+    if (userId === 'root-user') {
+      return { companyId: null };
+    }
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { companyId: true }
     });
-    if (!user?.companyId) {
-        throw new Error("User is not associated with a company.");
+    // The user must exist. If not, something is very wrong.
+    if (!user) {
+      throw new Error("User not found.");
     }
+    // Return the companyId, which can be null for a root user or an unassigned admin.
     return { companyId: user.companyId };
 }
 
@@ -212,6 +217,9 @@ export async function saveSaleRecordAction(
       console.log('[saveSaleRecordAction] [TX] Transaction block entered.');
       
       const { companyId } = await getCurrentUserAndCompanyId(userId);
+       if (!companyId) {
+        throw new Error("User is not associated with a company.");
+      }
 
       if (!recordIdFromInput) {
         console.log('[saveSaleRecordAction] [TX] Creating new SaleRecord. Processing stock deduction loop...');
@@ -344,6 +352,9 @@ export async function getSaleContextByBillNumberAction(
 ): Promise<{ success: boolean; data?: SaleContext; error?: string }> {
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      return { success: false, error: "User is not associated with a company." };
+    }
 
     const pristineOriginalDbRecord = await prisma.saleRecord.findFirst({
       where: {
@@ -409,6 +420,9 @@ export async function getAllSaleRecordsAction(
   }
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      return { success: true, data: { sales: [], totalCount: 0 } };
+    }
 
     const whereClause: Prisma.SaleRecordWhereInput = {
       companyId: companyId,
@@ -481,6 +495,9 @@ export async function getOpenCreditSalesAction(
 ): Promise<{ success: boolean; data?: { sales: SaleRecordType[]; totalCount: number }; error?: string }> {
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      return { success: true, data: { sales: [], totalCount: 0 } };
+    }
     
     const whereClause: Prisma.SaleRecordWhereInput = {
       companyId: companyId,
@@ -548,6 +565,9 @@ export async function recordCreditPaymentAction(
 
     try {
         const { companyId } = await getCurrentUserAndCompanyId(userId);
+        if (!companyId) {
+          return { success: false, error: "User is not associated with a company." };
+        }
         
         const updatedSaleRecordTxResult = await prisma.$transaction(async (tx) => {
             const saleRecord = await tx.saleRecord.findFirst({
@@ -647,6 +667,9 @@ export async function undoReturnItemAction(
 
   try {
     const { companyId } = await getCurrentUserAndCompanyId(userId);
+    if (!companyId) {
+      return { success: false, error: "User is not associated with a company." };
+    }
 
     const updatedOrPristineSaleRecord = await prisma.$transaction(async (tx) => {
       
