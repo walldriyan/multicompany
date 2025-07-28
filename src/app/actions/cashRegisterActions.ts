@@ -7,18 +7,27 @@ import { Prisma } from '@prisma/client';
 import { selectCurrentUser } from '@/store/slices/authSlice'; // This won't work in server actions
 
 // Helper function to get the current user and their company ID on the server
-async function getCurrentUserAndCompanyId(userId: string): Promise<{ user: { id: string; companyId: string | null; }; companyId: string | null; }> {
+async function getCurrentUserAndCompanyId(userId: string): Promise<{ user: { id: string; companyId: string | null; role: {name: string | null} | null } | null; companyId: string | null; }> {
+    if (userId === 'root-user') {
+        const rootUser = {
+            id: 'root-user',
+            companyId: null,
+            role: { name: 'Admin' }
+        };
+        return { user: rootUser, companyId: null };
+    }
+
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, companyId: true, role: { select: { name: true } } }
     });
 
     if (!user) {
-        throw new Error("User not found.");
+        // Return null instead of throwing for cases where the user might be root.
+        // Let the calling action decide how to handle a non-existent user.
+        return { user: null, companyId: null };
     }
-
-    // Super Admin might not have a companyId, allow this for now.
-    // Other actions should handle logic for this case.
+    
     if (!user.companyId && user.role?.name !== 'Admin') {
         throw new Error("User is not associated with a company.");
     }
@@ -53,7 +62,8 @@ export async function getActiveShiftForUserAction(userId: string): Promise<{
 }> {
   if (!userId) return { success: false, error: "User not authenticated." };
   try {
-    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+    if (!user) return { success: false, error: "User not found."};
     if (!companyId) return { success: true, data: undefined }; // No active shift if no company
 
     const activeShift = await prisma.cashRegisterShift.findFirst({
@@ -87,8 +97,9 @@ export async function startShiftAction(data: CashRegisterShiftFormData, userId: 
   const { openingBalance, notes } = validation.data;
 
   try {
-    const { companyId } = await getCurrentUserAndCompanyId(userId);
-     if (!companyId) {
+    const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+    if (!user) return { success: false, error: "User not found."};
+    if (!companyId) {
         return { success: false, error: "Cannot start a shift without being assigned to a company." };
     }
 
@@ -132,7 +143,8 @@ export async function closeShiftAction(data: CashRegisterShiftFormData, shiftId:
     const { closingBalance, notes } = validation.data;
     
     try {
-        const { companyId } = await getCurrentUserAndCompanyId(userId);
+        const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+        if (!user) return { success: false, error: "User not found."};
         if (!companyId) {
             return { success: false, error: "Cannot close a shift without being assigned to a company." };
         }
@@ -173,7 +185,8 @@ export async function getShiftHistoryAction(
 }> {
   if (!userId) return { success: false, error: "User not authenticated." };
   try {
-     const { companyId } = await getCurrentUserAndCompanyId(userId);
+     const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+     if (!user) return { success: false, error: "User not found."};
      if (!companyId) {
         return { success: true, data: { shifts: [], totalCount: 0 }}; // No history if no company
      }
@@ -207,7 +220,8 @@ export async function getShiftSummaryAction(shiftId: string, userId: string): Pr
 }> {
   if (!shiftId || !userId) return { success: false, error: "Shift or User ID missing." };
   try {
-     const { companyId } = await getCurrentUserAndCompanyId(userId);
+     const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+     if (!user) return { success: false, error: "User not found."};
      if (!companyId) {
         return { success: false, error: "User not associated with a company." };
      }
@@ -251,7 +265,8 @@ export async function updateClosedShiftAction(shiftId: string, data: { closingBa
 }> {
   if (!shiftId || !userId) return { success: false, error: "Shift or User ID missing." };
   try {
-    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+    if (!user) return { success: false, error: "User not found."};
     if (!companyId) {
       return { success: false, error: "User not associated with a company." };
     }
@@ -278,7 +293,8 @@ export async function updateClosedShiftAction(shiftId: string, data: { closingBa
 export async function deleteShiftAction(shiftId: string, userId: string): Promise<{ success: boolean; error?: string }> {
   if (!shiftId || !userId) return { success: false, error: "Shift or User ID missing." };
   try {
-    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+    if (!user) return { success: false, error: "User not found."};
      if (!companyId) {
       return { success: false, error: "User not associated with a company." };
     }
@@ -305,7 +321,8 @@ export async function getOpeningBalanceSuggestionAction(userId: string): Promise
 }> {
   if (!userId) return { success: false, error: "User not authenticated." };
   try {
-    const { companyId } = await getCurrentUserAndCompanyId(userId);
+    const { companyId, user } = await getCurrentUserAndCompanyId(userId);
+    if (!user) return { success: false, error: "User not found."};
     if (!companyId) {
       return { success: true, data: 0 }; // No company, no suggestion
     }
