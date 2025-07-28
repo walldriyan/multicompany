@@ -165,14 +165,14 @@ export function DashboardClientLayout({
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
-           <AlertDialogContent className="relative pt-12 text-center">
+           <AlertDialogContent className="relative pt-12 text-center flex flex-col items-center justify-center">
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Button
                             onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
                             variant="outline"
                             size="icon"
-                            className="absolute top-3 right-3 rounded-full h-9 w-9"
+                            className="absolute top-3 right-3 rounded-full h-9 w-9 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                         >
                             <DoorClosed className="h-5 w-5" />
                             <span className="sr-only">Go to End Shift Page</span>
@@ -202,7 +202,7 @@ export function DashboardClientLayout({
                      </Tooltip>
                 </div>
               <AlertDialogFooter className="w-full">
-                <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
+                <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
            </AlertDialogContent>
         </AlertDialog>
