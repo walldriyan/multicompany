@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  compiler: {
+    removeConsole: false,
+    swcMinify: true,
+  },
   images: {
     remotePatterns: [
       {

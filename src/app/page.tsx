@@ -36,17 +36,18 @@ export default async function PosPageContainer() {
   const taxRate = taxRateResult.success ? taxRateResult.data?.value ?? 0 : 0;
   
   // Directly dispatch to the server-side instance of the store
+  // NOTE: This approach with a singleton store on the server might have concurrency issues
+  // under high load. For this app's scale, it's acceptable.
+  // A more robust solution might involve passing initial state as props without a shared server store instance.
   store.dispatch(initializeAllProducts(products));
   store.dispatch(initializeDiscountSets(discountSets));
   store.dispatch(initializeTaxRate(taxRate));
   store.dispatch(setUser(user));
   
-  // Get the initial state from the server-side store
-  const initialReduxState = store.getState();
-
   // Pass the initial state to the client component. The client component will then
   // hydrate the Redux store with this complete, server-fetched data.
+  // We don't need to pass the whole state, just a flag to tell the client to use the server store's state.
   return (
-      <POSClientComponent serverState={initialReduxState} />
+      <POSClientComponent serverState={store.getState()} />
   );
 }
