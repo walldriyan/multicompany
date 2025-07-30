@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Users, PlusCircle, Edit3, Trash2, Search, CheckCircle, XCircle, FilePlus2, AlertTriangle } from 'lucide-react';
@@ -54,9 +54,8 @@ export default function PartiesPage() {
 
 
   const fetchParties = useCallback(async () => {
-    if (!currentUser?.id || isSuperAdminWithoutCompany) {
+    if (!currentUser?.id) {
         setIsLoading(false);
-        setParties([]);
         return;
     }
     setIsLoading(true);
@@ -68,7 +67,7 @@ export default function PartiesPage() {
       toast({ title: 'Error Fetching Parties', description: result.error || 'Could not load parties.', variant: 'destructive' });
     }
     setIsLoading(false);
-  }, [toast, currentUser, isSuperAdminWithoutCompany]);
+  }, [toast, currentUser]);
 
   useEffect(() => {
     fetchParties();
@@ -107,7 +106,7 @@ export default function PartiesPage() {
     setIsSubmitting(true);
     const result = await deletePartyAction(partyToDelete.id, currentUser.id);
     if (result.success) {
-      setParties(prev => prev.filter(p => p.id !== partyToDelete.id));
+      await fetchParties();
       toast({ title: 'Party Deleted', description: `Party "${partyToDelete.name}" has been removed.` });
     } else {
       toast({ title: 'Error Deleting Party', description: result.error || 'Could not delete party.', variant: 'destructive' });
@@ -134,9 +133,7 @@ export default function PartiesPage() {
     if (isUpdating) {
       result = await updatePartyAction(partyId!, data, currentUser.id);
       if (result.success && result.data) {
-        setParties(prevParties =>
-          prevParties.map(p => (p.id === result.data!.id ? result.data! : p))
-        );
+        await fetchParties();
         toast({ title: 'Party Updated', description: `${result.data.type} "${result.data.name}" has been updated.` });
         setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name, type: result.data.type });
         setEditingParty(result.data); // Keep editing the same party
@@ -144,7 +141,7 @@ export default function PartiesPage() {
     } else {
       result = await createPartyAction(data, currentUser.id);
       if (result.success && result.data) {
-        setParties(prevParties => [result.data!, ...prevParties].sort((a,b) => a.name.localeCompare(b.name)));
+        await fetchParties();
         toast({ title: 'Party Added', description: `${result.data.type} "${result.data.name}" has been added.` });
         setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name, type: result.data.type });
         setEditingParty(null); // Clear editing state, form will reset via key or onSwitchToAddNew
@@ -157,8 +154,6 @@ export default function PartiesPage() {
         setFormError(result.error || 'An unexpected error occurred.');
         setFormFieldErrors(result.fieldErrors);
         setLastSuccessfulSubmission(null);
-    } else {
-      // On success, do not close sheet, form will handle "Add Another"
     }
     return {success: result.success, error: result.error, fieldErrors: result.fieldErrors};
   };
@@ -166,22 +161,21 @@ export default function PartiesPage() {
   const handleSheetOpenChange = (open: boolean) => {
     setIsSheetOpen(open);
     if (!open) {
-      resetFormStateAndPrepareForNew(); // Clear all form related states when sheet is closed
+      resetFormStateAndPrepareForNew();
     }
   };
   
   const handleSwitchToAddNewInForm = () => {
     resetFormStateAndPrepareForNew();
-    // The PartyForm's key change will also re-initialize it with default values.
   };
 
 
-  const filteredParties = parties.filter(party =>
+  const filteredParties = useMemo(() => parties.filter(party =>
     party.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (party.email && party.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (party.phone && party.phone.includes(searchTerm)) ||
     party.type.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ), [parties, searchTerm]);
 
   return (
     <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
@@ -235,7 +229,7 @@ export default function PartiesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && parties.length === 0 && !isSuperAdminWithoutCompany ? (
+          {isLoading ? (
              Array.from({ length: 3 }).map((_, i) => (
                 <div key={`skel-party-${i}`} className="flex items-center space-x-4 p-4 border-b border-border/30">
                   <div className="space-y-2 flex-1">
@@ -245,7 +239,7 @@ export default function PartiesPage() {
                   <Skeleton className="h-8 w-24 rounded-md bg-muted/50" />
                 </div>
               ))
-          ): !isLoading && filteredParties.length === 0 ? (
+          ): filteredParties.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <Users className="mx-auto h-12 w-12 mb-4 text-primary" />
               <p className="text-lg font-medium">
@@ -318,7 +312,7 @@ export default function PartiesPage() {
             </SheetHeader>
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               <PartyForm
-                key={editingParty?.id || lastSuccessfulSubmission?.id || 'new-party-form'} // Change key to force re-render
+                key={editingParty?.id || lastSuccessfulSubmission?.id || 'new-party-form'}
                 party={editingParty}
                 onSubmit={handlePartyFormSubmit}
                 isLoading={isSubmitting}
