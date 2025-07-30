@@ -1,5 +1,4 @@
 
-      
 import Link from 'next/link';
 import { getAllProductsAction } from '@/app/actions/productActions';
 import { Button } from '@/components/ui/button';
@@ -42,5 +41,3 @@ export default async function ProductManagementPage() {
       </div>
   );
 }
-
-    
