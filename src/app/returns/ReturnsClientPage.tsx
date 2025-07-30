@@ -739,7 +739,6 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             {!pristineOriginalSaleForDisplay && !isLoading && !isFetchingHistory && (!billNumberSearch || searchSuggestions.length === 0) && (<div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-muted-foreground"><PackageOpen className="h-16 w-16 mb-3 text-primary" /><p className="text-lg">Search for a bill or select from the list to begin.</p><p className="text-sm">Loaded sale details will appear here.</p></div>)}
           </fieldset>
         </div>
-      </div>
       {isReturnReceiptVisible && lastProcessedReturn && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<div id="printable-return-receipt-content-holder" style={{ display: 'none' }}><ReturnReceiptPrintContent originalSale={pristineOriginalSaleForDisplay} adjustedSale={lastProcessedReturn.currentAdjustedSaleAfterReturn} returnTransaction={lastProcessedReturn.returnTransactionRecord}/></div>)}
       {itemToUndo && (
         <AlertDialog open={undoConfirmationOpen} onOpenChange={setUndoConfirmationOpen}>
