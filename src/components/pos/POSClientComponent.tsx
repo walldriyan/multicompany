@@ -54,7 +54,7 @@ import BarcodeReader from 'react-barcode-reader';
 import { CreditPaymentStatusEnumSchema } from '@/lib/zodSchemas';
 import { store } from '@/store/store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type CheckoutMode = 'popup' | 'inline';
 
