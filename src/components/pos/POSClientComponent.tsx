@@ -458,7 +458,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   }, [activeDiscountSet]);
 
   const handleBarcodeScan = (data: string) => {
-    if (isProcessingBarcode) return; // Prevent rapid re-scans
+    if (isProcessingBarcode) return;
 
     const trimmedData = data?.trim();
     if (!trimmedData) return;
@@ -466,7 +466,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     setIsProcessingBarcode(true);
     setBarcodeError(null);
 
-    // Use a direct reference to the store to get the latest state inside this non-hook callback.
     const currentProducts = store.getState().sale.allProducts;
     const productFound = currentProducts.find(p => p.barcode === trimmedData);
 
@@ -487,7 +486,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             variant: "destructive",
         });
         setBarcodeError(trimmedData);
-        setTimeout(() => setBarcodeError(null), 3000); // Clear error after 3 seconds
+        setTimeout(() => setBarcodeError(null), 3000);
     }
     productSearchRef.current?.focusSearchInput();
     setIsProcessingBarcode(false);
@@ -495,9 +494,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
 
   const handleBarcodeError = (err: any) => {
-    // Only log errors for strings that are likely barcodes (long and numeric)
     if (typeof err === 'string' && err.trim().length > 3 && /^\d+$/.test(err.trim())) {
-        console.error("Barcode reader error:", err);
+      console.error("Barcode reader error:", err);
     }
   };
 
@@ -572,7 +570,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         {isClient ? (
           <>
              <div className="p-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-card-foreground">Sale Summary &amp; Actions</h2>
+                <h2 className="text-xl font-semibold text-card-foreground">Sale Summary & Actions</h2>
                 <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
                   <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -733,7 +731,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         ) : (
             <>
             <div className="p-4 space-y-3">
-              <h2 className="text-xl font-semibold text-card-foreground">Sale Summary &amp; Actions</h2>
+              <h2 className="text-xl font-semibold text-card-foreground">Sale Summary & Actions</h2>
               <div className="space-y-2">
                 <Label htmlFor="active-discount-set" className="text-sm font-medium">Active Discount Set</Label>
                 <div className="w-full h-10 rounded-md border border-input bg-input animate-pulse" aria-label="Loading discount sets..."></div>
