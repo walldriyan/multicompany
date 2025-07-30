@@ -1,10 +1,11 @@
 
+      
 import Link from 'next/link';
 import { getAllProductsAction } from '@/app/actions/productActions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ArrowLeft, PlusCircle, RefreshCw } from 'lucide-react';
-import { ProductList } from './ProductList'; // We will create this client component
+import { ProductList } from './ProductList'; // This will be our new client component
 import { verifyAuth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { store } from '@/store/store';
@@ -41,3 +42,5 @@ export default async function ProductManagementPage() {
       </div>
   );
 }
+
+    

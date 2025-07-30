@@ -1,4 +1,5 @@
 
+      
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -316,3 +317,5 @@ export function PartyList({ initialParties }: PartyListProps) {
     </>
   );
 }
+
+    
