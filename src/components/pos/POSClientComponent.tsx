@@ -47,13 +47,14 @@ import { SettingsDialog } from "@/components/pos/SettingsDialog";
 import { DiscountInfoDialog } from "@/components/pos/DiscountInfoDialog";
 import { PaymentDialog, PaymentFormContent } from "@/components/pos/PaymentDialog";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft } from "lucide-react";
+import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft, DoorClosed } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import BarcodeReader from 'react-barcode-reader';
 import { CreditPaymentStatusEnumSchema } from '@/lib/zodSchemas';
 import { store } from '@/store/store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type CheckoutMode = 'popup' | 'inline';
 
@@ -105,7 +106,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isMounting, setIsMounting] = useState(true);
-
+  const [barcodeError, setBarcodeError] = useState<string | null>(null);
+  const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
   
   useEffect(() => {
     setIsClient(true);
@@ -455,12 +457,17 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     setIsDiscountInfoDialogOpen(true);
   }, [activeDiscountSet]);
 
-  const handleBarcodeScan = useCallback((data: string) => {
-    if (!data) return;
-    const trimmedData = data.trim();
-    if (!trimmedData) return;
+  const handleBarcodeScan = (data: string) => {
+    if (isProcessingBarcode) return; // Prevent rapid re-scans
 
-    const productFound = allProductsFromStore.find(p => p.barcode === trimmedData);
+    const trimmedData = data?.trim();
+    if (!trimmedData) return;
+    
+    setIsProcessingBarcode(true);
+    setBarcodeError(null);
+
+    const currentProducts = store.getState().sale.allProducts;
+    const productFound = currentProducts.find(p => p.barcode === trimmedData);
 
     if (productFound) {
       if (productFound.isActive) {
@@ -478,16 +485,21 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             description: `No product found with barcode: ${trimmedData}`,
             variant: "destructive",
         });
+        setBarcodeError(trimmedData);
+        setTimeout(() => setBarcodeError(null), 3000); // Clear error after 3 seconds
     }
     productSearchRef.current?.focusSearchInput();
-  }, [allProductsFromStore, handleProductSelectionFromSearch, toast]);
+    setIsProcessingBarcode(false);
+  };
 
-  const handleBarcodeError = useCallback((err: any) => {
+
+  const handleBarcodeError = (err: any) => {
     if (typeof err === 'string' && err.trim().length <= 3) { 
       return; 
     }
     console.error("Barcode reader error:", err);
-  }, []);
+  };
+
 
   // Conditional returns are now at the end
   if (authStatus === 'loading' || !currentUser || (isMounting && isClient)) {
@@ -540,7 +552,11 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
           <ProductSearch
             ref={productSearchRef}
             onProductSelect={handleProductSelectionFromSearch}
+            barcodeError={!!barcodeError}
           />
+           {barcodeError && (
+              <p className="text-sm text-orange-500 mt-1">Barcode not found: {barcodeError}</p>
+            )}
         </header>
         <div className="flex-1 p-4 overflow-y-auto">
            <CurrentSaleItemsTable
@@ -602,22 +618,51 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                       </DropdownMenuContent>
                   </DropdownMenu>
                    <AlertDialogContent>
-                      <AlertDialogHeader>
+                      <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
+                        <div className="text-center mb-6">
                           <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                           <AlertDialogDescription>
-                          How would you like to proceed? Your current shift will remain open unless you end it.
+                              How would you like to proceed? Your shift will remain open.
                           </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                          <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full">
-                              Go to End Shift Page
-                          </Button>
-                          <Button variant="secondary" onClick={handleLogout} className="w-full">
-                              Logout Only (Keep Shift Open)
-                          </Button>
-                          <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-                      </AlertDialogFooter>
-                  </AlertDialogContent>
+                        </div>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
+                                        className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+                                        aria-label="Go to End Shift Page"
+                                    >
+                                        <DoorClosed className="h-5 w-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Go to End Shift Page</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => { handleLogout(); setIsLogoutDialogOpen(false); }}
+                                        className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                                        aria-label="Logout Only (Keep Shift Open)"
+                                    >
+                                        <LogOut className="h-10 w-10 text-foreground" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Logout Only (Keep Shift Open)</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <div className="w-full mt-auto">
+                            <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
+                        </div>
+                      </div>
+                   </AlertDialogContent>
                 </AlertDialog>
             </div>
 

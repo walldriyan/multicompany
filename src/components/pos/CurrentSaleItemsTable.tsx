@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { SaleItem } from '@/types'; 
@@ -91,7 +92,14 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
 
             return (
             <TableRow key={item.saleItemId} className="hover:bg-muted/20">
-              <TableCell className="font-medium text-foreground align-middle">{item.name}</TableCell>
+              <TableCell className="font-medium text-foreground align-middle">
+                {item.name}
+                {item.selectedBatchNumber && (
+                  <span className="block text-xs text-muted-foreground">
+                    Batch: {item.selectedBatchNumber}
+                  </span>
+                )}
+              </TableCell>
               <TableCell className="text-right text-foreground align-middle">
                 Rs. {originalUnitPrice.toFixed(2)} <span className="text-xs text-muted-foreground">/{item.units.baseUnit}</span>
               </TableCell>

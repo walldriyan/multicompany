@@ -9,13 +9,14 @@ import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
 import { logoutAction } from '@/app/actions/authActions';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
@@ -107,12 +108,12 @@ export function DashboardClientLayout({
     return (
       <Sidebar side="left" collapsible="icon" className="border-r border-border/30">
         {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
-        <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-between">
+        <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
           <Link href="/" className="flex items-center gap-2">
             <ShoppingBag className="h-6 w-6 text-primary" />
             <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
           </Link>
-           <SidebarTrigger className="hidden md:flex text-foreground"/>
+           <SidebarTrigger className="hidden md:flex text-foreground ml-auto"/>
           {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
         </SidebarHeader>
         <SidebarContent><SidebarMenu>
@@ -130,7 +131,7 @@ export function DashboardClientLayout({
             })}
         </SidebarMenu></SidebarContent>
         <SidebarFooter className="border-t border-border/30"><SidebarMenu>
-            <SidebarMenuItem><div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 group-data-[collapsible=icon]:justify-center">
+            <SidebarMenuItem><div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2">
                 <Avatar className="h-7 w-7 shrink-0"><AvatarFallback className="bg-primary/20 text-primary font-semibold">{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}</AvatarFallback></Avatar>
                 <div className="flex-grow overflow-hidden group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-semibold text-foreground truncate">{currentUser?.username}</p>
@@ -158,29 +159,60 @@ export function DashboardClientLayout({
   };
 
   return (
+    <TooltipProvider>
     <SidebarProvider defaultOpen={true}>
         <MobileToggleButton />
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-                <AlertDialogDescription>
-                  How would you like to proceed? Your current shift will remain open unless you end it.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                  <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
-                    <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
-                  </Button>
-                 <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
-                    <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
-                  </Button>
-                <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-              </AlertDialogFooter>
+              <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
+                <div className="text-center mb-6">
+                  <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      How would you like to proceed? Your shift will remain open.
+                  </AlertDialogDescription>
+                </div>
+
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
+                            className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+                            aria-label="Go to End Shift Page"
+                        >
+                            <DoorClosed className="h-5 w-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Go to End Shift Page</p>
+                    </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }}
+                            className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                            aria-label="Logout Only (Keep Shift Open)"
+                        >
+                            <LogOut className="h-10 w-10 text-foreground" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Logout Only (Keep Shift Open)</p>
+                    </TooltipContent>
+                </Tooltip>
+
+                <div className="w-full mt-auto">
+                    <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
+                </div>
+              </div>
            </AlertDialogContent>
         </AlertDialog>
     </SidebarProvider>
+    </TooltipProvider>
   );
 }
+
+    

@@ -9,9 +9,11 @@ import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/compon
 import { Button } from "@/components/ui/button";
 import type { Product, ProductBatch, SaleItem } from "@/types";
 import { Search, Check, Package, Layers } from "lucide-react";
+import { cn } from '@/lib/utils';
 
 interface ProductSearchProps {
   onProductSelect: (product: Product, selectedBatch?: ProductBatch) => void;
+  barcodeError: boolean;
 }
 
 export interface ProductSearchHandle {
@@ -26,7 +28,7 @@ interface SearchSuggestion {
 }
 
 const ProductSearch = React.forwardRef<ProductSearchHandle, ProductSearchProps>(
-  ({ onProductSelect }, ref) => {
+  ({ onProductSelect, barcodeError }, ref) => {
     const allProductsFromStore = useSelector(selectAllProducts);
     const saleItems = useSelector(selectSaleItems);
 
@@ -206,7 +208,7 @@ const ProductSearch = React.forwardRef<ProductSearchHandle, ProductSearchProps>(
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
             <Input
               ref={internalInputRef} type="text" placeholder="Search products by name, code, or category..."
-              className="pl-10 w-full bg-background border-border focus:ring-primary"
+              className={cn("pl-10 w-full bg-background border-border focus:ring-primary", barcodeError && "border-destructive ring-destructive ring-1")}
               value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown}
               onFocus={handleFocus} onBlur={handleBlur} aria-label="Search products" autoComplete="off"
             />
