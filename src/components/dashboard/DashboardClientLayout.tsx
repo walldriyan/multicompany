@@ -166,53 +166,24 @@ export function DashboardClientLayout({
           <SidebarInternal />
           <SidebarInset>{children}</SidebarInset>
            <AlertDialogContent>
-              <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
-                <div className="text-center mb-6">
+              <AlertDialogHeader>
                   <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                   <AlertDialogDescription>
-                      How would you like to proceed? Your shift will remain open.
+                      How would you like to proceed? Your current shift will remain open unless you end it.
                   </AlertDialogDescription>
-                </div>
-
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button
-                            onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
-                            className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
-                            aria-label="Go to End Shift Page"
-                        >
-                            <DoorClosed className="h-5 w-5" />
-                        </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Go to End Shift Page</p>
-                    </TooltipContent>
-                </Tooltip>
-                        
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button
-                            onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }}
-                            className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
-                            aria-label="Logout Only (Keep Shift Open)"
-                        >
-                            <LogOut className="h-10 w-10 text-foreground" />
-                        </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Logout Only (Keep Shift Open)</p>
-                    </TooltipContent>
-                </Tooltip>
-
-                <div className="w-full mt-auto">
-                    <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
-                </div>
-              </div>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
+                   <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                      <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                    </Button>
+                   <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
+                      <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                    </Button>
+                  <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+              </AlertDialogFooter>
            </AlertDialogContent>
         </AlertDialog>
     </SidebarProvider>
     </TooltipProvider>
   );
 }
-
-    

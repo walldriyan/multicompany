@@ -459,7 +459,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
   const handleBarcodeScan = (data: string) => {
     if (isProcessingBarcode) return;
-
     const trimmedData = data?.trim();
     if (!trimmedData) return;
     
@@ -492,13 +491,11 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     setIsProcessingBarcode(false);
   };
 
-
   const handleBarcodeError = (err: any) => {
     if (typeof err === 'string' && err.trim().length > 3 && /^\d+$/.test(err.trim())) {
-      console.error("Barcode reader error:", err);
+        console.error("Barcode reader error:", err);
     }
   };
-
 
   // Conditional returns are now at the end
   if (authStatus === 'loading' || !currentUser || (isMounting && isClient)) {
@@ -617,50 +614,21 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                       </DropdownMenuContent>
                   </DropdownMenu>
                    <AlertDialogContent>
-                      <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
-                        <div className="text-center mb-6">
+                      <AlertDialogHeader>
                           <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                           <AlertDialogDescription>
                               How would you like to proceed? Your shift will remain open.
                           </AlertDialogDescription>
-                        </div>
-
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
-                                        className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
-                                        aria-label="Go to End Shift Page"
-                                    >
-                                        <DoorClosed className="h-5 w-5" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Go to End Shift Page</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => { handleLogout(); setIsLogoutDialogOpen(false); }}
-                                        className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
-                                        aria-label="Logout Only (Keep Shift Open)"
-                                    >
-                                        <LogOut className="h-10 w-10 text-foreground" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Logout Only (Keep Shift Open)</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-
-                        <div className="w-full mt-auto">
-                            <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
-                        </div>
-                      </div>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
+                           <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                              <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                            </Button>
+                           <Button variant="secondary" onClick={() => { handleLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
+                              <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                            </Button>
+                          <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+                      </AlertDialogFooter>
                    </AlertDialogContent>
                 </AlertDialog>
             </div>
