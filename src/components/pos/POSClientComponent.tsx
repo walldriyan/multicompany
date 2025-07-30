@@ -106,7 +106,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isMounting, setIsMounting] = useState(true);
-
+  const [barcodeError, setBarcodeError] = useState<string | null>(null);
+  const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
   
   useEffect(() => {
     setIsClient(true);
@@ -457,11 +458,14 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   }, [activeDiscountSet]);
 
   const handleBarcodeScan = (data: string) => {
-    if (!data) return;
-    const trimmedData = data.trim();
+    if (isProcessingBarcode) return; // Prevent rapid re-scans
+
+    const trimmedData = data?.trim();
     if (!trimmedData) return;
     
-    // Use the most up-to-date product list from the store
+    setIsProcessingBarcode(true);
+    setBarcodeError(null);
+
     const currentProducts = store.getState().sale.allProducts;
     const productFound = currentProducts.find(p => p.barcode === trimmedData);
 
@@ -481,20 +485,21 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             description: `No product found with barcode: ${trimmedData}`,
             variant: "destructive",
         });
+        setBarcodeError(trimmedData);
+        setTimeout(() => setBarcodeError(null), 3000); // Clear error after 3 seconds
     }
     productSearchRef.current?.focusSearchInput();
+    setIsProcessingBarcode(false);
   };
 
 
-  const handleBarcodeError = useCallback((err: any) => {
-    // This function can be triggered by rapid character input that isn't from a scanner.
-    // To prevent spamming the console with harmless errors, we can add a simple check.
-    // For example, ignore very short "errors" which are likely just keyboard input.
+  const handleBarcodeError = (err: any) => {
     if (typeof err === 'string' && err.trim().length <= 3) { 
       return; 
     }
     console.error("Barcode reader error:", err);
-  }, []);
+  };
+
 
   // Conditional returns are now at the end
   if (authStatus === 'loading' || !currentUser || (isMounting && isClient)) {
@@ -547,7 +552,11 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
           <ProductSearch
             ref={productSearchRef}
             onProductSelect={handleProductSelectionFromSearch}
+            barcodeError={!!barcodeError}
           />
+           {barcodeError && (
+              <p className="text-sm text-orange-500 mt-1">Barcode not found: {barcodeError}</p>
+            )}
         </header>
         <div className="flex-1 p-4 overflow-y-auto">
            <CurrentSaleItemsTable
