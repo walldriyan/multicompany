@@ -495,11 +495,10 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
 
   const handleBarcodeError = (err: any) => {
-    // Ignore short, likely accidental scans.
-    if (typeof err === 'string' && err.trim().length <= 3) {
-      return; 
+    // Only log errors for strings that are likely barcodes (long and numeric)
+    if (typeof err === 'string' && err.trim().length > 3 && /^\d+$/.test(err.trim())) {
+        console.error("Barcode reader error:", err);
     }
-    console.error("Barcode reader error:", err);
   };
 
 
