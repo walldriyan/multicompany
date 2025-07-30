@@ -466,6 +466,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     setIsProcessingBarcode(true);
     setBarcodeError(null);
 
+    // Use a direct reference to the store to get the latest state inside this non-hook callback.
     const currentProducts = store.getState().sale.allProducts;
     const productFound = currentProducts.find(p => p.barcode === trimmedData);
 
@@ -494,7 +495,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
 
   const handleBarcodeError = (err: any) => {
-    if (typeof err === 'string' && err.trim().length <= 3) { 
+    // Ignore short, likely accidental scans.
+    if (typeof err === 'string' && err.trim().length <= 3) {
       return; 
     }
     console.error("Barcode reader error:", err);

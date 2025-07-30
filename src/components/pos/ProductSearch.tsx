@@ -208,7 +208,10 @@ const ProductSearch = React.forwardRef<ProductSearchHandle, ProductSearchProps>(
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
             <Input
               ref={internalInputRef} type="text" placeholder="Search products by name, code, or category..."
-              className={cn("pl-10 w-full bg-background border-border focus:ring-primary", barcodeError && "border-destructive ring-destructive ring-1")}
+              className={cn(
+                "pl-10 w-full bg-background border-border focus:ring-primary",
+                barcodeError && "border-destructive ring-destructive ring-1 focus:ring-destructive"
+              )}
               value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown}
               onFocus={handleFocus} onBlur={handleBlur} aria-label="Search products" autoComplete="off"
             />
@@ -230,10 +233,11 @@ const ProductSearch = React.forwardRef<ProductSearchHandle, ProductSearchProps>(
                 <Button
                   key={suggestion.id} id={`suggestion-${index}`} role="option" aria-selected={index === activeIndex}
                   variant="ghost"
-                  className={`w-full justify-start h-auto py-2 px-3 text-left rounded-md
-                    ${ isBatch ? 'ml-0 font-normal' : 'font-semibold bg-muted/30'}
-                    ${ index === activeIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50' }
-                  `}
+                  className={cn(
+                    'w-full justify-start h-auto py-2 px-3 text-left rounded-md',
+                    isBatch ? 'font-normal' : 'font-semibold bg-muted/30',
+                    index === activeIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
+                  )}
                   onClick={() => handleSelect(suggestion)}
                   onMouseEnter={() => setActiveIndex(index)}
                 >
