@@ -47,7 +47,7 @@ import { SettingsDialog } from "@/components/pos/SettingsDialog";
 import { DiscountInfoDialog } from "@/components/pos/DiscountInfoDialog";
 import { PaymentDialog, PaymentFormContent } from "@/components/pos/PaymentDialog";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft } from "lucide-react";
+import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft, DoorClosed } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import BarcodeReader from 'react-barcode-reader';
@@ -487,6 +487,9 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
 
   const handleBarcodeError = useCallback((err: any) => {
+    // This function can be triggered by rapid character input that isn't from a scanner.
+    // To prevent spamming the console with harmless errors, we can add a simple check.
+    // For example, ignore very short "errors" which are likely just keyboard input.
     if (typeof err === 'string' && err.trim().length <= 3) { 
       return; 
     }
