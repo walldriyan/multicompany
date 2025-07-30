@@ -54,6 +54,7 @@ import BarcodeReader from 'react-barcode-reader';
 import { CreditPaymentStatusEnumSchema } from '@/lib/zodSchemas';
 import { store } from '@/store/store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type CheckoutMode = 'popup' | 'inline';
 
@@ -455,12 +456,14 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     setIsDiscountInfoDialogOpen(true);
   }, [activeDiscountSet]);
 
-  const handleBarcodeScan = useCallback((data: string) => {
+  const handleBarcodeScan = (data: string) => {
     if (!data) return;
     const trimmedData = data.trim();
     if (!trimmedData) return;
-
-    const productFound = allProductsFromStore.find(p => p.barcode === trimmedData);
+    
+    // Use the most up-to-date product list from the store
+    const currentProducts = store.getState().sale.allProducts;
+    const productFound = currentProducts.find(p => p.barcode === trimmedData);
 
     if (productFound) {
       if (productFound.isActive) {
@@ -480,7 +483,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         });
     }
     productSearchRef.current?.focusSearchInput();
-  }, [allProductsFromStore, handleProductSelectionFromSearch, toast]);
+  };
+
 
   const handleBarcodeError = useCallback((err: any) => {
     if (typeof err === 'string' && err.trim().length <= 3) { 
@@ -602,22 +606,51 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                       </DropdownMenuContent>
                   </DropdownMenu>
                    <AlertDialogContent>
-                      <AlertDialogHeader>
+                      <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
+                        <div className="text-center mb-6">
                           <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
                           <AlertDialogDescription>
-                          How would you like to proceed? Your current shift will remain open unless you end it.
+                              How would you like to proceed? Your shift will remain open.
                           </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                          <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full">
-                              Go to End Shift Page
-                          </Button>
-                          <Button variant="secondary" onClick={handleLogout} className="w-full">
-                              Logout Only (Keep Shift Open)
-                          </Button>
-                          <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-                      </AlertDialogFooter>
-                  </AlertDialogContent>
+                        </div>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }}
+                                        className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+                                        aria-label="Go to End Shift Page"
+                                    >
+                                        <DoorClosed className="h-5 w-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Go to End Shift Page</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => { handleLogout(); setIsLogoutDialogOpen(false); }}
+                                        className="h-24 w-24 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                                        aria-label="Logout Only (Keep Shift Open)"
+                                    >
+                                        <LogOut className="h-10 w-10 text-foreground" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Logout Only (Keep Shift Open)</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <div className="w-full mt-auto">
+                            <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
+                        </div>
+                      </div>
+                   </AlertDialogContent>
                 </AlertDialog>
             </div>
 
