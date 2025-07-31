@@ -11,7 +11,6 @@ const nextConfig: NextConfig = {
   },
   compiler: {
     removeConsole: false,
-    swcMinify: true,
   },
   images: {
     remotePatterns: [
