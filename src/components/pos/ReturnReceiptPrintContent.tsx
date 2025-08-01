@@ -14,7 +14,7 @@ export function ReturnReceiptPrintContent({
     adjustedSale,
     returnTransaction,
 }: ReturnReceiptPrintContentProps) {
-  const companyName = "Aronium POS Solutions";
+  const companyName = "POS Solutions";
   const companyAddress = "123 Main Street, Colombo, Sri Lanka";
   const companyPhone = "+94 11 234 5678";
 

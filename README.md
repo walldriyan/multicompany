@@ -1,4 +1,4 @@
-# Aronium POS Instructions
+# POS Instructions
 
 ## Development
 

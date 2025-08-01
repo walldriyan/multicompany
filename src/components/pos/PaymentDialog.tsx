@@ -76,7 +76,7 @@ const BillPrintContent = ({
     appliedDiscountSummary, calculatedItemDiscounts,
     companyNameProp, companyAddressProp, companyPhoneProp // Destructure new props
 }: BillPrintProps) => {
-    const companyName = companyNameProp || "Aronium POS Solutions";
+    const companyName = companyNameProp || "POS Solutions";
     const companyAddress = companyAddressProp || "123 Main Street, Colombo, Sri Lanka";
     const companyPhone = companyPhoneProp || "+94 11 234 5678";
     const dateTime = new Date().toLocaleString();

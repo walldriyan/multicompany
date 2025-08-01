@@ -552,7 +552,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
                 <ShoppingBag className="h-8 w-8 text-primary" />
-                <h1 className="text-2xl font-headline font-semibold">Aronium POS</h1>
+                <h1 className="text-2xl font-headline font-semibold">POS</h1>
             </div>
             <div className="flex items-center space-x-2">
               <Link href="/dashboard" passHref>
@@ -584,7 +584,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         {isClient ? (
           <>
              <div className="p-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-card-foreground">Sale Summary & Actions</h2>
+                <h2 className="text-xl font-semibold text-card-foreground">Sale Summary</h2>
                 <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
                   <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -716,7 +716,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         ) : (
             <>
             <div className="p-4 space-y-3">
-              <h2 className="text-xl font-semibold text-card-foreground">Sale Summary & Actions</h2>
+              <h2 className="text-xl font-semibold text-card-foreground">Sale Summary</h2>
               <div className="space-y-2">
                 <Label htmlFor="active-discount-set" className="text-sm font-medium">Active Discount Set</Label>
                 <div className="w-full h-10 rounded-md border border-input bg-input animate-pulse" aria-label="Loading discount sets..."></div>
