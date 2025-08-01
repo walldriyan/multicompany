@@ -69,7 +69,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center">
             <LogIn className="mr-3 h-7 w-7" />
-            Aronium POS Login
+            POS Login
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Please enter your credentials to continue.

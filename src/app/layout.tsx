@@ -7,8 +7,8 @@ import { StoreProvider } from '@/store/StoreProvider';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'Aronium POS',
-  description: 'Aronium POS System built with Next.js',
+  title: 'POS',
+  description: 'POS System built with Next.js',
 };
 
 export default function RootLayout({
