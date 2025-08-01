@@ -13,8 +13,6 @@ import { POSClientComponent } from '@/components/pos/POSClientComponent';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifyAuth } from '@/lib/auth';
-// Optimized actions temporarily disabled due to Prisma configuration issues
-// import { preloadCriticalData, getProductsOptimized, getDiscountSetsOptimized } from '@/lib/optimized-actions';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -46,18 +44,17 @@ export default async function PosPageContainer() {
     ? taxRateResult.value.data?.value ?? 0 
     : 0;
 
-  // Preload critical data in background (temporarily disabled)
-  // preloadCriticalData(user.id).catch(console.error);
-
-  // Create optimized initial state
+  // Create optimized initial state to pass to the client component
+  // This avoids the client having to fetch this data itself.
   const initialState = {
-    auth: { user, status: 'authenticated' },
+    auth: { user, status: 'succeeded', error: null },
     sale: {
       allProducts: productsData,
       discountSets: discountSetsData,
       taxRate,
       saleItems: [],
-      activeDiscountSetId: null
+      activeDiscountSetId: discountSetsData.find(ds => ds.isDefault && ds.isActive)?.id || null,
+      discountSetsLoaded: true,
     }
   };
   
