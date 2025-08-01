@@ -244,6 +244,8 @@ export default function WelcomePage() {
             objectFit="cover"
             className="absolute inset-0 w-full h-full -z-10"
             data-ai-hint="abstract gradient"
+            priority={true}
+            loading="eager"
         />
         <div className="absolute inset-0 w-full h-full bg-black/50 -z-10"></div>
 

@@ -34,7 +34,7 @@ async function createAndSetSession(user: any) {
       .setExpirationTime('1d') // Session expires in 1 day
       .sign(secret);
     
-    cookies().set('auth_token', session, {
+    (await cookies()).set('auth_token', session, {
       httpOnly: true,
       secure: true, // Must be true for SameSite='none'
       sameSite: 'none', // Required for iframe environments
@@ -159,7 +159,7 @@ export async function loginAction(
 }
 
 export async function logoutAction() {
-    cookies().delete('auth_token');
+    (await cookies()).delete('auth_token');
     return { success: true };
 }
 

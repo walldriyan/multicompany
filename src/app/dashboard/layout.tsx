@@ -20,10 +20,7 @@ export default async function DashboardLayout({
     return redirect('/login');
   }
 
-  // 3. Dispatch user to server-side store so client layout can access it for permissions
-  store.dispatch(setUser(user));
-
-  // 4. Perform the permission check on the server, accessing the correct nested structure.
+  // 3. Perform the permission check on the server, accessing the correct nested structure.
   const rolePermissions = user.role?.permissions ?? [];
 
   // Correctly map the nested permission objects
@@ -31,7 +28,7 @@ export default async function DashboardLayout({
       rolePermissions.some(rp => rp.permission?.action === 'manage' && rp.permission?.subject === 'all') ||
       rolePermissions.some(rp => rp.permission?.action === 'access' && rp.permission?.subject === 'Dashboard');
   
-  // 5. If permission is denied, show an error page from the server
+  // 4. If permission is denied, show an error page from the server
   if (!canAccessDashboard) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
@@ -48,7 +45,7 @@ export default async function DashboardLayout({
     );
   }
 
-  // 6. If everything is OK, render a CLIENT component and pass the user data down
+  // 5. If everything is OK, render a CLIENT component and pass the user data down
   // This separates server logic from client logic cleanly.
   return (
     <DashboardClientLayout initialUser={user}>

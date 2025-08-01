@@ -12,7 +12,7 @@ interface AuthUser extends Omit<User, 'passwordHash' | 'role'> {
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-default-secret-key-that-is-long-enough');
 
 export async function verifyAuth(): Promise<{ user: AuthUser | null }> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
 
   if (!token) {
@@ -26,24 +26,24 @@ export async function verifyAuth(): Promise<{ user: AuthUser | null }> {
     if (!userId) {
       return { user: null };
     }
-    
+
     // --- SPECIAL HANDLING FOR ROOT USER ---
     if (userId === 'root-user' && payload.role === process.env.ROOT_USER_ROLE_NAME) {
-        const allPermissions = await prisma.permission.findMany();
-        const rootUserSession = {
-            id: 'root-user',
-            username: process.env.ROOT_USER_USERNAME || 'root',
-            role: {
-                name: process.env.ROOT_USER_ROLE_NAME || 'SuperAdmin',
-                permissions: allPermissions.map(p => ({ permission: p }))
-            },
-            company: null,
-            companyId: null,
-            isActive: true,
-        };
-        // Serialize for Redux compatibility
-        const serializableUser = JSON.parse(JSON.stringify(rootUserSession));
-        return { user: serializableUser };
+      const allPermissions = await prisma.permission.findMany();
+      const rootUserSession = {
+        id: 'root-user',
+        username: process.env.ROOT_USER_USERNAME || 'root',
+        role: {
+          name: process.env.ROOT_USER_ROLE_NAME || 'SuperAdmin',
+          permissions: allPermissions.map(p => ({ permission: p }))
+        },
+        company: null,
+        companyId: null,
+        isActive: true,
+      };
+      // Serialize for Redux compatibility
+      const serializableUser = JSON.parse(JSON.stringify(rootUserSession));
+      return { user: serializableUser };
     }
     // --- END ROOT USER HANDLING ---
 

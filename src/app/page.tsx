@@ -13,41 +13,62 @@ import { POSClientComponent } from '@/components/pos/POSClientComponent';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifyAuth } from '@/lib/auth';
+import { Suspense } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// This is now a Server Component
+// Optimized Server Component with parallel data fetching
 export default async function PosPageContainer() {
   // Verify user authentication on the server before rendering anything.
   const { user } = await verifyAuth();
   
   // If no valid user session is found from the cookie, redirect to login from the server.
-  // This prevents the client from ever rendering in a "logged out" state, which causes the flicker.
   if (!user) {
     return redirect('/login');
   }
 
-  // Fetch all initial data on the server, scoped to the user's company
-  const productsResult = await getAllProductsAction(user.id);
-  const discountSetsResult = await getDiscountSetsAction(user.id);
-  const taxRateResult = await getTaxRateAction();
+  // Use parallel data fetching to reduce latency
+  const [productsResult, discountSetsResult, taxRateResult] = await Promise.allSettled([
+    getAllProductsAction(user.id),
+    getDiscountSetsAction(user.id),
+    getTaxRateAction()
+  ]);
 
-  // Prepare initial state for Redux on the server
-  const products = productsResult.success ? productsResult.data ?? [] : [];
-  const discountSets = discountSetsResult.success ? discountSetsResult.data ?? [] : [];
-  const taxRate = taxRateResult.success ? taxRateResult.data?.value ?? 0 : 0;
+  // Extract results with fallbacks
+  const productsData = productsResult.status === 'fulfilled' && productsResult.value.success 
+    ? productsResult.value.data ?? [] 
+    : [];
+  const discountSetsData = discountSetsResult.status === 'fulfilled' && discountSetsResult.value.success 
+    ? discountSetsResult.value.data ?? [] 
+    : [];
+  const taxRate = taxRateResult.status === 'fulfilled' && taxRateResult.value.success 
+    ? taxRateResult.value.data?.value ?? 0 
+    : 0;
+
+  // Create optimized initial state to pass to the client component
+  // This avoids the client having to fetch this data itself.
+  const initialState = {
+    auth: { user, status: 'succeeded', error: null },
+    sale: {
+      allProducts: productsData,
+      discountSets: discountSetsData,
+      taxRate,
+      saleItems: [],
+      activeDiscountSetId: discountSetsData.find(ds => ds.isDefault && ds.isActive)?.id || null,
+      discountSetsLoaded: true,
+    }
+  };
   
-  // Directly dispatch to the server-side instance of the store
-  // NOTE: This approach with a singleton store on the server might have concurrency issues
-  // under high load. For this app's scale, it's acceptable.
-  // A more robust solution might involve passing initial state as props without a shared server store instance.
-  store.dispatch(initializeAllProducts(products));
-  store.dispatch(initializeDiscountSets(discountSets));
-  store.dispatch(initializeTaxRate(taxRate));
-  store.dispatch(setUser(user));
-  
-  // Pass the initial state to the client component. The client component will then
-  // hydrate the Redux store with this complete, server-fetched data.
-  // We don't need to pass the whole state, just a flag to tell the client to use the server store's state.
   return (
-      <POSClientComponent serverState={store.getState()} />
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="space-y-4 w-full max-w-md">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    }>
+      <POSClientComponent serverState={initialState} />
+    </Suspense>
   );
 }

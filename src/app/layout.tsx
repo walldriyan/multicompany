@@ -21,8 +21,8 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <StoreProvider>
           {children}
+          <Toaster />
         </StoreProvider>
-        <Toaster />
       </body>
     </html>
   );

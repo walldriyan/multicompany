@@ -1,5 +1,6 @@
 
 
+
 export interface BuyGetRule {
     buyProductId: string;
     buyQuantity: number;
@@ -75,6 +76,7 @@ export interface Product {
 export interface SaleItem extends Product {
   saleItemId: string; // Unique ID for this item *in this specific sale*
   quantity: number;
+  price: number; // Actual price for this item in the sale (could be batch-specific)
   selectedBatchId?: string | null;
   selectedBatchNumber?: string | null;
 }

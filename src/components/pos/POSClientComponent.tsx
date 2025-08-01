@@ -3,7 +3,8 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { useSelector, useDispatch, useStore } from 'react-redux';
+import { useDispatch, useStore } from 'react-redux';
+import { useBatchSelector, useOptimizedSelector } from '@/hooks/useOptimizedSelector';
 import type { RootState, AppDispatch } from '@/store/store';
 import { useRouter } from 'next/navigation';
 
@@ -80,20 +81,36 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   }, [dispatch, serverState]);
 
 
-  // All hooks are now at the top level
-  const currentUser = useSelector(selectCurrentUser);
-  const authStatus = useSelector(selectAuthStatus);
-  const allProductsFromStore = useSelector(selectAllProducts);
-  const saleItems = useSelector(selectSaleItems);
-  const discountSets = useSelector(selectDiscountSets);
-  const activeDiscountSetId = useSelector(selectActiveDiscountSetId);
-  const activeDiscountSet = useSelector(selectActiveDiscountSet);
-  const taxRate = useSelector(selectTaxRate);
-  const subtotalOriginal = useSelector(selectSaleSubtotalOriginal);
-  const tax = useSelector(selectCalculatedTax);
-  const total = useSelector(selectSaleTotal);
-  const calculatedDiscountsSelectorResult = useSelector(selectCalculatedDiscounts);
-  const appliedDiscountSummaryFromSelector = useSelector(selectAppliedDiscountSummary);
+  // Optimized batch selector to reduce re-renders
+  const {
+    currentUser,
+    authStatus,
+    allProductsFromStore,
+    saleItems,
+    discountSets,
+    activeDiscountSetId,
+    activeDiscountSet,
+    taxRate,
+    subtotalOriginal,
+    tax,
+    total,
+    calculatedDiscountsSelectorResult,
+    appliedDiscountSummaryFromSelector
+  } = useBatchSelector({
+    currentUser: selectCurrentUser,
+    authStatus: selectAuthStatus,
+    allProductsFromStore: selectAllProducts,
+    saleItems: selectSaleItems,
+    discountSets: selectDiscountSets,
+    activeDiscountSetId: selectActiveDiscountSetId,
+    activeDiscountSet: selectActiveDiscountSet,
+    taxRate: selectTaxRate,
+    subtotalOriginal: selectSaleSubtotalOriginal,
+    tax: selectCalculatedTax,
+    total: selectSaleTotal,
+    calculatedDiscountsSelectorResult: selectCalculatedDiscounts,
+    appliedDiscountSummaryFromSelector: selectAppliedDiscountSummary
+  });
 
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isDiscountInfoDialogOpen, setIsDiscountInfoDialogOpen] = useState(false);
