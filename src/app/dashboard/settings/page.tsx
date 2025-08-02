@@ -253,10 +253,22 @@ export default function SettingsPage() {
       </header>
       
       <Tabs defaultValue="import-export" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="general-settings"><Settings className="mr-2 h-4 w-4" />General Settings</TabsTrigger>
           <TabsTrigger value="import-export">Import & Export Products</TabsTrigger>
           <TabsTrigger value="backup-restore">Backup & Restore</TabsTrigger>
         </TabsList>
+        <TabsContent value="general-settings" className="mt-4">
+            <Card>
+                <CardHeader>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>General application settings will be available here.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  This section is under construction.
+                </CardContent>
+              </Card>
+        </TabsContent>
         <TabsContent value="import-export" className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <Card>
