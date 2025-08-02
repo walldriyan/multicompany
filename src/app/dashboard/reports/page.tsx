@@ -126,84 +126,96 @@ export default function ReportsPage() {
       printWindow.document.write('<html><head><title>Print Report</title>');
       const styles = `
           body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             margin: 20px; 
             color: #333; 
-            line-height: 1.5;
+            background-color: #fff;
+            line-height: 1.6;
           }
           h1, h2, h3, h4 { 
             color: #111; 
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 0.3em;
+            margin-top: 1.2em;
+            margin-bottom: 0.6em;
           }
+          h1 { font-size: 24px; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+          h2 { font-size: 20px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+          h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+          p { margin: 0 0 10px 0; }
           table { 
             width: 100%; 
             border-collapse: collapse; 
             margin-bottom: 20px; 
-            font-size: 0.9em; 
+            font-size: 14px; 
           }
           th, td { 
-            border: 1px solid #ddd; 
-            padding: 8px; 
-            text-align: left; 
+            padding: 10px 12px; 
+            text-align: left;
+            border-bottom: 1px solid #eaeaea;
           }
           thead tr { 
-            background-color: #f7f7f7; 
-            font-weight: bold;
+            background-color: #fafafa;
+            color: #555;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
           }
-          tbody tr:nth-child(even) { 
-            background-color: #fdfdfd; 
+          tbody tr:hover {
+            background-color: #f9f9f9;
+          }
+          tfoot td {
+            font-weight: bold;
+            background-color: #fafafa;
           }
           .summary-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
-            gap: 1rem; 
-            margin-bottom: 1rem; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 1.5rem; 
+            margin-bottom: 1.5rem; 
           }
           .summary-card { 
             border: 1px solid #e2e8f0; 
-            padding: 1rem; 
-            border-radius: 0.5rem; 
+            padding: 1.2rem; 
+            border-radius: 8px; 
             background-color: #fff;
           }
           .summary-card h4 { 
-            margin-top: 0; 
-            border-bottom: 1px solid #e2e8f0; 
-            padding-bottom: 0.5rem; 
-            margin-bottom: 0.5rem; 
-            font-size: 1.1em;
+            margin-top: 0;
+            margin-bottom: 1rem; 
+            font-size: 16px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
           }
           .summary-card .row { 
             display: flex; 
             justify-content: space-between; 
-            font-size: 0.9em; 
-            padding: 4px 0; 
+            font-size: 14px; 
+            padding: 6px 0; 
+          }
+          .summary-card .row:not(:last-child) {
             border-bottom: 1px dotted #eee;
           }
-          .summary-card .row:last-child {
-            border-bottom: none;
+          .summary-card .row span:last-child {
+            font-weight: 500;
           }
           .summary-card .total-row { 
             font-weight: bold; 
             border-top: 2px solid #e2e8f0; 
-            padding-top: 8px; 
-            margin-top: 8px; 
-            font-size: 1em;
+            padding-top: 10px; 
+            margin-top: 10px; 
+            font-size: 15px;
           }
           .final-summary { 
-            border-top: 2px solid #333; 
             margin-top: 1.5rem; 
-            padding-top: 1rem; 
+            padding: 1.5rem;
             background-color: #f7f7f7;
-            padding: 1rem;
-            border-radius: 0.5rem;
+            border-radius: 8px;
+            border-top: 3px solid #333;
           }
           .final-summary .row { 
             display: flex; 
             justify-content: space-between; 
-            font-size: 1.3em; 
+            font-size: 22px; 
             font-weight: bold; 
           }
           .no-print { 
@@ -214,7 +226,7 @@ export default function ReportsPage() {
             margin: 20mm; 
           }
           @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 11pt; }
               .no-print { display: none !important; }
               .print-only-summary .detailed-section { display: none; }
           }
