@@ -172,7 +172,65 @@ export default function SettingsPage() {
     }
     setIsProcessing(false);
   };
+  
+  const handleCompanyBackup = async () => {
+    if (!currentUser?.id) {
+        toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
+        return;
+    }
+    setIsProcessing(true);
+    toast({ title: "Company Backup", description: "Preparing your company data for download..." });
+    const result = await backupCompanyDataAction(currentUser.id);
 
+    if (result.success && result.data && result.companyName) {
+        const blob = new Blob([result.data], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${result.companyName}_backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Backup Complete", description: "Company data downloaded." });
+    } else {
+        toast({ title: "Backup Failed", description: result.error || "Could not complete company data backup.", variant: "destructive" });
+    }
+    setIsProcessing(false);
+  };
+
+  const handleFullDatabaseBackup = async () => {
+    if (!currentUser?.id || !isSuperAdmin) {
+        toast({ title: "Error", description: "Permission denied or not authenticated.", variant: "destructive" });
+        return;
+    }
+    setIsProcessing(true);
+    toast({ title: "Full Database Backup", description: "Preparing database file for download..." });
+    const result = await backupFullDatabaseAction(currentUser.id);
+
+    if (result.success && result.data) {
+        const byteCharacters = atob(result.data.data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `pos_full_backup_${new Date().toISOString().split('T')[0]}.db`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Backup Complete", description: "Full database downloaded." });
+    } else {
+        toast({ title: "Backup Failed", description: result.error || "Could not complete full database backup.", variant: "destructive" });
+    }
+    setIsProcessing(false);
+  };
 
   return (
     <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
