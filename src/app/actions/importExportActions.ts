@@ -34,8 +34,6 @@ export async function importProductsAction(
   let importedCount = 0;
   const importErrors: { row: number; message: string; data: any }[] = [];
 
-  const productsToCreate: Prisma.ProductCreateManyInput[] = [];
-
   for (const [index, row] of data.entries()) {
     const mappedData: Record<string, any> = {};
     for (const [dbField, csvField] of Object.entries(fieldMapping)) {
@@ -67,25 +65,33 @@ export async function importProductsAction(
     if (validationResult.success) {
       const { stock: initialStock, costPrice: initialCostPrice, ...restOfProductData } = validationResult.data;
       
-      const productToCreate: Prisma.ProductCreateInput = {
-        ...restOfProductData,
-        sellingPrice: restOfProductData.sellingPrice || 0,
-        companyId: companyId,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-        units: (restOfProductData.units as Prisma.JsonValue) || Prisma.JsonNull,
-        batches: {
-          create: (initialStock && initialStock > 0 && initialCostPrice !== undefined && initialCostPrice !== null) ? [{
-            batchNumber: 'INITIAL_IMPORT',
-            quantity: initialStock,
-            costPrice: initialCostPrice,
-            sellingPrice: restOfProductData.sellingPrice || 0,
-          }] : undefined
-        }
-      };
-
       try {
-        await prisma.product.create({ data: productToCreate });
+        await prisma.$transaction(async (tx) => {
+            const productToCreate: Omit<Prisma.ProductCreateInput, 'batches'> = {
+                ...restOfProductData,
+                sellingPrice: restOfProductData.sellingPrice || 0,
+                companyId: companyId,
+                createdByUserId: userId,
+                updatedByUserId: userId,
+                units: (restOfProductData.units as Prisma.JsonValue) || Prisma.JsonNull,
+            };
+
+            const createdProduct = await tx.product.create({
+              data: productToCreate
+            });
+
+            if (initialStock && initialStock > 0) {
+              await tx.productBatch.create({
+                data: {
+                  productId: createdProduct.id,
+                  batchNumber: 'INITIAL_IMPORT',
+                  quantity: initialStock,
+                  costPrice: initialCostPrice || 0, // Default cost to 0 if not provided
+                  sellingPrice: createdProduct.sellingPrice,
+                }
+              });
+            }
+        });
         importedCount++;
       } catch (e: any) {
         let errorMessage = "Database error during creation.";
