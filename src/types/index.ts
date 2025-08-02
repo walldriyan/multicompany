@@ -1,6 +1,7 @@
 
 
 
+
 export interface BuyGetRule {
     buyProductId: string;
     buyQuantity: number;
@@ -561,6 +562,10 @@ export interface ComprehensiveReport {
   generatedAt: string;
   summary: {
     netSales: number;
+    totalCashSales: number;
+    totalCreditSales: number;
+    totalPaymentsOnCreditSales: number;
+    outstandingCreditAmount: number;
     totalDiscounts: number;
     totalTax: number;
     grossSales: number;
@@ -583,3 +588,5 @@ export interface ComprehensiveReport {
   newOrUpdatedProducts: Product[];
   newOrUpdatedParties: Party[];
 }
+
+    
