@@ -54,7 +54,7 @@ export default function ReportsPage() {
 
     reportData.sales.forEach(sale => {
       if (sale.status === 'ADJUSTED_ACTIVE' && sale.originalSaleRecordId) {
-        const original = data.sales.find(s => s.id === sale.originalSaleRecordId);
+        const original = reportData.sales.find(s => s.id === sale.originalSaleRecordId);
         if (original && grouped.has(original.billNumber)) {
           const existing = grouped.get(original.billNumber)!;
           if (!existing.adjusted || new Date(sale.date) > new Date(existing.adjusted.date)) {
