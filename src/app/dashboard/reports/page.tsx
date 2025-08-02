@@ -125,28 +125,101 @@ export default function ReportsPage() {
     if (printWindow) {
       printWindow.document.write('<html><head><title>Print Report</title>');
       const styles = `
-          body { font-family: sans-serif; margin: 20px; color: #333; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.8em; }
-          th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-          thead tr { background-color: #f2f2f2; }
-          tbody tr:nth-child(even) { background-color: #f9f9f9; }
-          h1, h2, h3, h4 { color: #000; }
-          .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-          .summary-card { border: 1px solid #ddd; padding: 1rem; border-radius: 0.5rem; }
-          .summary-card h4 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
-          .summary-card .row { display: flex; justify-content: space-between; font-size: 0.9em; padding: 2px 0; }
-          .summary-card .total-row { font-weight: bold; border-top: 1px solid #eee; padding-top: 5px; margin-top: 5px; }
-          .final-summary { border-top: 2px solid #333; margin-top: 1rem; padding-top: 1rem; }
-          .final-summary .row { display: flex; justify-content: space-between; font-size: 1.2em; font-weight: bold; }
-          .no-print { display: none !important; }
-          @page { size: A4; margin: 20mm; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 20px; 
+            color: #333; 
+            line-height: 1.5;
+          }
+          h1, h2, h3, h4 { 
+            color: #111; 
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3em;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px; 
+            font-size: 0.9em; 
+          }
+          th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left; 
+          }
+          thead tr { 
+            background-color: #f7f7f7; 
+            font-weight: bold;
+          }
+          tbody tr:nth-child(even) { 
+            background-color: #fdfdfd; 
+          }
+          .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 1rem; 
+            margin-bottom: 1rem; 
+          }
+          .summary-card { 
+            border: 1px solid #e2e8f0; 
+            padding: 1rem; 
+            border-radius: 0.5rem; 
+            background-color: #fff;
+          }
+          .summary-card h4 { 
+            margin-top: 0; 
+            border-bottom: 1px solid #e2e8f0; 
+            padding-bottom: 0.5rem; 
+            margin-bottom: 0.5rem; 
+            font-size: 1.1em;
+          }
+          .summary-card .row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 0.9em; 
+            padding: 4px 0; 
+            border-bottom: 1px dotted #eee;
+          }
+          .summary-card .row:last-child {
+            border-bottom: none;
+          }
+          .summary-card .total-row { 
+            font-weight: bold; 
+            border-top: 2px solid #e2e8f0; 
+            padding-top: 8px; 
+            margin-top: 8px; 
+            font-size: 1em;
+          }
+          .final-summary { 
+            border-top: 2px solid #333; 
+            margin-top: 1.5rem; 
+            padding-top: 1rem; 
+            background-color: #f7f7f7;
+            padding: 1rem;
+            border-radius: 0.5rem;
+          }
+          .final-summary .row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 1.3em; 
+            font-weight: bold; 
+          }
+          .no-print { 
+            display: none !important; 
+          }
+          @page { 
+            size: A4; 
+            margin: 20mm; 
+          }
           @media print {
-              body { -webkit-print-color-adjust: exact; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .no-print { display: none !important; }
               .print-only-summary .detailed-section { display: none; }
           }
       `;
-      printWindow.document.write(`<style>${"styles"}</style>`);
+      printWindow.document.write(`<style>${styles}</style>`);
       printWindow.document.write('</head><body>');
       printWindow.document.write(`<div class="${summaryOnly ? 'print-only-summary' : ''}">${content.innerHTML}</div>`);
       printWindow.document.write('</body></html>');
