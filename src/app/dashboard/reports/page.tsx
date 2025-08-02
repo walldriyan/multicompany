@@ -235,7 +235,7 @@ export default function ReportsPage() {
             </Select>
           </div>
           <div className="flex items-center gap-2 self-end sm:ml-auto">
-            <Button onClick={() => handlePrint(true)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+            <Button onClick={() => handlePrint(true)} disabled={true} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
                 <Printer className="mr-2 h-4 w-4" /> Print Summary
             </Button>
             <Button onClick={() => handlePrint(false)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
@@ -279,7 +279,7 @@ export default function ReportsPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader><CardTitle>Profit &amp; Loss Summary</CardTitle></CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {/* Sales Summary Card */}
                   <div className="p-4 border rounded-lg bg-muted/20">
@@ -302,20 +302,38 @@ export default function ReportsPage() {
                         <div className="flex justify-between font-bold"><span className="text-foreground">Total Outstanding Debt:</span><span className="text-red-400">Rs. {reportData.summary.outstandingCreditAmount.toFixed(2)}</span></div>
                     </div>
                   </div>
-                   {/* Profit Summary Card */}
-                  <div className="p-4 border rounded-lg bg-muted/20">
-                    <h4 className="font-semibold text-foreground mb-2 flex items-center"><Sigma className="mr-2 h-5 w-5 text-primary"/>Profit Summary</h4>
-                    <div className="text-sm space-y-1">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Cash Sales:</span><span>Rs. {reportData.summary.totalCashSales.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Credit Payments Received:</span><span>Rs. {reportData.summary.totalPaymentsOnCreditSales.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Other Income:</span><span className="text-green-400">+Rs. {reportData.summary.totalIncome.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Cost of Goods Sold:</span><span className="text-red-400">-Rs. {reportData.summary.costOfGoodsSold.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Other Expenses:</span><span className="text-red-400">-Rs. {reportData.summary.totalExpense.toFixed(2)}</span></div>
-                      <Separator className="my-1" />
-                      <div className="flex justify-between font-bold text-lg"><span className="text-primary">Net Profit/Loss:</span><span className={reportData.summary.netProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}>Rs. {reportData.summary.netProfitLoss.toFixed(2)}</span></div>
-                    </div>
-                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Income / Credits Card */}
+                    <div className="p-4 border rounded-lg bg-green-900/10 border-green-500/30">
+                        <h4 className="font-semibold text-green-300 mb-2 flex items-center"><TrendingUp className="mr-2 h-5 w-5"/>Income / Credits</h4>
+                        <div className="text-sm space-y-1">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Cash Sales:</span><span className="text-green-400">Rs. {reportData.summary.totalCashSales.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Credit Payments Received:</span><span className="text-green-400">Rs. {reportData.summary.totalPaymentsOnCreditSales.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Other Income:</span><span className="text-green-400">Rs. {reportData.summary.totalIncome.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                    {/* Expenses / Debits Card */}
+                    <div className="p-4 border rounded-lg bg-red-900/10 border-red-500/30">
+                        <h4 className="font-semibold text-red-300 mb-2 flex items-center"><TrendingDown className="mr-2 h-5 w-5"/>Expenses / Debits</h4>
+                        <div className="text-sm space-y-1">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Cost of Goods Sold:</span><span className="text-red-400">-Rs. {reportData.summary.costOfGoodsSold.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Other Expenses:</span><span className="text-red-400">-Rs. {reportData.summary.totalExpense.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Net Profit/Loss Section */}
+                <div className="mt-6 pt-4 border-t-2 border-primary/50">
+                    <div className="flex justify-between items-center text-xl">
+                        <span className="font-bold text-primary flex items-center"><Sigma className="mr-2 h-5 w-5"/> Net Profit/Loss</span>
+                        <span className={`font-bold text-2xl ${reportData.summary.netProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            Rs. {reportData.summary.netProfitLoss.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+
               </CardContent>
             </Card>
 
@@ -465,5 +483,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
-    
