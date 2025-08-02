@@ -282,10 +282,16 @@ export default function SettingsPage() {
                     {dbProductFields.map(dbField => (
                         <div key={dbField.value}>
                             <Label htmlFor={`map-${dbField.value}`} className="text-xs">{dbField.label}{dbField.required && '*'}</Label>
-                            <Select value={fieldMapping[dbField.value] || ''} onValueChange={(value) => setFieldMapping(prev => ({ ...prev, [dbField.value]: value }))}>
+                            <Select 
+                              value={fieldMapping[dbField.value] || ''} 
+                              onValueChange={(value) => {
+                                const newMapping = { ...fieldMapping, [dbField.value]: value === '__none__' ? '' : value };
+                                setFieldMapping(newMapping);
+                              }}
+                            >
                                 <SelectTrigger id={`map-${dbField.value}`} className="bg-input border-border mt-1"><SelectValue placeholder="Select CSV Column..." /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">-- Do Not Import --</SelectItem>
+                                    <SelectItem value="__none__">-- Do Not Import --</SelectItem>
                                     {fileHeaders.map(header => (
                                         <SelectItem key={header} value={header}>{header}</SelectItem>
                                     ))}
