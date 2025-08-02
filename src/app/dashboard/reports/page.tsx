@@ -146,7 +146,7 @@ export default function ReportsPage() {
               .print-only-summary .detailed-section { display: none; }
           }
       `;
-      printWindow.document.write(`<style>${styles}</style>`);
+      printWindow.document.write(`<style>${"styles"}</style>`);
       printWindow.document.write('</head><body>');
       printWindow.document.write(`<div class="${summaryOnly ? 'print-only-summary' : ''}">${content.innerHTML}</div>`);
       printWindow.document.write('</body></html>');
@@ -235,7 +235,7 @@ export default function ReportsPage() {
             </Select>
           </div>
           <div className="flex items-center gap-2 self-end sm:ml-auto">
-            <Button onClick={() => handlePrint(true)} disabled={true} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+            <Button onClick={() => handlePrint(true)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
                 <Printer className="mr-2 h-4 w-4" /> Print Summary
             </Button>
             <Button onClick={() => handlePrint(false)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
