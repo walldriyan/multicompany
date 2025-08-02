@@ -78,7 +78,7 @@ export async function backupFullDatabaseAction(
             include: { role: true }
         });
 
-        if (user?.role?.name !== 'Admin') {
+        if (user?.role?.name !== 'Admin' && user?.id !== 'root-user') {
             return { success: false, error: "Permission denied. Only Super Admins can perform a full database backup." };
         }
 
@@ -101,5 +101,48 @@ export async function backupFullDatabaseAction(
             return { success: false, error: "Database file not found at the expected location. Cannot perform backup." };
         }
         return { success: false, error: error.message || "An unexpected server error occurred during backup." };
+    }
+}
+
+// NEW ACTION: Restore full database from backup
+export async function restoreFullDatabaseAction(
+  userId: string,
+  base64Data: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!userId) {
+        return { success: false, error: "User not authenticated." };
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { role: true }
+        });
+
+        if (user?.role?.name !== 'Admin' && user?.id !== 'root-user') {
+            return { success: false, error: "Permission denied. Only Super Admins can restore the database." };
+        }
+
+        const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+        const dbFileBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Before writing, we must disconnect Prisma to release the file lock
+        await prisma.$disconnect();
+
+        await fs.writeFile(dbPath, dbFileBuffer);
+
+        // Re-connect is not explicitly needed here, Next.js will handle it on next request.
+        
+        return { success: true };
+
+    } catch (error: any) {
+        console.error('Error during full database restore:', error);
+        // Attempt to reconnect prisma if an error occurs to not leave it in a disconnected state.
+        await prisma.$connect().catch(e => console.error("Failed to reconnect prisma after restore error:", e));
+
+        if (error.code === 'EBUSY') {
+            return { success: false, error: "Database file is currently in use. Please try again in a moment." };
+        }
+        return { success: false, error: error.message || "An unexpected server error occurred during restore." };
     }
 }

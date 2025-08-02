@@ -14,27 +14,30 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
-import { backupCompanyDataAction, backupFullDatabaseAction } from '@/app/actions/backupActions';
+import { backupCompanyDataAction, backupFullDatabaseAction, restoreFullDatabaseAction } from '@/app/actions/backupActions';
 import { importProductsAction, exportProductsAction } from '@/app/actions/importExportActions';
+import { verifyAdminPasswordAction } from '@/app/actions/authActions';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
 
 type FieldMapping = Record<string, string>;
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoreFileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const currentUser = useSelector(selectCurrentUser);
   const { can } = usePermissions();
   const canManageSettings = can('manage', 'Settings');
+  const isSuperAdmin = currentUser?.role?.name === 'Admin' || currentUser?.id === 'root-user';
 
-  const isSuperAdmin = currentUser?.role?.name === 'Admin';
-  
   // State for import feature
   const [fileToImport, setFileToImport] = useState<File | null>(null);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
@@ -42,6 +45,13 @@ export default function SettingsPage() {
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string; errors: any[] } | null>(null);
+
+  // State for restore feature
+  const [fileToRestore, setFileToRestore] = useState<File | null>(null);
+  const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [restoreError, setRestoreError] = useState('');
+
 
   const dbProductFields = [
     { value: 'name', label: 'Product Name', required: true },
@@ -69,7 +79,6 @@ export default function SettingsPage() {
             setFileHeaders(results.meta.fields);
             setFileDataPreview(results.data as Record<string, any>[]);
             
-            // Auto-map fields if names match common patterns
             const initialMapping: FieldMapping = {};
             dbProductFields.forEach(dbField => {
               const lowerDbField = dbField.value.toLowerCase().replace(/_/g, '');
@@ -102,7 +111,6 @@ export default function SettingsPage() {
         return;
     }
     
-    // Validate required fields are mapped
     const unmappedRequiredField = dbProductFields.find(f => f.required && !fieldMapping[f.value]);
     if (unmappedRequiredField) {
         toast({ title: "Mapping Incomplete", description: `Please map a column for the required field: ${unmappedRequiredField.label}`, variant: "destructive" });
@@ -161,10 +169,7 @@ export default function SettingsPage() {
             'Is_Service': p.isService,
         }));
         
-        // Convert JSON to CSV using PapaParse for better encoding control
         const csv = Papa.unparse(dataToExport);
-        
-        // Create a Blob with UTF-8 BOM for Excel compatibility with special characters
         const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -239,6 +244,62 @@ export default function SettingsPage() {
         toast({ title: "Backup Failed", description: result.error || "Could not complete full database backup.", variant: "destructive" });
     }
     setIsProcessing(false);
+  };
+
+   const handleRestoreFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.name.endsWith('.db')) {
+      setFileToRestore(file);
+    } else {
+      toast({ title: "Invalid File", description: "Please select a valid .db backup file.", variant: "destructive" });
+      setFileToRestore(null);
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!fileToRestore) {
+        setRestoreError("No file selected for restore.");
+        return;
+    }
+    setRestoreError("");
+    setIsProcessing(true);
+
+    const passwordResult = await verifyAdminPasswordAction(adminPassword);
+    if (!passwordResult.success) {
+        setRestoreError(passwordResult.error || "Invalid admin password.");
+        setIsProcessing(false);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(fileToRestore);
+    reader.onload = async () => {
+        const base64Data = reader.result as string;
+        // Remove the 'data:*/*;base64,' prefix
+        const base64Content = base64Data.substring(base64Data.indexOf(',') + 1);
+
+        const restoreResult = await restoreFullDatabaseAction(currentUser!.id, base64Content);
+        if (restoreResult.success) {
+            toast({
+                title: "Restore Successful",
+                description: "Database restored successfully. The application will now reload.",
+                duration: 5000,
+            });
+            setIsRestoreConfirmOpen(false);
+            setFileToRestore(null);
+            setAdminPassword('');
+            // Force a reload to connect to the new database
+            window.location.reload();
+        } else {
+            setRestoreError(restoreResult.error || "Failed to restore database.");
+            toast({ title: "Restore Failed", description: restoreResult.error, variant: "destructive" });
+        }
+        setIsProcessing(false);
+    };
+    reader.onerror = () => {
+        setRestoreError("Failed to read the backup file.");
+        setIsProcessing(false);
+    };
   };
 
   return (
@@ -376,18 +437,55 @@ export default function SettingsPage() {
             </Card>
             <Card className="border-destructive/50">
               <CardHeader>
-                <CardTitle className="flex items-center text-destructive"><Replace className="mr-2 h-5 w-5" /> Restore Data</CardTitle>
-                <CardDescription className="text-destructive/80">Restoring will **overwrite** current data. This action is not implemented in the UI and must be done manually by a developer.</CardDescription>
+                <CardTitle className="flex items-center text-destructive"><Replace className="mr-2 h-5 w-5" /> Restore Full Database</CardTitle>
+                <CardDescription className="text-destructive/80">Restoring will **OVERWRITE** all current data. This action is irreversible.</CardDescription>
               </CardHeader>
-              <CardContent>
-                 <Button variant="destructive" disabled={true} className="w-full">
-                    Restore From Backup (Disabled)
+              <CardContent className="space-y-3">
+                 <div>
+                    <Label htmlFor="restore-file">Select .db Backup File</Label>
+                    <Input id="restore-file" type="file" ref={restoreFileInputRef} onChange={handleRestoreFileSelect} accept=".db" className="bg-input border-border" disabled={!isSuperAdmin} />
+                 </div>
+                 <Button onClick={() => setIsRestoreConfirmOpen(true)} disabled={!fileToRestore || isProcessing || !isSuperAdmin} className="w-full" variant="destructive">
+                    {isProcessing ? 'Processing...' : 'Restore Database'}
                  </Button>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
       </Tabs>
+      
+      <AlertDialog open={isRestoreConfirmOpen} onOpenChange={setIsRestoreConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently overwrite the entire current database with the contents of the backup file <strong className="text-foreground">{fileToRestore?.name}</strong>. This action cannot be undone. To proceed, please enter an admin password.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2">
+                <Label htmlFor="admin-password-restore">Admin Password</Label>
+                <Input
+                    id="admin-password-restore"
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => { setAdminPassword(e.target.value); setRestoreError(''); }}
+                    placeholder="Enter admin password to confirm"
+                />
+                {restoreError && <p className="text-xs text-destructive">{restoreError}</p>}
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setAdminPassword(''); setRestoreError(''); }}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    onClick={handleConfirmRestore}
+                    disabled={isProcessing || !adminPassword}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                    {isProcessing ? 'Restoring...' : 'Confirm & Restore'}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
