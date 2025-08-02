@@ -150,23 +150,32 @@ export default function SettingsPage() {
     if (result.success && result.data) {
         const dataToExport = result.data.map(p => ({
             'Name': p.name,
-            'Code': p.code,
-            'Category': p.category,
-            'Barcode': p.barcode,
+            'Code': p.code || '',
+            'Category': p.category || '',
+            'Barcode': p.barcode || '',
             'Selling_Price': p.sellingPrice,
-            'Cost_Price_Avg': p.costPrice,
+            'Cost_Price_Avg': p.costPrice || 0,
             'Stock_Total': p.stock,
             'Base_Unit': p.units.baseUnit,
             'Is_Active': p.isActive,
             'Is_Service': p.isService,
         }));
+        
+        // Convert JSON to CSV using PapaParse for better encoding control
+        const csv = Papa.unparse(dataToExport);
+        
+        // Create a Blob with UTF-8 BOM for Excel compatibility with special characters
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `products_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
-        XLSX.writeFile(workbook, `products_export_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-        toast({ title: "Export Complete", description: "Product data downloaded successfully." });
+        toast({ title: "Export Complete", description: "Product data CSV downloaded successfully." });
     } else {
         toast({ title: "Export Failed", description: result.error || "Could not export products.", variant: "destructive" });
     }
@@ -253,11 +262,11 @@ export default function SettingsPage() {
              <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center"><FileDown className="mr-2 h-5 w-5 text-primary" /> Export Products</CardTitle>
-                  <CardDescription>Download all your current product data into a single Excel file.</CardDescription>
+                  <CardDescription>Download all your current product data into a single CSV file, compatible with Excel.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button onClick={handleExportProducts} disabled={isProcessing || !canManageSettings} className="w-full">
-                    {isProcessing ? 'Processing...' : 'Export All Products to Excel'}
+                    {isProcessing ? 'Processing...' : 'Export All Products to CSV'}
                   </Button>
                 </CardContent>
               </Card>
