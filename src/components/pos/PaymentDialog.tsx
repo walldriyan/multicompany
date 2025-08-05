@@ -35,6 +35,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import type { PaymentMethod, SaleItem, SaleRecordItem, AppliedRuleInfo, Party as CustomerType, CompanyProfileFormData } from '@/types';
 import { ArrowLeft, Printer, CheckCircle, Users, Search, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch'; // Import Switch component
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -199,6 +200,9 @@ export function PaymentFormContent({
     const [companyProfile, setCompanyProfile] = useState<CompanyProfileFormData | null>(null);
     const [isLoadingCompanyProfile, setIsLoadingCompanyProfile] = useState(false);
 
+    // New state for auto-print toggle
+    const [autoPrintOnConfirm, setAutoPrintOnConfirm] = useState(true);
+
      const saleRecordItemsForPrint: SaleRecordItem[] = currentSaleItemsFromStore.map(item => {
         // **FIX**: Use `item.price` which is the actual batch/sale price, not `item.sellingPrice` (default product price).
         const originalItemPrice = item.price ?? 0;
@@ -240,6 +244,12 @@ export function PaymentFormContent({
           setIsLoadingCustomers(false);
           setIsLoadingCompanyProfile(false);
         };
+        // Load auto-print preference from localStorage
+        const savedAutoPrint = localStorage.getItem('posAutoPrint');
+        if (savedAutoPrint !== null) {
+            setAutoPrintOnConfirm(JSON.parse(savedAutoPrint));
+        }
+
         fetchInitialData();
         setCashAmountPaidStr(''); setCardAmountPaidNowStr(''); setChangeDue(0);
         if (paymentMethod === 'cash') setTimeout(() => amountPaidInputRef.current?.focus(), 100);
@@ -253,23 +263,6 @@ export function PaymentFormContent({
         else setChangeDue(0);
       } else { setChangeDue(0); }
     }, [cashAmountPaidStr, total, paymentMethod]);
-
-    const handleConfirmPayment = () => {
-      let finalAmountPaid = 0;
-      if (paymentMethod === 'cash') {
-        const paid = parseFloat(cashAmountPaidStr);
-        if (isNaN(paid) || paid < total) { alert("Amount paid by cash is less than total or invalid."); return; }
-        finalAmountPaid = paid;
-      } else if (paymentMethod === 'credit') {
-        finalAmountPaid = parseFloat(cardAmountPaidNowStr) || 0; 
-        if (finalAmountPaid < 0) { alert("Card payment amount cannot be negative."); return; }
-      }
-      onPaymentSuccess({
-          customerName: selectedCustomer ? selectedCustomer.name : manualCustomerName || undefined,
-          customerId: selectedCustomer ? selectedCustomer.id : null,
-          amountPaid: finalAmountPaid, changeDue: paymentMethod === 'cash' ? changeDue : 0,
-      });
-    };
 
     const handlePrintBill = () => {
       setIsBillVisibleForPrint(true);
@@ -313,6 +306,27 @@ export function PaymentFormContent({
           setTimeout(() => { if(iframe.parentNode) document.body.removeChild(iframe); }, 500);
           setIsBillVisibleForPrint(false);
       }, 100);
+    };
+
+    const handleConfirmPayment = () => {
+      let finalAmountPaid = 0;
+      if (paymentMethod === 'cash') {
+        const paid = parseFloat(cashAmountPaidStr);
+        if (isNaN(paid) || paid < total) { alert("Amount paid by cash is less than total or invalid."); return; }
+        finalAmountPaid = paid;
+      } else if (paymentMethod === 'credit') {
+        finalAmountPaid = parseFloat(cardAmountPaidNowStr) || 0; 
+        if (finalAmountPaid < 0) { alert("Card payment amount cannot be negative."); return; }
+      }
+      onPaymentSuccess({
+          customerName: selectedCustomer ? selectedCustomer.name : manualCustomerName || undefined,
+          customerId: selectedCustomer ? selectedCustomer.id : null,
+          amountPaid: finalAmountPaid, changeDue: paymentMethod === 'cash' ? changeDue : 0,
+      });
+
+      if (autoPrintOnConfirm) {
+        handlePrintBill();
+      }
     };
 
     const currentAmountPaidForPrint = paymentMethod === 'cash' ? (parseFloat(cashAmountPaidStr) || 0) : (parseFloat(cardAmountPaidNowStr) || 0);
@@ -434,9 +448,17 @@ export function PaymentFormContent({
                     <div className="text-2xl font-bold text-primary mt-auto"><span>Total to Pay: Rs. {total.toFixed(2)}</span></div>
                     
                     <div className="flex w-full justify-between items-center pt-4 border-t border-border">
-                         <Button variant="outline" onClick={handlePrintBill} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" disabled={saleRecordItemsForPrint.length === 0 || isLoadingCompanyProfile}>
-                            <Printer className="mr-2 h-4 w-4" /> {isLoadingCompanyProfile ? 'Loading...' : 'Print Bill'}
-                         </Button>
+                         <div className="flex items-center space-x-2">
+                            <Switch
+                                id="auto-print"
+                                checked={autoPrintOnConfirm}
+                                onCheckedChange={(checked) => {
+                                    setAutoPrintOnConfirm(checked);
+                                    localStorage.setItem('posAutoPrint', JSON.stringify(checked));
+                                }}
+                            />
+                            <Label htmlFor="auto-print" className="text-xs">Auto Print on Confirm</Label>
+                        </div>
                         <Button onClick={handleConfirmPayment} className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-6" disabled={confirmButtonDisabled}>
                             <CheckCircle className="mr-2 h-5 w-5" /> Confirm Payment
                         </Button>
