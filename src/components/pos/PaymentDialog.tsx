@@ -350,9 +350,9 @@ export function PaymentFormContent({
                         />
                     </div>
                     <Separator className="bg-border" />
-                    <div className="flex flex-col flex-1 p-4 pt-2 overflow-hidden">
+                    <div className="flex flex-col p-4 pt-2 overflow-hidden">
                         <h3 className="text-lg font-semibold text-card-foreground mb-2">Bill Preview (Receipt Style)</h3>
-                        <ScrollArea className="flex-1 border border-border rounded-md bg-white p-1">
+                        <ScrollArea className="border border-border rounded-md bg-white p-[5px]">
                             <div className="w-[290px] p-2 mx-auto text-black font-mono text-[8pt] leading-tight print-preview-content">
                                 <style jsx>{`...`}</style>
                                 <BillPrintContent
