@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, CalendarIcon, UserIcon, BarChart3, Printer, AlertTriangle, Package, ShoppingCart, Users, Briefcase, Archive, Wallet, Tag, CornerDownRight, TrendingUp, TrendingDown, ChevronsRight, FileText, Sigma, FileDiff } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, UserIcon, BarChart3, Printer, AlertTriangle, Package, ShoppingCart, Users, Briefcase, Archive, Wallet, Tag, CornerDownRight, TrendingUp, TrendingDown, ChevronsRight, FileText, Sigma, FileDiff, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { useSelector } from 'react-redux';
@@ -31,7 +31,7 @@ import { selectCurrentUser } from '@/store/slices/authSlice';
 export default function ReportsPage() {
   const { toast } = useToast();
   const currentUser = useSelector(selectCurrentUser);
-  const [date, setDate] = useState<DateRange | undefined>({ from: startOfDay(addDays(new Date(), -30)), to: endOfDay(new Date()) });
+  const [date, setDate] = useState<DateRange | undefined>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
@@ -117,16 +117,123 @@ export default function ReportsPage() {
     setIsPopoverOpen(false);
   };
   
-  const handlePrint = () => {
+  const handlePrint = (summaryOnly = false) => {
     const content = printRef.current;
     if (!content) return;
     
     const printWindow = window.open('', '', 'height=800,width=1000');
     if (printWindow) {
       printWindow.document.write('<html><head><title>Print Report</title>');
-      printWindow.document.write('<style>body { font-family: sans-serif; margin: 20px; } table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.8em; } th, td { border: 1px solid #ddd; padding: 6px; text-align: left; } tr:nth-child(even) {background-color: #f9f9f9;} th { background-color: #f2f2f2; } h1, h2, h3, h4 { color: #333; } .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; } .summary-card { border: 1px solid #ddd; padding: 1rem; border-radius: 0.5rem; } .summary-card h4 { margin-top: 0; } .final-summary { border-top: 2px solid #333; margin-top: 1rem; padding-top: 1rem; } .final-summary .row { display: flex; justify-content: space-between; font-size: 1.1em; } .no-print { display: none; } @page { size: A4; margin: 20mm; } @media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } } </style>');
+      const styles = `
+          body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 20px; 
+            color: #333; 
+            background-color: #fff;
+            line-height: 1.6;
+          }
+          h1, h2, h3, h4 { 
+            color: #111; 
+            margin-top: 1.2em;
+            margin-bottom: 0.6em;
+          }
+          h1 { font-size: 24px; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+          h2 { font-size: 20px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+          h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+          p { margin: 0 0 10px 0; }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px; 
+            font-size: 14px; 
+          }
+          th, td { 
+            padding: 10px 12px; 
+            text-align: left;
+            border-bottom: 1px solid #eaeaea;
+          }
+          thead tr { 
+            background-color: #fafafa;
+            color: #555;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+          }
+          tbody tr:hover {
+            background-color: #f9f9f9;
+          }
+          tfoot td {
+            font-weight: bold;
+            background-color: #fafafa;
+          }
+          .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 1.5rem; 
+            margin-bottom: 1.5rem; 
+          }
+          .summary-card { 
+            border: 1px solid #e2e8f0; 
+            padding: 1.2rem; 
+            border-radius: 8px; 
+            background-color: #fff;
+          }
+          .summary-card h4 { 
+            margin-top: 0;
+            margin-bottom: 1rem; 
+            font-size: 16px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+          }
+          .summary-card .row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 14px; 
+            padding: 6px 0; 
+          }
+          .summary-card .row:not(:last-child) {
+            border-bottom: 1px dotted #eee;
+          }
+          .summary-card .row span:last-child {
+            font-weight: 500;
+          }
+          .summary-card .total-row { 
+            font-weight: bold; 
+            border-top: 2px solid #e2e8f0; 
+            padding-top: 10px; 
+            margin-top: 10px; 
+            font-size: 15px;
+          }
+          .final-summary { 
+            margin-top: 1.5rem; 
+            padding: 1.5rem;
+            background-color: #f7f7f7;
+            border-radius: 8px;
+            border-top: 3px solid #333;
+          }
+          .final-summary .row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 22px; 
+            font-weight: bold; 
+          }
+          .no-print { 
+            display: none !important; 
+          }
+          @page { 
+            size: A4; 
+            margin: 20mm; 
+          }
+          @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 11pt; }
+              .no-print { display: none !important; }
+              .print-only-summary .detailed-section { display: none; }
+          }
+      `;
+      printWindow.document.write(`<style>${styles}</style>`);
       printWindow.document.write('</head><body>');
-      printWindow.document.write(content.innerHTML);
+      printWindow.document.write(`<div class="${summaryOnly ? 'print-only-summary' : ''}">${content.innerHTML}</div>`);
       printWindow.document.write('</body></html>');
       printWindow.document.close();
       printWindow.focus();
@@ -212,12 +319,17 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleGenerateReport} disabled={isLoading || isSuperAdminWithoutCompany} className="self-end sm:ml-auto bg-primary text-primary-foreground hover:bg-primary/90">
-            {isLoading ? 'Generating...' : 'Generate Report'}
-          </Button>
-          <Button onClick={handlePrint} disabled={!reportData} variant="outline" className="self-end border-accent text-accent hover:bg-accent hover:text-accent-foreground">
-            <Printer className="mr-2 h-4 w-4" /> Print / Export PDF
-          </Button>
+          <div className="flex items-center gap-2 self-end sm:ml-auto">
+            <Button onClick={() => handlePrint(true)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                <Printer className="mr-2 h-4 w-4" /> Print Summary
+            </Button>
+            <Button onClick={() => handlePrint(false)} disabled={!reportData} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                <Printer className="mr-2 h-4 w-4" /> Print Full Report
+            </Button>
+            <Button onClick={handleGenerateReport} disabled={isLoading || isSuperAdminWithoutCompany} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              {isLoading ? 'Generating...' : 'Generate Report'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -252,102 +364,66 @@ export default function ReportsPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader><CardTitle>Profit &amp; Loss Summary</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                  <div>
-                    <Table className="border border-green-800/50">
-                      <TableHeader>
-                        <TableRow className="bg-green-950/30 border-green-800/50 hover:bg-green-950/40">
-                          <TableHead className="text-lg font-semibold text-green-400" colSpan={2}>
-                            <TrendingUp className="inline-block mr-2 h-5 w-5"/> Income / Gains
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className="border-green-800/50">
-                          <TableCell className="text-muted-foreground">Net Sales (from Active Bills)</TableCell>
-                          <TableCell className="text-right font-medium text-green-300">Rs. {reportData.summary.netSales.toFixed(2)}</TableCell>
-                        </TableRow>
-                        <TableRow className="border-green-800/50">
-                          <TableCell className="text-muted-foreground">Other Income</TableCell>
-                          <TableCell className="text-right font-medium text-green-300">Rs. {reportData.summary.totalIncome.toFixed(2)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                      <TableFooter className="bg-green-950/30 border-t border-green-800/50">
-                        <TableRow>
-                          <TableCell className="font-bold text-base text-green-200">Total Income / Gains</TableCell>
-                          <TableCell className="text-right font-bold text-base text-green-200">Rs. {(reportData.summary.netSales + reportData.summary.totalIncome).toFixed(2)}</TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Sales Summary Card */}
+                  <div className="p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-semibold text-foreground mb-2 flex items-center"><TrendingUp className="mr-2 h-5 w-5 text-green-400"/>Sales Summary</h4>
+                    <div className="text-sm space-y-1">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Gross Sales:</span><span>Rs. {reportData.summary.grossSales.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Discounts:</span><span className="text-red-400">-Rs. {reportData.summary.totalDiscounts.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Tax:</span><span>Rs. {reportData.summary.totalTax.toFixed(2)}</span></div>
+                        <Separator className="my-1" />
+                        <div className="flex justify-between font-bold"><span className="text-foreground">Net Sales:</span><span>Rs. {reportData.summary.netSales.toFixed(2)}</span></div>
+                    </div>
                   </div>
-                  <div>
-                    <Table className="border border-red-800/50">
-                      <TableHeader>
-                        <TableRow className="bg-red-950/30 border-red-800/50 hover:bg-red-950/40">
-                          <TableHead className="text-lg font-semibold text-red-400" colSpan={2}>
-                            <TrendingDown className="inline-block mr-2 h-5 w-5"/> Expenses &amp; Outflows
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className="border-red-800/50">
-                          <TableCell className="text-muted-foreground">Payments to Suppliers</TableCell>
-                          <TableCell className="text-right font-medium text-red-300">Rs. {reportData.summary.totalPaymentsToSuppliers.toFixed(2)}</TableCell>
-                        </TableRow>
-                        <TableRow className="border-red-800/50">
-                          <TableCell className="text-muted-foreground">Other Expenses</TableCell>
-                          <TableCell className="text-right font-medium text-red-300">Rs. {reportData.summary.totalExpense.toFixed(2)}</TableCell>
-                        </TableRow>
-                        <TableRow className="border-red-800/50">
-                          <TableCell className="text-muted-foreground">Stock Loss Value (Non-Cash)</TableCell>
-                          <TableCell className="text-right font-medium text-red-300">Rs. {reportData.summary.totalStockAdjustmentsValue.toFixed(2)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                      <TableFooter className="bg-red-950/30 border-t border-red-800/50">
-                        <TableRow>
-                          <TableCell className="font-bold text-base text-red-200">Total Expenses &amp; Outflows</TableCell>
-                          <TableCell className="text-right font-bold text-base text-red-200">Rs. {(reportData.summary.totalPaymentsToSuppliers + reportData.summary.totalExpense + reportData.summary.totalStockAdjustmentsValue).toFixed(2)}</TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
+                  {/* Credit Summary Card */}
+                  <div className="p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-semibold text-foreground mb-2 flex items-center"><Coins className="mr-2 h-5 w-5 text-yellow-400"/>Credit Summary</h4>
+                     <div className="text-sm space-y-1">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total Credit Sales:</span><span>Rs. {reportData.summary.totalCreditSales.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Payments on Credit Sales:</span><span className="text-green-400">+Rs. {reportData.summary.totalPaymentsOnCreditSales.toFixed(2)}</span></div>
+                         <Separator className="my-1" />
+                        <div className="flex justify-between font-bold"><span className="text-foreground">Total Outstanding Debt:</span><span className="text-red-400">Rs. {reportData.summary.outstandingCreditAmount.toFixed(2)}</span></div>
+                    </div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Income / Credits Card */}
+                    <div className="p-4 border rounded-lg bg-green-900/10 border-green-500/30">
+                        <h4 className="font-semibold text-green-300 mb-2 flex items-center"><TrendingUp className="mr-2 h-5 w-5"/>Income / Credits</h4>
+                        <div className="text-sm space-y-1">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Cash Sales:</span><span className="text-green-400">Rs. {reportData.summary.totalCashSales.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Credit Payments Received:</span><span className="text-green-400">Rs. {reportData.summary.totalPaymentsOnCreditSales.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Other Income:</span><span className="text-green-400">Rs. {reportData.summary.totalIncome.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                    {/* Expenses / Debits Card */}
+                    <div className="p-4 border rounded-lg bg-red-900/10 border-red-500/30">
+                        <h4 className="font-semibold text-red-300 mb-2 flex items-center"><TrendingDown className="mr-2 h-5 w-5"/>Expenses / Debits</h4>
+                        <div className="text-sm space-y-1">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Cost of Goods Sold:</span><span className="text-red-400">-Rs. {reportData.summary.costOfGoodsSold.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Other Expenses:</span><span className="text-red-400">-Rs. {reportData.summary.totalExpense.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Net Profit/Loss Section */}
                 <div className="mt-6 pt-4 border-t-2 border-primary/50">
-                  <div className="flex justify-between items-center text-xl font-bold">
-                    <span className="text-primary flex items-center"><Sigma className="mr-2 h-5 w-5"/> NET PROFIT / LOSS</span>
-                    <span className={reportData.summary.netProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      Rs. {reportData.summary.netProfitLoss.toFixed(2)}
-                    </span>
-                  </div>
+                    <div className="flex justify-between items-center text-xl">
+                        <span className="font-bold text-primary flex items-center"><Sigma className="mr-2 h-5 w-5"/> Net Profit/Loss</span>
+                        <span className={`font-bold text-2xl ${reportData.summary.netProfitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            Rs. {reportData.summary.netProfitLoss.toFixed(2)}
+                        </span>
+                    </div>
                 </div>
+
               </CardContent>
             </Card>
 
             <Accordion type="multiple" defaultValue={['sales']} className="w-full space-y-4">
-              <AccordionItem value="sales-metrics"><AccordionTrigger><Tag className="mr-2 h-4 w-4"/>Sales &amp; Inventory Metrics</AccordionTrigger><AccordionContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card><CardHeader><CardTitle className="text-base">Sales Analysis</CardTitle></CardHeader><CardContent>
-                    <Table>
-                      <TableBody>
-                        <TableRow><TableCell className="text-muted-foreground">Gross Sales</TableCell><TableCell className="text-right">Rs. {reportData.summary.grossSales.toFixed(2)}</TableCell></TableRow>
-                        <TableRow><TableCell className="text-muted-foreground">Discounts Given</TableCell><TableCell className="text-right text-red-400">- Rs. {reportData.summary.totalDiscounts.toFixed(2)}</TableCell></TableRow>
-                        <TableRow className="font-semibold border-t-2 border-border"><TableCell>Net Sales</TableCell><TableCell className="text-right">Rs. {reportData.summary.netSales.toFixed(2)}</TableCell></TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-base">Inventory Cost Analysis</CardTitle></CardHeader><CardContent>
-                     <Table>
-                      <TableBody>
-                         <TableRow><TableCell className="text-muted-foreground">Cost of Goods Sold (COGS)</TableCell><TableCell className="text-right">Rs. {reportData.summary.costOfGoodsSold.toFixed(2)}</TableCell></TableRow>
-                         <TableRow><TableCell className="text-muted-foreground">Stock Loss Value</TableCell><TableCell className="text-right">Rs. {reportData.summary.totalStockAdjustmentsValue.toFixed(2)}</TableCell></TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent></Card>
-                </div>
-              </AccordionContent></AccordionItem>
-
-               <AccordionItem value="sales"><AccordionTrigger><FileText className="mr-2 h-4 w-4"/>Sales &amp; Returns Transactions</AccordionTrigger><AccordionContent>
+              <AccordionItem value="sales" className="detailed-section"><AccordionTrigger><FileText className="mr-2 h-4 w-4"/>Sales &amp; Returns Transactions</AccordionTrigger><AccordionContent>
                 <Card><CardHeader><CardTitle>Sales Transactions ({salesTransactionGroups.length} original bills)</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {salesTransactionGroups.length > 0 ? salesTransactionGroups.map(group => {
@@ -429,7 +505,7 @@ export default function ReportsPage() {
                 </CardContent></Card>
               </AccordionContent></AccordionItem>
               
-              <AccordionItem value="purchases"><AccordionTrigger><ShoppingCart className="mr-2 h-4 w-4"/>Purchases</AccordionTrigger><AccordionContent>
+              <AccordionItem value="purchases" className="detailed-section"><AccordionTrigger><ShoppingCart className="mr-2 h-4 w-4"/>Purchases</AccordionTrigger><AccordionContent>
                 <Card><CardHeader><CardTitle>Purchase Bills ({reportData.purchases.length})</CardTitle></CardHeader><CardContent>
                   <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>User</TableHead><TableHead>Supplier Bill No</TableHead><TableHead>Supplier</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                     <TableBody>{reportData.purchases.length > 0 ? reportData.purchases.map(p => (<TableRow key={p.id}><TableCell>{new Date(p.purchaseDate).toLocaleDateString()}</TableCell><TableCell>{p.createdBy?.username || 'N/A'}</TableCell><TableCell>{p.supplierBillNumber}</TableCell><TableCell>{p.supplier?.name}</TableCell><TableCell className="text-right">Rs. {p.totalAmount.toFixed(2)}</TableCell>
@@ -441,7 +517,7 @@ export default function ReportsPage() {
                 </CardContent></Card>
               </AccordionContent></AccordionItem>
 
-              <AccordionItem value="financials"><AccordionTrigger><Briefcase className="mr-2 h-4 w-4"/>Income &amp; Expenses</AccordionTrigger><AccordionContent>
+              <AccordionItem value="financials" className="detailed-section"><AccordionTrigger><Briefcase className="mr-2 h-4 w-4"/>Income &amp; Expenses</AccordionTrigger><AccordionContent>
                 <Card><CardHeader><CardTitle>Financial Transactions ({reportData.financialTransactions.length})</CardTitle></CardHeader><CardContent>
                   <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Category</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                     <TableBody>{reportData.financialTransactions.length > 0 ? reportData.financialTransactions.map(tx => (<TableRow key={tx.id}><TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell><TableCell>{tx.user?.username || 'N/A'}</TableCell><TableCell><Badge variant={tx.type === 'INCOME' ? 'default' : 'destructive'} className={tx.type === 'INCOME' ? 'bg-green-500/80' : 'bg-red-500/80'}>{tx.type}</Badge></TableCell><TableCell>{tx.category}</TableCell><TableCell>{tx.description}</TableCell><TableCell className={`text-right font-medium ${tx.type === 'INCOME' ? 'text-green-400' : 'text-red-400'}`}>Rs. {tx.amount.toFixed(2)}</TableCell></TableRow>))
@@ -451,7 +527,7 @@ export default function ReportsPage() {
                 </CardContent></Card>
               </AccordionContent></AccordionItem>
 
-              <AccordionItem value="stock"><AccordionTrigger><Archive className="mr-2 h-4 w-4"/>Stock Adjustments</AccordionTrigger><AccordionContent>
+              <AccordionItem value="stock" className="detailed-section"><AccordionTrigger><Archive className="mr-2 h-4 w-4"/>Stock Adjustments</AccordionTrigger><AccordionContent>
                  <Card><CardHeader><CardTitle>Stock Adjustments ({reportData.stockAdjustments.length})</CardTitle></CardHeader><CardContent>
                   <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>User</TableHead><TableHead>Product</TableHead><TableHead>Reason</TableHead><TableHead className="text-right">Qty Changed</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
                     <TableBody>{reportData.stockAdjustments.length > 0 ? reportData.stockAdjustments.map(adj => (<TableRow key={adj.id}><TableCell>{new Date(adj.adjustedAt).toLocaleString()}</TableCell><TableCell>{adj.user?.username || 'N/A'}</TableCell><TableCell>{adj.product.name}</TableCell><TableCell>{adj.reason}</TableCell><TableCell className={`text-right font-medium ${adj.quantityChanged > 0 ? 'text-green-400' : 'text-red-400'}`}>{adj.quantityChanged}</TableCell><TableCell>{adj.notes}</TableCell></TableRow>))
@@ -461,7 +537,7 @@ export default function ReportsPage() {
                 </CardContent></Card>
               </AccordionContent></AccordionItem>
               
-              <AccordionItem value="cash"><AccordionTrigger><Wallet className="mr-2 h-4 w-4"/>Cash Register</AccordionTrigger><AccordionContent>
+              <AccordionItem value="cash" className="detailed-section"><AccordionTrigger><Wallet className="mr-2 h-4 w-4"/>Cash Register</AccordionTrigger><AccordionContent>
                  <Card><CardHeader><CardTitle>Cash Register Shifts ({reportData.cashRegisterShifts.length})</CardTitle></CardHeader><CardContent>
                    <Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Started</TableHead><TableHead>Closed</TableHead><TableHead className="text-right">Opening</TableHead><TableHead className="text-right">Closing</TableHead><TableHead className="text-right">Net</TableHead></TableRow></TableHeader>
                      <TableBody>{reportData.cashRegisterShifts.length > 0 ? reportData.cashRegisterShifts.map(s => { const net = s.closingBalance ? s.closingBalance - s.openingBalance : null; return (<TableRow key={s.id}><TableCell>{s.user?.username}</TableCell><TableCell>{new Date(s.startedAt).toLocaleString()}</TableCell><TableCell>{s.closedAt ? new Date(s.closedAt).toLocaleString() : "OPEN"}</TableCell><TableCell className="text-right">Rs. {s.openingBalance.toFixed(2)}</TableCell><TableCell className="text-right">{s.closingBalance ? `Rs. ${s.closingBalance.toFixed(2)}` : 'N/A'}</TableCell><TableCell className={`text-right font-medium ${net === null ? '' : (net >= 0 ? 'text-green-400' : 'text-red-400')}`}>{net !== null ? `Rs. ${net.toFixed(2)}` : 'N/A'}</TableCell></TableRow>);})
@@ -471,7 +547,7 @@ export default function ReportsPage() {
                  </CardContent></Card>
               </AccordionContent></AccordionItem>
 
-              <AccordionItem value="updates"><AccordionTrigger><FileDiff className="mr-2 h-4 w-4"/>Product &amp; Contact Updates</AccordionTrigger><AccordionContent>
+              <AccordionItem value="updates" className="detailed-section"><AccordionTrigger><FileDiff className="mr-2 h-4 w-4"/>Product &amp; Contact Updates</AccordionTrigger><AccordionContent>
                 <Card><CardHeader><CardTitle>Products Created/Updated ({reportData.newOrUpdatedProducts.length})</CardTitle></CardHeader><CardContent>
                   <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Updated At</TableHead></TableRow></TableHeader>
                     <TableBody>{reportData.newOrUpdatedProducts.length > 0 ? reportData.newOrUpdatedProducts.map(p => (<TableRow key={`prod-${p.id}`}><TableCell>{p.name}</TableCell><TableCell>{p.category}</TableCell><TableCell>{new Date(p.updatedAt!).toLocaleString()}</TableCell></TableRow>))

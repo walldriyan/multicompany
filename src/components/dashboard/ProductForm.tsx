@@ -241,24 +241,6 @@ export function ProductForm({
     <form onSubmit={handleSubmit(handleProductFormSubmitInternal)} className="space-y-4 pb-4">
       {formError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{formError}</p>}
 
-      {submissionDetails && (
-        <div className="mb-3 p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
-          <div className="flex items-center space-x-2 flex-grow">
-            <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-500" />
-            <span className="text-sm">Product "{submissionDetails.name}" saved successfully!</span>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClearAndPrepareForNew}
-            className="ml-auto border-green-600 text-green-700 hover:bg-green-600 hover:text-white dark:border-green-500 dark:text-green-400 dark:hover:bg-green-500 dark:hover:text-card-foreground text-xs px-3 py-1 h-auto self-start sm:self-center"
-            disabled={isProductFormLoading}
-          >
-            <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> Add Another Product
-          </Button>
-        </div>
-      )}
-
       <Tabs defaultValue="details" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details"><Package2 className="mr-2 h-4 w-4" />Product Details</TabsTrigger>
@@ -713,6 +695,24 @@ export function ProductForm({
           </TabsContent>
       </Tabs>
       
+      {submissionDetails && (
+        <div className="mt-4 p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
+          <div className="flex items-center space-x-2 flex-grow">
+            <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-500" />
+            <span className="text-sm">Product "{submissionDetails.name}" saved successfully!</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClearAndPrepareForNew}
+            className="ml-auto border-green-600 text-green-700 hover:bg-green-600 hover:text-white dark:border-green-500 dark:text-green-400 dark:hover:bg-green-500 dark:hover:text-card-foreground text-xs px-3 py-1 h-auto self-start sm:self-center"
+            disabled={isProductFormLoading}
+          >
+            <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> Add Another Product
+          </Button>
+        </div>
+      )}
+
       <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isProductFormLoading} className="border-muted text-muted-foreground hover:bg-muted/80">

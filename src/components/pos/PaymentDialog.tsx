@@ -289,8 +289,10 @@ export function PaymentFormContent({
               const printHtml = `
                   <html><head><title>Print Bill - ${billNumber}</title>
                   <style>
-                      body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
-                      .receipt-container { width: 280px; margin: 0 auto; padding: 5px; } table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
+                      @page { size: auto;  margin: 0mm; }
+                      body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
+                      .receipt-container { width: 280px; margin: 0 auto; padding: 5px; height: fit-content; } 
+                      table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
                       th, td { padding: 1px 2px; vertical-align: top; font-size: 7pt; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
                       .font-bold { font-weight: bold; } .company-details p, .header-info p, .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
                       .company-details h3 { font-size: 10pt; margin: 1px 0;} .item-name { word-break: break-all; max-width: 60px; }
@@ -302,7 +304,7 @@ export function PaymentFormContent({
                       .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; }
                       .discount-details div { display: flex; justify-content: space-between; } .discount-details span:first-child { padding-right: 3px; }
                       th { font-size: 7pt; white-space: normal; text-align: right; } th.item-name { text-align: left; }
-                      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important;} .receipt-container { margin: 0; padding:0; width: 100%; } table { font-size: 7pt !important; } }
+                      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; height: auto !important; } .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; } table { font-size: 7pt !important; } }
                   </style></head><body><div class="receipt-container">${printContents}</div></body></html>
               `;
               doc.write(printHtml); doc.close();
@@ -350,9 +352,9 @@ export function PaymentFormContent({
                         />
                     </div>
                     <Separator className="bg-border" />
-                    <div className="flex flex-col flex-1 p-4 pt-2 overflow-hidden">
+                    <div className="p-4 pt-2">
                         <h3 className="text-lg font-semibold text-card-foreground mb-2">Bill Preview (Receipt Style)</h3>
-                        <ScrollArea className="flex-1 border border-border rounded-md bg-white p-1">
+                        <ScrollArea className="h-auto flex-1 border border-border rounded-md bg-white p-[5px]">
                             <div className="w-[290px] p-2 mx-auto text-black font-mono text-[8pt] leading-tight print-preview-content">
                                 <style jsx>{`...`}</style>
                                 <BillPrintContent

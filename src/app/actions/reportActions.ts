@@ -36,7 +36,7 @@ export async function getComprehensiveReportAction(
     const companyFilter = { companyId: companyId };
     
     // Use specific where clauses for each query to ensure correct field names are used.
-    const salesWhere = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
+    const salesWhere: Prisma.SaleRecordWhereInput = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
     const financialsWhere = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForOtherRecords };
     const stockWhere = { adjustedAt: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForOtherRecords };
     const purchasesWhere = { purchaseDate: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
@@ -50,7 +50,7 @@ export async function getComprehensiveReportAction(
 
     const salesAndReturns = await prisma.saleRecord.findMany({
       where: salesWhere,
-      include: { customer: true, createdBy: { select: { username: true } } },
+      include: { customer: true, createdBy: { select: { username: true } }, paymentInstallments: true }, // Include installments
       orderBy: { date: 'asc' },
     });
 
@@ -84,39 +84,72 @@ export async function getComprehensiveReportAction(
 
 
     // --- Identify Active Sale Records for Summary ---
-    const salesByBillNumber = new Map<string, { original: SaleRecord; adjusted: SaleRecord[] }>();
+    const salesByBillNumber = new Map<string, { original: SaleRecord; adjusted: SaleRecord | null }>();
+
+    // First, map all original sales.
     allSales.forEach(sale => {
       if (sale.status === 'COMPLETED_ORIGINAL') {
-        salesByBillNumber.set(sale.billNumber, { original: sale, adjusted: [] });
+        salesByBillNumber.set(sale.billNumber, { original: sale, adjusted: null });
       }
     });
+
+    // Then, find the latest adjusted sale for each original.
     allSales.forEach(sale => {
       if (sale.status === 'ADJUSTED_ACTIVE' && sale.originalSaleRecordId) {
         const originalSale = allSales.find(os => os.id === sale.originalSaleRecordId);
         if (originalSale && salesByBillNumber.has(originalSale.billNumber)) {
-          salesByBillNumber.get(originalSale.billNumber)!.adjusted.push(sale);
+          const group = salesByBillNumber.get(originalSale.billNumber)!;
+          if (!group.adjusted || new Date(sale.date) > new Date(group.adjusted.date)) {
+            group.adjusted = sale;
+          }
         }
       }
     });
 
-    const activeSaleRecords: SaleRecord[] = [];
-    salesByBillNumber.forEach(group => {
-      if (group.adjusted.length > 0) {
-        const latestAdjusted = group.adjusted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        activeSaleRecords.push(latestAdjusted);
-      } else {
-        activeSaleRecords.push(group.original);
-      }
-    });
+    // Final list of active records (the latest adjusted one, or the original if no adjustments)
+    const activeSaleRecords: SaleRecord[] = Array.from(salesByBillNumber.values()).map(group => group.adjusted || group.original);
+
 
     // --- Calculate Summary based on ACTIVE bills ---
     const costOfGoodsSold = activeSaleRecords.flatMap(s => s.items as unknown as SaleRecordItem[]).reduce((sum, item) => {
         return sum + (item.costPriceAtSale ?? 0) * item.quantity;
     }, 0);
+    
+    const totalCashSales = activeSaleRecords
+        .filter(s => s.paymentMethod === 'cash')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+    const totalCreditSales = activeSaleRecords
+        .filter(s => s.paymentMethod === 'credit')
+        .reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+    // This gets payments made within the date range for ANY credit sale (even old ones)
+     const allCreditPaymentsInRange = await prisma.paymentInstallment.findMany({
+        where: {
+            paymentDate: { gte: startDate, lte: endDate },
+            saleRecord: { companyId: companyId }
+        }
+    });
+    const totalPaymentsOnCreditSales = allCreditPaymentsInRange.reduce((sum, inst) => sum + inst.amountPaid, 0);
+    
+    // Let's also get total outstanding for ALL open credit bills in the company
+     const outstandingCreditBills = await prisma.saleRecord.findMany({
+      where: { 
+        companyId: companyId, 
+        isCreditSale: true,
+        creditPaymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] }
+      },
+      select: { creditOutstandingAmount: true }
+    });
+    const outstandingCreditAmount = outstandingCreditBills.reduce((sum, bill) => sum + (bill.creditOutstandingAmount ?? 0), 0);
 
 
     const summary: ComprehensiveReport['summary'] = {
       netSales: activeSaleRecords.reduce((sum, sale) => sum + sale.totalAmount, 0),
+      totalCashSales: totalCashSales,
+      totalCreditSales: totalCreditSales,
+      totalPaymentsOnCreditSales: totalPaymentsOnCreditSales,
+      outstandingCreditAmount: outstandingCreditAmount,
       totalDiscounts: activeSaleRecords.reduce((sum, sale) => sum + (sale.totalItemDiscountAmount || 0) + (sale.totalCartDiscountAmount || 0), 0),
       totalTax: activeSaleRecords.reduce((sum, sale) => sum + (sale.taxAmount || 0), 0),
       grossSales: activeSaleRecords.reduce((sum, sale) => sum + (sale.subtotalOriginal || 0), 0),
@@ -135,7 +168,11 @@ export async function getComprehensiveReportAction(
     };
 
     // New "Owner's P&L" calculation focusing on cash-like movements and non-cash losses.
-    summary.netProfitLoss = (summary.netSales + summary.totalIncome) - (summary.costOfGoodsSold + summary.totalExpense);
+    // Income side: Cash sales + Payments received on credit sales + Other recorded income
+    const totalCashInflow = summary.totalCashSales + summary.totalPaymentsOnCreditSales + summary.totalIncome;
+    // Expense side: COGS for all sales (cash+credit) + Other recorded expenses
+    const totalOutflowAndLoss = summary.costOfGoodsSold + summary.totalExpense;
+    summary.netProfitLoss = totalCashInflow - totalOutflowAndLoss;
 
     const report: ComprehensiveReport = {
       startDate: startDate.toISOString(),
@@ -199,3 +236,5 @@ export async function getUsersForReportFilterAction(actorUserId: string | null):
   }
 }
       
+
+    

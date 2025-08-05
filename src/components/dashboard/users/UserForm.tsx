@@ -136,24 +136,6 @@ export function UserForm({
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-4">
       {serverFormError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{serverFormError}</p>}
       
-      {submissionDetails && (
-        <div className="mb-3 p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
-          <div className="flex items-center space-x-2 flex-grow">
-            <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-500" />
-            <span className="text-sm">User "{submissionDetails.username}" saved successfully!</span>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClearAndPrepareForNew}
-            className="ml-auto border-green-600 text-green-700 hover:bg-green-600 hover:text-white dark:border-green-500 dark:text-green-400 dark:hover:bg-green-500 dark:hover:text-card-foreground text-xs px-3 py-1 h-auto self-start sm:self-center"
-            disabled={isLoading}
-          >
-            <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> Add Another User
-          </Button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="username" className="text-foreground text-xs">Username*</Label>
@@ -263,6 +245,24 @@ export function UserForm({
           {actor?.id === 'root-user' && <p className="text-xs text-muted-foreground mt-1">As root user, you can create users without a company, even for non-Admin roles.</p>}
           {actor?.id !== 'root-user' && isSelectedRoleAdmin && <p className="text-xs text-muted-foreground mt-1">You can assign this Admin to a specific company, or leave it blank to make them a super admin.</p>}
         </div>
+
+      {submissionDetails && (
+        <div className="mt-4 p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
+          <div className="flex items-center space-x-2 flex-grow">
+            <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-500" />
+            <span className="text-sm">User "{submissionDetails.username}" saved successfully!</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClearAndPrepareForNew}
+            className="ml-auto border-green-600 text-green-700 hover:bg-green-600 hover:text-white dark:border-green-500 dark:text-green-400 dark:hover:bg-green-500 dark:hover:text-card-foreground text-xs px-3 py-1 h-auto self-start sm:self-center"
+            disabled={isLoading}
+          >
+            <FilePlus2 className="mr-1.5 h-3.5 w-3.5" /> Add Another User
+          </Button>
+        </div>
+      )}
 
       <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">
         {onCancel && (
