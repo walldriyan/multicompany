@@ -126,28 +126,28 @@ export function ProductForm({
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [isCategoryPopoverOpen, setIsCategoryPopoverOpen] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
     try {
-      const storedCategories = localStorage.getItem('productCategories');
-      if (storedCategories) {
-        setAllCategories(JSON.parse(storedCategories));
-      } else {
-        const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
-        setAllCategories(categoriesFromProducts.sort());
-      }
+      const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
+      const storedCategories = JSON.parse(localStorage.getItem('productCategories') || '[]');
+      const combined = Array.from(new Set([...categoriesFromProducts, ...storedCategories].map(c => c.toUpperCase())));
+      setAllCategories(combined.sort());
 
       const storedUnits = localStorage.getItem('aroniumCustomProductUnits');
       if (storedUnits) {
         const parsedUnits = JSON.parse(storedUnits);
         if (Array.isArray(parsedUnits)) setCustomUnits(parsedUnits);
       }
-    } catch (e) { console.error("Failed to load from localStorage", e); }
+    } catch (e) { console.error("Failed to load initial data from localStorage", e); }
   }, [allProductsFromStore]);
 
+
   useEffect(() => {
-    try {
-      localStorage.setItem('productCategories', JSON.stringify(allCategories));
-    } catch (e) { console.error("Failed to save categories to localStorage", e); }
+    if (allCategories.length > 0) {
+        try {
+            localStorage.setItem('productCategories', JSON.stringify(allCategories));
+        } catch (e) { console.error("Failed to save categories to localStorage", e); }
+    }
   }, [allCategories]);
 
   useEffect(() => {
@@ -206,7 +206,7 @@ export function ProductForm({
     if (category && !allCategories.some(c => c.toUpperCase() === category)) {
       setAllCategories(prev => [...prev, category].sort());
     }
-    await onSubmit({ ...data, category }, product?.id);
+    await onSubmit({ ...data, category: category || null }, product?.id);
   };
 
   const handleClearAndPrepareForNew = () => {
