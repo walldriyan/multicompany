@@ -539,10 +539,10 @@ export function ProductForm({
                 <div className={cn("space-y-4", currentStep !== 2 && "hidden")}>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                         <div>
-                            <Label htmlFor="stock">
+                           <Label>
                                 {isEditingProduct ? 'Current Stock (Read-Only)' : 'Initial Stock Quantity (per base unit)'}
-                            </Label>
-                            <div className="flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                           </Label>
+                           <div className={cn("flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground", localErrors.stock && "border-destructive")}>
                                 {isEditingProduct ? (product?.stock ?? 0) : <Controller name="stock" control={control} render={({ field }) => (<Input id="stock" type="number" step="any" className="bg-transparent p-0 h-auto border-none shadow-none focus-visible:ring-0" value={field.value === null || field.value === undefined ? '' : String(field.value)} onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} />)} />}
                                 <span className="ml-2 flex-shrink-0">{watchedUnits.baseUnit || 'units'}</span>
                             </div>
