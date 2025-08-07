@@ -23,6 +23,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useSelector } from 'react-redux';
+import { selectAllProducts } from '@/store/slices/saleSlice';
 
 interface ProductFormProps {
   product?: ProductType | null;
@@ -90,6 +92,7 @@ export function ProductForm({
   submissionDetails,
 }: ProductFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const allProductsFromStore = useSelector(selectAllProducts);
 
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
@@ -125,17 +128,23 @@ export function ProductForm({
 
   useEffect(() => {
     try {
+      // Load categories from localStorage on mount
       const storedCategories = localStorage.getItem('productCategories');
-      const storedUnits = localStorage.getItem('aroniumCustomProductUnits');
       if (storedCategories) {
         setAllCategories(JSON.parse(storedCategories));
+      } else {
+        // If not in localStorage, build from products in the store
+        const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
+        setAllCategories(categoriesFromProducts.sort());
       }
+
+      const storedUnits = localStorage.getItem('aroniumCustomProductUnits');
       if (storedUnits) {
         const parsedUnits = JSON.parse(storedUnits);
         if (Array.isArray(parsedUnits)) setCustomUnits(parsedUnits);
       }
     } catch (e) { console.error("Failed to load from localStorage", e); }
-  }, []);
+  }, [allProductsFromStore]);
 
   useEffect(() => {
     try {
@@ -195,7 +204,11 @@ export function ProductForm({
 
 
   const handleProductFormSubmitInternal = async (data: ProductFormData) => {
-    await onSubmit(data, product?.id);
+    const category = data.category?.trim().toUpperCase();
+    if (category && !allCategories.some(c => c.toUpperCase() === category)) {
+      setAllCategories(prev => [...prev, category].sort());
+    }
+    await onSubmit({ ...data, category }, product?.id);
   };
 
   const handleClearAndPrepareForNew = () => {
@@ -778,4 +791,3 @@ export function ProductForm({
     </FormProvider>
   );
 }
-
