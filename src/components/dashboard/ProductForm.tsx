@@ -540,23 +540,12 @@ export function ProductForm({
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                         <div>
                             <Label htmlFor="stock">
-                            {isEditingProduct ? 'Current Stock (Read-Only)' : 'Initial Stock Quantity (per base unit)'}
+                                {isEditingProduct ? 'Current Stock (Read-Only)' : 'Initial Stock Quantity (per base unit)'}
                             </Label>
-                            <Controller
-                                name="stock"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        id="stock"
-                                        type="number"
-                                        step="any"
-                                        className="bg-input border-border focus:ring-primary text-sm"
-                                        readOnly={isEditingProduct}
-                                        value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                                        onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-                                    />
-                                )}
-                            />
+                            <div className="flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                {isEditingProduct ? (product?.stock ?? 0) : <Controller name="stock" control={control} render={({ field }) => (<Input id="stock" type="number" step="any" className="bg-transparent p-0 h-auto border-none shadow-none focus-visible:ring-0" value={field.value === null || field.value === undefined ? '' : String(field.value)} onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} />)} />}
+                                <span className="ml-2 flex-shrink-0">{watchedUnits.baseUnit || 'units'}</span>
+                            </div>
                             {(combinedFieldErrors.stock || serverFieldErrors?.stock) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.stock?.message || serverFieldErrors?.stock?.[0]}</p>)}
                         </div>
                         {isEditingProduct && (
