@@ -186,7 +186,6 @@ export function PaymentFormContent({
     const [cashAmountPaidStr, setCashAmountPaidStr] = useState('');
     const [cardAmountPaidNowStr, setCardAmountPaidNowStr] = useState(''); 
     const [changeDue, setChangeDue] = useState(0);
-    const [isBillVisibleForPrint, setIsBillVisibleForPrint] = useState(false);
     const amountPaidInputRef = useRef<HTMLInputElement>(null);
 
     const [allCustomers, setAllCustomers] = useState<CustomerType[]>([]);
@@ -202,6 +201,9 @@ export function PaymentFormContent({
 
     // New state for auto-print toggle
     const [autoPrintOnConfirm, setAutoPrintOnConfirm] = useState(true);
+    // New state to trigger the print effect
+    const [isPrinting, setIsPrinting] = useState(false);
+
 
      const saleRecordItemsForPrint: SaleRecordItem[] = currentSaleItemsFromStore.map(item => {
         // **FIX**: Use `item.price` which is the actual batch/sale price, not `item.sellingPrice` (default product price).
@@ -253,7 +255,7 @@ export function PaymentFormContent({
         fetchInitialData();
         setCashAmountPaidStr(''); setCardAmountPaidNowStr(''); setChangeDue(0);
         if (paymentMethod === 'cash') setTimeout(() => amountPaidInputRef.current?.focus(), 100);
-        setSelectedCustomer(null); setCustomerSearchTerm(''); setManualCustomerName(''); setIsBillVisibleForPrint(false);
+        setSelectedCustomer(null); setCustomerSearchTerm(''); setManualCustomerName('');
       }, [paymentMethod, total, currentUser]);
 
     useEffect(() => {
@@ -263,50 +265,52 @@ export function PaymentFormContent({
         else setChangeDue(0);
       } else { setChangeDue(0); }
     }, [cashAmountPaidStr, total, paymentMethod]);
+    
+     // EFFECT FOR PRINTING LOGIC
+    useEffect(() => {
+        if (isPrinting) {
+            const billContentHolder = document.getElementById('printable-bill-content-holder');
+            if (!billContentHolder) {
+                console.error('Bill content holder not found');
+                setIsPrinting(false); // Reset state if element not found
+                return;
+            }
+            const printContents = billContentHolder.innerHTML;
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+            iframe.setAttribute('title', 'Print Bill'); document.body.appendChild(iframe);
+            const doc = iframe.contentWindow?.document;
+            if (doc) {
+                doc.open();
+                const printHtml = `
+                    <html><head><title>Print Bill - ${billNumber}</title>
+                    <style>
+                        @page { size: auto; margin: 0mm; }
+                        body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
+                        .receipt-container { width: 280px; margin: 0 auto; padding: 5px; height: fit-content; } 
+                        table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
+                        th, td { padding: 1px 2px; vertical-align: top; font-size: 7pt; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; } .company-details p, .header-info p, .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
+                        .company-details h3 { font-size: 10pt; margin: 1px 0;} .item-name { word-break: break-all; max-width: 60px; }
+                        .col-price { max-width: 45px; word-break: break-all; } .col-discount { max-width: 40px; word-break: break-all; } .col-total { max-width: 50px; word-break: break-all; }
+                        hr.separator { border: none; border-top: 1px dashed black; margin: 2px 0; color: black; background-color: black; }
+                        .totals-section div, .payment-info div { display: flex; justify-content: space-between; padding: 0px 0; font-size: 8pt; }
+                        .totals-section .label, .payment-info .label { text-align: left; } .totals-section .value, .payment-info .value { text-align: right; }
+                        .thank-you { margin-top: 3px; text-align: center; font-size: 8pt; }
+                        .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; }
+                        .discount-details div { display: flex; justify-content: space-between; } .discount-details span:first-child { padding-right: 3px; }
+                        th { font-size: 7pt; white-space: normal; text-align: right; } th.item-name { text-align: left; }
+                        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; height: auto !important; } .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; } table { font-size: 7pt !important; } }
+                    </style></head><body><div class="receipt-container">${printContents}</div></body></html>
+                `;
+                doc.write(printHtml); doc.close();
+                iframe.contentWindow?.focus(); iframe.contentWindow?.print();
+            }
+            setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe); }, 500);
+            setIsPrinting(false); // Reset state after printing
+        }
+    }, [isPrinting, billNumber]);
 
-    const handlePrintBill = () => {
-      setIsBillVisibleForPrint(true);
-      let actualAmountPaidForReceipt = 0;
-      if (paymentMethod === 'cash') actualAmountPaidForReceipt = parseFloat(cashAmountPaidStr) || 0;
-      if (paymentMethod === 'credit') actualAmountPaidForReceipt = parseFloat(cardAmountPaidNowStr) || 0;
-      setTimeout(() => {
-          const billContentHolder = document.getElementById('printable-bill-content-holder');
-          if (!billContentHolder) { console.error('Bill content holder not found'); setIsBillVisibleForPrint(false); return; }
-          const printContents = billContentHolder.innerHTML;
-          const iframe = document.createElement('iframe');
-          iframe.style.position = 'absolute'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
-          iframe.setAttribute('title', 'Print Bill'); document.body.appendChild(iframe);
-          const doc = iframe.contentWindow?.document;
-          if (doc) {
-              doc.open();
-              const printHtml = `
-                  <html><head><title>Print Bill - ${billNumber}</title>
-                  <style>
-                      @page { size: auto;  margin: 0mm; }
-                      body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
-                      .receipt-container { width: 280px; margin: 0 auto; padding: 5px; height: fit-content; } 
-                      table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
-                      th, td { padding: 1px 2px; vertical-align: top; font-size: 7pt; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
-                      .font-bold { font-weight: bold; } .company-details p, .header-info p, .customer-name { margin: 0px 0; line-height: 1.1; font-size: 8pt; }
-                      .company-details h3 { font-size: 10pt; margin: 1px 0;} .item-name { word-break: break-all; max-width: 60px; }
-                      .col-price { max-width: 45px; word-break: break-all; } .col-discount { max-width: 40px; word-break: break-all; } .col-total { max-width: 50px; word-break: break-all; }
-                      hr.separator { border: none; border-top: 1px dashed black; margin: 2px 0; color: black; background-color: black; }
-                      .totals-section div, .payment-info div { display: flex; justify-content: space-between; padding: 0px 0; font-size: 8pt; }
-                      .totals-section .label, .payment-info .label { text-align: left; } .totals-section .value, .payment-info .value { text-align: right; }
-                      .thank-you { margin-top: 3px; text-align: center; font-size: 8pt; }
-                      .discount-details { font-size: 7pt; margin-left: 5px; margin-top: 1px; margin-bottom: 1px; }
-                      .discount-details div { display: flex; justify-content: space-between; } .discount-details span:first-child { padding-right: 3px; }
-                      th { font-size: 7pt; white-space: normal; text-align: right; } th.item-name { text-align: left; }
-                      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; height: auto !important; } .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; } table { font-size: 7pt !important; } }
-                  </style></head><body><div class="receipt-container">${printContents}</div></body></html>
-              `;
-              doc.write(printHtml); doc.close();
-              iframe.contentWindow?.focus(); iframe.contentWindow?.print();
-          }
-          setTimeout(() => { if(iframe.parentNode) document.body.removeChild(iframe); }, 500);
-          setIsBillVisibleForPrint(false);
-      }, 100);
-    };
 
     const handleConfirmPayment = () => {
       let finalAmountPaid = 0;
@@ -325,7 +329,7 @@ export function PaymentFormContent({
       });
 
       if (autoPrintOnConfirm) {
-        handlePrintBill();
+        setIsPrinting(true); // Trigger the print effect
       }
     };
 
@@ -465,7 +469,7 @@ export function PaymentFormContent({
                     </div>
                 </div>
             </div>
-             {isBillVisibleForPrint && (
+             {isPrinting && (
                 <div id="printable-bill-content-holder" style={{ display: 'none' }}>
                     <BillPrintContent
                         billNumber={billNumber} saleItems={saleRecordItemsForPrint} subtotalOriginal={subtotalOriginal}
