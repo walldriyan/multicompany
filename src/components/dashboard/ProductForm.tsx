@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, FilePlus2, CheckCircle, Percent, DollarSign, Info, ChevronsUpDown, X, Package2, History } from 'lucide-react';
+import { PlusCircle, Trash2, FilePlus2, CheckCircle, Percent, DollarSign, Info, ChevronsUpDown, X, Package2, History, Wand2 } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -224,6 +224,26 @@ export function ProductForm({
     e.stopPropagation();
     setAllCategories(prev => prev.filter(c => c !== categoryToDelete));
   };
+  
+  const generateRandomNumericString = (length: number) => {
+    let result = '';
+    const characters = '0123456789';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  };
+
+  const handleGenerateCode = () => {
+    const randomCode = `PROD-${generateRandomNumericString(8)}`;
+    setValue('code', randomCode, { shouldDirty: true });
+  };
+
+  const handleGenerateBarcode = () => {
+    const randomBarcode = generateRandomNumericString(12);
+    setValue('barcode', randomBarcode, { shouldDirty: true });
+  };
 
 
   const filteredUnitOptions = unitOptions.filter(option =>
@@ -259,7 +279,12 @@ export function ProductForm({
                 </div>
                 <div>
                   <Label htmlFor="code" className="text-foreground text-xs">Product Code</Label>
-                  <Input id="code" {...register('code')} className="bg-input border-border focus:ring-primary text-sm" />
+                   <div className="flex items-center space-x-2">
+                     <Input id="code" {...register('code')} className="bg-input border-border focus:ring-primary text-sm" />
+                     <Button type="button" variant="outline" size="icon" onClick={handleGenerateCode} className="h-9 w-9 flex-shrink-0" title="Generate Random Code">
+                        <Wand2 className="h-4 w-4" />
+                     </Button>
+                  </div>
                   {(combinedFieldErrors.code || serverFieldErrors?.code) && (
                     <p className="text-xs text-destructive mt-1">{combinedFieldErrors.code?.message || serverFieldErrors?.code?.[0]}</p>
                   )}
@@ -330,7 +355,12 @@ export function ProductForm({
                 </div>
                 <div>
                   <Label htmlFor="barcode" className="text-foreground text-xs">Barcode</Label>
-                  <Input id="barcode" {...register('barcode')} className="bg-input border-border focus:ring-primary text-sm" />
+                  <div className="flex items-center space-x-2">
+                    <Input id="barcode" {...register('barcode')} className="bg-input border-border focus:ring-primary text-sm" />
+                     <Button type="button" variant="outline" size="icon" onClick={handleGenerateBarcode} className="h-9 w-9 flex-shrink-0" title="Generate Random Barcode">
+                        <Wand2 className="h-4 w-4" />
+                     </Button>
+                  </div>
                   {(combinedFieldErrors.barcode || serverFieldErrors?.barcode) && (
                     <p className="text-xs text-destructive mt-1">{combinedFieldErrors.barcode?.message || serverFieldErrors?.barcode?.[0]}</p>
                   )}
