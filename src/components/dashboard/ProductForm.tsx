@@ -128,12 +128,10 @@ export function ProductForm({
 
   useEffect(() => {
     try {
-      // Load categories from localStorage on mount
       const storedCategories = localStorage.getItem('productCategories');
       if (storedCategories) {
         setAllCategories(JSON.parse(storedCategories));
       } else {
-        // If not in localStorage, build from products in the store
         const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
         setAllCategories(categoriesFromProducts.sort());
       }
