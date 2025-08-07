@@ -128,8 +128,8 @@ export function ProductForm({
 
  useEffect(() => {
     try {
-      const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
       const storedCategories = JSON.parse(localStorage.getItem('productCategories') || '[]');
+      const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
       const combined = Array.from(new Set([...categoriesFromProducts, ...storedCategories].map(c => c.toUpperCase())));
       setAllCategories(combined.sort());
 
@@ -538,15 +538,12 @@ export function ProductForm({
                 {/* Step 3: Stock & Units */}
                 <div className={cn("space-y-4", currentStep !== 2 && "hidden")}>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                        <div>
-                           <Label>
-                                {isEditingProduct ? 'Current Stock (Read-Only)' : 'Initial Stock Quantity (per base unit)'}
-                           </Label>
-                           <div className={cn("flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground", localErrors.stock && "border-destructive")}>
-                                {isEditingProduct ? (product?.stock ?? 0) : <Controller name="stock" control={control} render={({ field }) => (<Input id="stock" type="number" step="any" className="bg-transparent p-0 h-auto border-none shadow-none focus-visible:ring-0" value={field.value === null || field.value === undefined ? '' : String(field.value)} onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} />)} />}
-                                <span className="ml-2 flex-shrink-0">{watchedUnits.baseUnit || 'units'}</span>
-                            </div>
-                            {(combinedFieldErrors.stock || serverFieldErrors?.stock) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.stock?.message || serverFieldErrors?.stock?.[0]}</p>)}
+                        <div className="space-y-2">
+                           <Label>Current Stock</Label>
+                           <div className="flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                             {(product?.stock ?? 0)}
+                             <span className="ml-2 flex-shrink-0">{watchedUnits.baseUnit || 'units'}</span>
+                           </div>
                         </div>
                         {isEditingProduct && (
                             <div className="space-y-2">
@@ -554,14 +551,21 @@ export function ProductForm({
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
                                     <Label htmlFor="stock-adj" className="text-xs">Quantity to Add</Label>
-                                    <Input id="stock-adj" type="number" step="any" placeholder="0" {...register('stock')} className="h-7 text-xs bg-background"/>
+                                    <Input id="stock-adj" type="number" step="any" placeholder="0" {...register('stock', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="h-7 text-xs bg-background"/>
                                     </div>
                                     <div>
                                     <Label htmlFor="cost-adj" className="text-xs">Cost Price for Adj.</Label>
-                                    <Input id="cost-adj" type="number" step="any" placeholder="0.00" {...register('costPrice')} className="h-7 text-xs bg-background"/>
+                                    <Input id="cost-adj" type="number" step="any" placeholder="0.00" {...register('costPrice', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="h-7 text-xs bg-background"/>
                                     </div>
                                 </div>
                             </div>
+                        )}
+                        {!isEditingProduct && (
+                           <div>
+                                <Label htmlFor="initial-stock">Initial Stock Quantity (per base unit)</Label>
+                                <Input id="initial-stock" type="number" step="any" {...register('stock', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="bg-input border-border focus:ring-primary text-sm"/>
+                                {(combinedFieldErrors.stock || serverFieldErrors?.stock) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.stock?.message || serverFieldErrors?.stock?.[0]}</p>)}
+                           </div>
                         )}
                     </div>
                     <Separator className="bg-border/30"/>
