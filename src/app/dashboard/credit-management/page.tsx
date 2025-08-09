@@ -26,6 +26,8 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { addDays, format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
 
 const ITEMS_PER_PAGE = 10;
 
@@ -539,7 +541,7 @@ export default function CreditManagementPage() {
                     </div>
                   ) : (
                     <>
-                     <Card className="p-4 bg-muted/20 border-border/40">
+                      <Card className="p-4 bg-muted/20 border-border/40">
                         <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary</CardTitle></CardHeader>
                         <CardContent className="p-0 space-y-2">
                            <div className="grid grid-cols-2 gap-4 text-sm">
@@ -607,27 +609,32 @@ export default function CreditManagementPage() {
                         </Card>
                       )}
 
-                      <Card className="p-3 bg-muted/20 border-border/40">
-                        <CardHeader className="p-0 pb-2"><CardTitle className="text-sm text-foreground">Payment History</CardTitle></CardHeader>
-                        <CardContent className="p-0">
-                          {isLoadingInstallments ? (
-                            <p className="text-muted-foreground text-xs">Loading payment history...</p>
-                          ) : installments.length === 0 ? (
-                            <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
-                          ) : (
-                            <ScrollArea className="h-48">
-                              <Table>
-                                <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                  {installments.map((inst) => (
-                                    <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </ScrollArea>
-                          )}
-                        </CardContent>
-                      </Card>
+                      <Accordion type="single" collapsible defaultValue="item-1">
+                        <AccordionItem value="item-1">
+                          <AccordionTrigger className="text-sm">View Payment History</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="p-3 bg-muted/20 border-border/40 rounded-md">
+                              {isLoadingInstallments ? (
+                                <p className="text-muted-foreground text-xs">Loading payment history...</p>
+                              ) : installments.length === 0 ? (
+                                <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
+                              ) : (
+                                <ScrollArea className="h-48">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                      {installments.map((inst) => (
+                                        <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </ScrollArea>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+
                     </>
                   )}
                 </CardContent>
