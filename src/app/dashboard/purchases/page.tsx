@@ -243,341 +243,323 @@ export default function PurchasesPage() {
         </Card>
       )}
 
-      <form onSubmit={handleSubmit(onSubmitPurchase)} className="space-y-6">
-       <fieldset disabled={isFormDisabled} className="space-y-6">
-        <Card className="bg-card border-border shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-card-foreground">Supplier & Bill Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {formError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{formError}</p>}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="supplierId" className="text-card-foreground">Supplier*</Label>
-                <Controller
-                  name="supplierId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || ''}
-                      onValueChange={field.onChange}
-                      disabled={suppliers.length === 0}
-                    >
-                      <SelectTrigger id="supplierId" className="bg-input border-border focus:ring-primary text-card-foreground">
-                        <SelectValue placeholder={suppliers.length === 0 ? "No suppliers available" : "Select supplier"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map(supplier => (
-                          <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.supplierId && <p className="text-xs text-destructive mt-1">{errors.supplierId.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="supplierBillNumber" className="text-card-foreground">Supplier Bill Number</Label>
-                <Input
-                  id="supplierBillNumber"
-                  {...register('supplierBillNumber')}
-                  className="bg-input border-border focus:ring-primary text-card-foreground"
-                  placeholder="e.g., INV-12345"
-                />
-                {errors.supplierBillNumber && <p className="text-xs text-destructive mt-1">{errors.supplierBillNumber.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="purchaseDate" className="text-card-foreground">Purchase Date*</Label>
-                <Controller
-                  name="purchaseDate"
-                  control={control}
-                  render={({ field }) => (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal bg-input border-border hover:bg-input/80 text-card-foreground",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                />
-                {errors.purchaseDate && <p className="text-xs text-destructive mt-1">{errors.purchaseDate.message}</p>}
-              </div>
-            </div>
-             <div>
-              <Label htmlFor="notes" className="text-card-foreground">General Notes for Bill</Label>
-              <Textarea
-                id="notes"
-                {...register('notes')}
-                className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px]"
-                placeholder="Any general notes related to this purchase bill..."
-              />
-               {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-card-foreground">Purchased Items</CardTitle>
-            <ProductSearch allProducts={allProducts.filter(p => !p.isService)} onProductSelect={handleProductSelect} />
-             {errors.items && typeof errors.items.message === 'string' && <p className="text-xs text-destructive mt-1">{errors.items.message}</p>}
-             {errors.items?.root && <p className="text-xs text-destructive mt-1">{errors.items.root.message}</p>}
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-muted-foreground">Product</TableHead>
-                  <TableHead className="text-muted-foreground w-36">Batch No.</TableHead>
-                  <TableHead className="text-muted-foreground w-40">Expiry Date</TableHead>
-                  <TableHead className="text-muted-foreground w-32">Qty Purchased</TableHead>
-                  <TableHead className="text-muted-foreground w-36">Cost Price/Unit</TableHead>
-                  <TableHead className="text-muted-foreground w-40">New Selling Price</TableHead>
-                  <TableHead className="text-muted-foreground text-right w-36">Subtotal</TableHead>
-                  <TableHead className="text-muted-foreground w-16">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fields.map((item, index) => (
-                  <TableRow key={item.fieldId}>
-                    <TableCell className="text-card-foreground">
-                      {item.name} <span className="text-xs text-muted-foreground">({item.units.baseUnit})</span>
-                      <p className="text-xs text-muted-foreground">Current Stock: {item.currentStock}, Current Sell Price: Rs. {item.currentSellingPrice?.toFixed(2)}</p>
-                    </TableCell>
-                     <TableCell>
-                      <Input
-                        {...register(`items.${index}.batchNumber`)}
-                        className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
-                        placeholder="Optional"
-                      />
-                    </TableCell>
-                    <TableCell>
-                       <Controller
+      <form onSubmit={handleSubmit(onSubmitPurchase)}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column for Main Form */}
+          <div className="lg:col-span-2 space-y-6">
+             <fieldset disabled={isFormDisabled} className="space-y-6">
+                <Card className="bg-card border-border shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-card-foreground">Supplier & Bill Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {formError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{formError}</p>}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="supplierId" className="text-card-foreground">Supplier*</Label>
+                        <Controller
+                          name="supplierId"
                           control={control}
-                          name={`items.${index}.expiryDate`}
                           render={({ field }) => (
-                             <Popover>
+                            <Select
+                              value={field.value || ''}
+                              onValueChange={field.onChange}
+                              disabled={suppliers.length === 0}
+                            >
+                              <SelectTrigger id="supplierId" className="bg-input border-border focus:ring-primary text-card-foreground">
+                                <SelectValue placeholder={suppliers.length === 0 ? "No suppliers available" : "Select supplier"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {suppliers.map(supplier => (
+                                  <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        {errors.supplierId && <p className="text-xs text-destructive mt-1">{errors.supplierId.message}</p>}
+                      </div>
+                      <div>
+                        <Label htmlFor="supplierBillNumber" className="text-card-foreground">Supplier Bill Number</Label>
+                        <Input
+                          id="supplierBillNumber"
+                          {...register('supplierBillNumber')}
+                          className="bg-input border-border focus:ring-primary text-card-foreground"
+                          placeholder="e.g., INV-12345"
+                        />
+                        {errors.supplierBillNumber && <p className="text-xs text-destructive mt-1">{errors.supplierBillNumber.message}</p>}
+                      </div>
+                      <div>
+                        <Label htmlFor="purchaseDate" className="text-card-foreground">Purchase Date*</Label>
+                        <Controller
+                          name="purchaseDate"
+                          control={control}
+                          render={({ field }) => (
+                            <Popover>
                               <PopoverTrigger asChild>
-                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal h-8 text-xs px-2", !field.value && "text-muted-foreground")}>
-                                  <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-                                  {field.value ? format(field.value, "P") : <span>No Expiry</span>}
+                                <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal bg-input border-border hover:bg-input/80 text-card-foreground",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0">
-                                <Calendar mode="single" selected={field.value} onSelect={(date) => field.onChange(date || null)} initialFocus />
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                  initialFocus
+                                />
                               </PopoverContent>
                             </Popover>
                           )}
                         />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        {...register(`items.${index}.quantityPurchased`, { valueAsNumber: true })}
-                        className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
-                        min="1"
-                      />
-                      {errors.items?.[index]?.quantityPurchased && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.quantityPurchased?.message}</p>}
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                          name={`items.${index}.costPriceAtPurchase`}
-                          control={control}
-                          render={({ field: { onChange, onBlur, value } }) => (
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={value === undefined || value === null ? '' : String(value)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                onChange(val === '' ? undefined : parseFloat(val));
-                              }}
-                              onBlur={onBlur}
-                              className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
-                              min="0"
-                            />
-                          )}
-                        />
-                      {errors.items?.[index]?.costPriceAtPurchase && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.costPriceAtPurchase?.message}</p>}
-                    </TableCell>
-                    <TableCell>
-                      <Controller
-                          name={`items.${index}.currentSellingPrice`}
-                          control={control}
-                          render={({ field: { onChange, onBlur, value } }) => (
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={value === undefined || value === null ? '' : String(value)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                onChange(val === '' ? undefined : parseFloat(val));
-                              }}
-                              onBlur={onBlur}
-                              className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
-                              min="0"
-                            />
-                          )}
-                        />
-                      {errors.items?.[index]?.currentSellingPrice && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.currentSellingPrice?.message}</p>}
-                    </TableCell>
-                    <TableCell className="text-right text-card-foreground">
-                      Rs. {( (Number(watchedItems?.[index]?.quantityPurchased) || 0) * (Number(watchedItems?.[index]?.costPriceAtPurchase) || 0) ).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive/80">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {fields.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
-                      No products added to this purchase bill yet. Use search above.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                        {errors.purchaseDate && <p className="text-xs text-destructive mt-1">{errors.purchaseDate.message}</p>}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-        <Card className="bg-card border-border shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-card-foreground">Payment Details for this Purchase</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div>
-                <Label htmlFor="amountPaid" className="text-card-foreground">Amount Paid Now (Optional)</Label>
-                <Controller
-                    name="amountPaid"
-                    control={control}
-                    render={({ field }) => (
-                        <Input
-                        id="amountPaid"
-                        type="number"
-                        step="0.01"
-                        value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                        onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-                        className="bg-input border-border focus:ring-primary text-card-foreground"
-                        placeholder="0.00"
-                        min="0"
-                        />
-                    )}
-                />
-                {errors.amountPaid && <p className="text-xs text-destructive mt-1">{errors.amountPaid.message}</p>}
-              </div>
-            </div>
-
-            {(watchedAmountPaid !== null && watchedAmountPaid !== undefined && watchedAmountPaid > 0) && (
-                 <>
-                 <Separator />
-                  <p className="text-sm text-muted-foreground">Details for Amount Paid Now:</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <Label htmlFor="initialPaymentMethod" className="text-card-foreground">Payment Method*</Label>
-                        <Controller
-                        name="initialPaymentMethod"
-                        control={control}
-                        render={({ field }) => (
-                            <Select value={field.value || ''} onValueChange={(value) => field.onChange(value as PurchasePaymentMethodEnum || null)}>
-                            <SelectTrigger id="initialPaymentMethod" className="bg-input border-border focus:ring-primary text-card-foreground">
-                                <SelectValue placeholder="Select payment method" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Object.values(PurchasePaymentMethodEnumSchema.Enum).map(method => (
-                                <SelectItem key={method} value={method}>{method.replace('_', ' ')}</SelectItem>
-                                ))}
-                            </SelectContent>
-                            </Select>
+                <Card className="bg-card border-border shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-card-foreground">Purchased Items</CardTitle>
+                    <ProductSearch allProducts={allProducts.filter(p => !p.isService)} onProductSelect={handleProductSelect} />
+                     {errors.items && typeof errors.items.message === 'string' && <p className="text-xs text-destructive mt-1">{errors.items.message}</p>}
+                     {errors.items?.root && <p className="text-xs text-destructive mt-1">{errors.items.root.message}</p>}
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-muted-foreground">Product</TableHead>
+                          <TableHead className="text-muted-foreground w-36">Batch No.</TableHead>
+                          <TableHead className="text-muted-foreground w-40">Expiry Date</TableHead>
+                          <TableHead className="text-muted-foreground w-32">Qty Purchased</TableHead>
+                          <TableHead className="text-muted-foreground w-36">Cost Price/Unit</TableHead>
+                          <TableHead className="text-muted-foreground w-40">New Selling Price</TableHead>
+                          <TableHead className="text-muted-foreground text-right w-36">Subtotal</TableHead>
+                          <TableHead className="text-muted-foreground w-16">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {fields.map((item, index) => (
+                          <TableRow key={item.fieldId}>
+                            <TableCell className="text-card-foreground">
+                              {item.name} <span className="text-xs text-muted-foreground">({item.units.baseUnit})</span>
+                              <p className="text-xs text-muted-foreground">Current Stock: {item.currentStock}, Current Sell Price: Rs. {item.currentSellingPrice?.toFixed(2)}</p>
+                            </TableCell>
+                             <TableCell>
+                              <Input
+                                {...register(`items.${index}.batchNumber`)}
+                                className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                                placeholder="Optional"
+                              />
+                            </TableCell>
+                            <TableCell>
+                               <Controller
+                                  control={control}
+                                  name={`items.${index}.expiryDate`}
+                                  render={({ field }) => (
+                                     <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal h-8 text-xs px-2", !field.value && "text-muted-foreground")}>
+                                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                                          {field.value ? format(field.value, "P") : <span>No Expiry</span>}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={field.value} onSelect={(date) => field.onChange(date || null)} initialFocus />
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                {...register(`items.${index}.quantityPurchased`, { valueAsNumber: true })}
+                                className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                                min="1"
+                              />
+                              {errors.items?.[index]?.quantityPurchased && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.quantityPurchased?.message}</p>}
+                            </TableCell>
+                            <TableCell>
+                              <Controller
+                                  name={`items.${index}.costPriceAtPurchase`}
+                                  control={control}
+                                  render={({ field: { onChange, onBlur, value } }) => (
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={value === undefined || value === null ? '' : String(value)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        onChange(val === '' ? undefined : parseFloat(val));
+                                      }}
+                                      onBlur={onBlur}
+                                      className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                                      min="0"
+                                    />
+                                  )}
+                                />
+                              {errors.items?.[index]?.costPriceAtPurchase && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.costPriceAtPurchase?.message}</p>}
+                            </TableCell>
+                            <TableCell>
+                              <Controller
+                                  name={`items.${index}.currentSellingPrice`}
+                                  control={control}
+                                  render={({ field: { onChange, onBlur, value } }) => (
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={value === undefined || value === null ? '' : String(value)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        onChange(val === '' ? undefined : parseFloat(val));
+                                      }}
+                                      onBlur={onBlur}
+                                      className="bg-input border-border focus:ring-primary text-card-foreground h-8 text-sm"
+                                      min="0"
+                                    />
+                                  )}
+                                />
+                              {errors.items?.[index]?.currentSellingPrice && <p className="text-xs text-destructive mt-1">{errors.items?.[index]?.currentSellingPrice?.message}</p>}
+                            </TableCell>
+                            <TableCell className="text-right text-card-foreground">
+                              Rs. {( (Number(watchedItems?.[index]?.quantityPurchased) || 0) * (Number(watchedItems?.[index]?.costPriceAtPurchase) || 0) ).toFixed(2)}
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive/80">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {fields.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
+                              No products added to this purchase bill yet. Use search above.
+                            </TableCell>
+                          </TableRow>
                         )}
-                        />
-                        {errors.initialPaymentMethod && <p className="text-xs text-destructive mt-1">{errors.initialPaymentMethod.message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="paymentReference" className="text-card-foreground">Payment Reference</Label>
-                        <Input
-                        id="paymentReference"
-                        {...register('paymentReference')}
-                        className="bg-input border-border focus:ring-primary text-card-foreground"
-                        placeholder="e.g., Cheque No, Txn ID"
-                        />
-                        {errors.paymentReference && <p className="text-xs text-destructive mt-1">{errors.paymentReference.message}</p>}
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentNotes" className="text-card-foreground">Payment Notes</Label>
-                    <Textarea
-                        id="paymentNotes"
-                        {...register('paymentNotes')}
-                        className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px]"
-                        placeholder="Notes specific to this payment..."
-                    />
-                    {errors.paymentNotes && <p className="text-xs text-destructive mt-1">{errors.paymentNotes.message}</p>}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+            </fieldset>
+          </div>
+          
+          {/* Right Column for Summary & Actions */}
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="bg-card border-border shadow-lg sticky top-6">
+              <CardHeader>
+                <CardTitle className="text-card-foreground">Payment & Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="amountPaid" className="text-card-foreground">Amount Paid Now (Optional)</Label>
+                  <Controller
+                      name="amountPaid"
+                      control={control}
+                      render={({ field }) => (
+                          <Input
+                          id="amountPaid"
+                          type="number"
+                          step="0.01"
+                          value={field.value === null || field.value === undefined ? '' : String(field.value)}
+                          onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
+                          className="bg-input border-border focus:ring-primary text-card-foreground"
+                          placeholder="0.00"
+                          min="0"
+                          disabled={isFormDisabled}
+                          />
+                      )}
+                  />
+                  {errors.amountPaid && <p className="text-xs text-destructive mt-1">{errors.amountPaid.message}</p>}
                 </div>
-               </>
-            )}
-          </CardContent>
-        </Card>
+              
+                {(watchedAmountPaid !== null && watchedAmountPaid !== undefined && watchedAmountPaid > 0) && (
+                     <>
+                      <div className="space-y-4 pt-2">
+                        <div>
+                            <Label htmlFor="initialPaymentMethod" className="text-card-foreground">Payment Method*</Label>
+                            <Controller
+                            name="initialPaymentMethod"
+                            control={control}
+                            render={({ field }) => (
+                                <Select value={field.value || ''} onValueChange={(value) => field.onChange(value as PurchasePaymentMethodEnum || null)} disabled={isFormDisabled}>
+                                <SelectTrigger id="initialPaymentMethod" className="bg-input border-border focus:ring-primary text-card-foreground">
+                                    <SelectValue placeholder="Select payment method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.values(PurchasePaymentMethodEnumSchema.Enum).map(method => (
+                                    <SelectItem key={method} value={method}>{method.replace('_', ' ')}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                            )}
+                            />
+                            {errors.initialPaymentMethod && <p className="text-xs text-destructive mt-1">{errors.initialPaymentMethod.message}</p>}
+                        </div>
+                        <div>
+                            <Label htmlFor="paymentReference" className="text-card-foreground">Payment Reference</Label>
+                            <Input
+                            id="paymentReference"
+                            {...register('paymentReference')}
+                            className="bg-input border-border focus:ring-primary text-card-foreground"
+                            placeholder="e.g., Cheque No, Txn ID"
+                            disabled={isFormDisabled}
+                            />
+                            {errors.paymentReference && <p className="text-xs text-destructive mt-1">{errors.paymentReference.message}</p>}
+                        </div>
+                      </div>
+                   </>
+                )}
 
-        <Card className="bg-card border-border shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-card-foreground">Purchase Bill Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Bill Amount:</span>
-              <span className="font-semibold text-card-foreground">Rs. {totalBillAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Amount Paid Now:</span>
-              <span className="font-semibold text-green-400">Rs. {(Number(watchedAmountPaid) || 0).toFixed(2)}</span>
-            </div>
-            <Separator className="my-1 bg-border/50" />
-            <div className="flex justify-between text-lg">
-              <span className="font-bold text-primary">Amount Due:</span>
-              <span className={`font-bold ${amountDue >=0 ? 'text-red-400' : 'text-green-500'}`}>
-                Rs. {amountDue.toFixed(2)}
-                {amountDue < 0 && <span className="text-xs"> (Overpaid)</span>}
-              </span>
-            </div>
-             {totalBillAmount > 0 && <p className="text-xs text-muted-foreground mt-1 text-right">
-                <Info size={12} className="inline mr-1" />
-                Bill status will be automatically set as {
-                    (Number(watchedAmountPaid) || 0) >= totalBillAmount ? "PAID" :
-                    (Number(watchedAmountPaid) || 0) > 0 ? "PARTIALLY_PAID" : "COMPLETED (Awaiting Payment)"
-                }.
-            </p>}
-          </CardContent>
-        </Card>
-        </fieldset>
-
-        <div className="flex justify-end items-center p-4">
-          <Button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3"
-            disabled={isSubmitting || !isFormValid || fields.length === 0 || isFormDisabled}
-          >
-            {isSubmitting ? 'Saving...' : 'Save Purchase Bill'}
-          </Button>
+                <Separator className="my-4 bg-border/50" />
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Bill Amount:</span>
+                    <span className="font-semibold text-card-foreground">Rs. {totalBillAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount Paid Now:</span>
+                    <span className="font-semibold text-green-400">Rs. {(Number(watchedAmountPaid) || 0).toFixed(2)}</span>
+                  </div>
+                  <Separator className="my-1 bg-border/50" />
+                  <div className="flex justify-between text-lg">
+                    <span className="font-bold text-primary">Amount Due:</span>
+                    <span className={`font-bold ${amountDue >=0 ? 'text-red-400' : 'text-green-500'}`}>
+                      Rs. {amountDue.toFixed(2)}
+                      {amountDue < 0 && <span className="text-xs"> (Overpaid)</span>}
+                    </span>
+                  </div>
+                   {totalBillAmount > 0 && <p className="text-xs text-muted-foreground mt-1 text-right">
+                      <Info size={12} className="inline mr-1" />
+                      Status will be auto-set as {
+                          (Number(watchedAmountPaid) || 0) >= totalBillAmount ? "PAID" :
+                          (Number(watchedAmountPaid) || 0) > 0 ? "PARTIALLY_PAID" : "COMPLETED"
+                      }.
+                  </p>}
+                </div>
+                <div className="pt-4">
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3"
+                    disabled={isSubmitting || !isFormValid || fields.length === 0 || isFormDisabled}
+                  >
+                    {isSubmitting ? 'Saving...' : 'Save Purchase Bill'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </form>
     </div>
