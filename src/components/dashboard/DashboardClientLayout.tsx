@@ -8,10 +8,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from "@/components/ui/sidebar";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag } from 'lucide-react';
+import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag, Briefcase, UserRound, Contact } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
@@ -26,24 +26,35 @@ interface ViewConfigItem {
   icon: React.ElementType;
   path: string;
   permission: { action: string; subject: string };
+  group: 'main' | 'inventory' | 'customers' | 'admin';
 }
 
 const viewConfig: Record<DashboardView, ViewConfigItem> = {
-  welcome: { name: 'Welcome', icon: Home, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' } },
-  products: { name: 'Product Management', icon: PackageIcon, path: '/dashboard/products', permission: { action: 'read', subject: 'Product' } },
-  stock: { name: 'Stock Levels', icon: ArchiveIcon, path: '/dashboard/stock', permission: { action: 'read', subject: 'Product' } },
-  lostDamage: { name: 'Stock Adjustments', icon: ArchiveX, path: '/dashboard/lost-damage', permission: { action: 'update', subject: 'Product' } },
-  purchases: { name: 'Purchases (GRN)', icon: ShoppingCartIcon, path: '/dashboard/purchases', permission: { action: 'read', subject: 'PurchaseBill' } },
-  reports: { name: 'Reports', icon: BarChart3, path: '/dashboard/reports', permission: { action: 'access', subject: 'Dashboard' } },
-  creditManagement: { name: 'Credit Management', icon: ReceiptText, path: '/dashboard/credit-management', permission: { action: 'read', subject: 'Sale' } },
-  cashRegister: { name: 'Cash Register', icon: WalletCards, path: '/dashboard/cash-register', permission: { action: 'access', subject: 'CashRegister' } },
-  parties: { name: 'Contacts (Cust/Supp)', icon: UsersIcon, path: '/dashboard/parties', permission: { action: 'read', subject: 'Party' } },
-  users: { name: 'Users & Roles', icon: UserCogIcon, path: '/dashboard/users', permission: { action: 'read', subject: 'User' } },
-  company: { name: 'Company Details', icon: BuildingIcon, path: '/dashboard/company', permission: { action: 'manage', subject: 'Settings' } },
-  discounts: { name: 'Discount Management', icon: PercentIcon, path: '/dashboard/discounts', permission: { action: 'manage', subject: 'Settings' } },
-  financials: { name: 'Income & Expense', icon: TrendingUp, path: '/dashboard/financials', permission: { action: 'manage', subject: 'Settings' } },
-  settings: { name: 'Settings', icon: Settings, path: '/dashboard/settings', permission: { action: 'manage', subject: 'Settings' } },
+  welcome: { name: 'Welcome', icon: Home, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
+  reports: { name: 'Reports', icon: BarChart3, path: '/dashboard/reports', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
+  cashRegister: { name: 'Cash Register', icon: WalletCards, path: '/dashboard/cash-register', permission: { action: 'access', subject: 'CashRegister' }, group: 'main' },
+
+  products: { name: 'Product Management', icon: PackageIcon, path: '/dashboard/products', permission: { action: 'read', subject: 'Product' }, group: 'inventory' },
+  purchases: { name: 'Purchases (GRN)', icon: ShoppingCartIcon, path: '/dashboard/purchases', permission: { action: 'read', subject: 'PurchaseBill' }, group: 'inventory' },
+  stock: { name: 'Stock Levels', icon: ArchiveIcon, path: '/dashboard/stock', permission: { action: 'read', subject: 'Product' }, group: 'inventory' },
+  lostDamage: { name: 'Stock Adjustments', icon: ArchiveX, path: '/dashboard/lost-damage', permission: { action: 'update', subject: 'Product' }, group: 'inventory' },
+  
+  creditManagement: { name: 'Credit Management', icon: ReceiptText, path: '/dashboard/credit-management', permission: { action: 'read', subject: 'Sale' }, group: 'customers' },
+  parties: { name: 'Contacts (Cust/Supp)', icon: Contact, path: '/dashboard/parties', permission: { action: 'read', subject: 'Party' }, group: 'customers' },
+
+  users: { name: 'Users & Roles', icon: UserCogIcon, path: '/dashboard/users', permission: { action: 'read', subject: 'User' }, group: 'admin' },
+  company: { name: 'Company Details', icon: BuildingIcon, path: '/dashboard/company', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
+  discounts: { name: 'Discount Campaigns', icon: PercentIcon, path: '/dashboard/discounts', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
+  financials: { name: 'Income & Expense', icon: TrendingUp, path: '/dashboard/financials', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
+  settings: { name: 'General Settings', icon: Settings, path: '/dashboard/settings', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
 };
+
+const groupConfig = {
+    main: { label: "Main", icon: Briefcase },
+    inventory: { label: "Inventory", icon: PackageIcon },
+    customers: { label: "Customers & Sales", icon: UsersIcon },
+    admin: { label: "Administration", icon: ShieldAlert },
+}
 
 export function DashboardClientLayout({
   initialUser,
@@ -95,6 +106,16 @@ export function DashboardClientLayout({
     can(viewConfig[viewKey].permission?.action as any, viewConfig[viewKey].permission?.subject as any)
   );
   
+  const groupedVisibleViews = visibleViews.reduce((acc, viewKey) => {
+    const { group } = viewConfig[viewKey];
+    if (!acc[group]) {
+      acc[group] = [];
+    }
+    acc[group].push(viewKey);
+    return acc;
+  }, {} as Record<ViewConfigItem['group'], DashboardView[]>);
+
+
   if (!currentUser) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
@@ -106,7 +127,7 @@ export function DashboardClientLayout({
   const SidebarInternal = () => {
     const { isMobile, toggleSidebar } = useSidebar();
     return (
-      <Sidebar side="left" collapsible="icon" className="border-r border-border/30">
+      <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
         {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
         <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
           <Link href="/" className="flex items-center gap-2">
@@ -117,16 +138,32 @@ export function DashboardClientLayout({
           {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
         </SidebarHeader>
         <SidebarContent><SidebarMenu>
-            {visibleViews.map((viewKey) => {
-              const config = viewConfig[viewKey];
-              const IconComponent = config.icon;
-              return (
-                  <SidebarMenuItem key={viewKey}><SidebarMenuButton asChild isActive={activeView === viewKey} tooltip={{ children: config.name, side: "right" }}>
-                      <Link href={config.path}>
-                        <IconComponent className="h-5 w-5" />
-                        <span className="group-data-[collapsible=icon]:hidden">{config.name}</span>
-                      </Link>
-                  </SidebarMenuButton></SidebarMenuItem>
+            {(Object.keys(groupedVisibleViews) as Array<keyof typeof groupedVisibleViews>).map(groupKey => {
+                const viewsInGroup = groupedVisibleViews[groupKey];
+                const GroupIcon = groupConfig[groupKey].icon;
+                return (
+                    <SidebarGroup key={groupKey}>
+                        <SidebarGroupLabel className="flex items-center gap-2">
+                           <GroupIcon className="h-4 w-4" />
+                           {groupConfig[groupKey].label}
+                        </SidebarGroupLabel>
+                        <SidebarGroupContent>
+                            {viewsInGroup.map(viewKey => {
+                                const config = viewConfig[viewKey];
+                                const IconComponent = config.icon;
+                                return (
+                                    <SidebarMenuItem key={viewKey}>
+                                        <SidebarMenuButton asChild isActive={activeView === viewKey} tooltip={{ children: config.name, side: "right" }}>
+                                            <Link href={config.path}>
+                                                <IconComponent className="h-5 w-5" />
+                                                <span className="group-data-[collapsible=icon]:hidden">{config.name}</span>
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                );
+                            })}
+                        </SidebarGroupContent>
+                    </SidebarGroup>
                 );
             })}
         </SidebarMenu></SidebarContent>

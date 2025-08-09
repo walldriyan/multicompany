@@ -6,6 +6,9 @@ import type { SaleRecord, PaymentInstallment, UnitDefinition } from '@/types';
 interface CreditBillPrintContentProps {
   saleRecord: SaleRecord;
   installments: PaymentInstallment[];
+  companyName?: string | null;
+  companyAddress?: string | null;
+  companyPhone?: string | null;
 }
 
 // Simplified getUnitText for print content
@@ -13,10 +16,16 @@ const getUnitText = (units: UnitDefinition | undefined | null): string => {
   return units?.baseUnit || '';
 };
 
-export function CreditBillPrintContent({ saleRecord, installments }: CreditBillPrintContentProps) {
-  const companyName = "POS Solutions";
-  const companyAddress = "123 Main Street, Colombo, Sri Lanka";
-  const companyPhone = "+94 11 234 5678";
+export function CreditBillPrintContent({ 
+    saleRecord, 
+    installments,
+    companyName: companyNameProp,
+    companyAddress: companyAddressProp,
+    companyPhone: companyPhoneProp,
+}: CreditBillPrintContentProps) {
+  const companyName = companyNameProp || "POS Solutions";
+  const companyAddress = companyAddressProp || "123 Main Street, Colombo, Sri Lanka";
+  const companyPhone = companyPhoneProp || "+94 11 234 5678";
   const formatDate = (dateString: string | null | undefined) => dateString ? new Date(dateString).toLocaleString() : 'N/A';
 
   const totalInstallmentsPaid = installments.reduce((sum, inst) => sum + inst.amountPaid, 0);
