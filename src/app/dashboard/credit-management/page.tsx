@@ -14,10 +14,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -295,6 +295,11 @@ export default function CreditManagementPage() {
     (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const totalFilteredOutstanding = useMemo(() => {
+    return filteredSales.reduce((sum, sale) => sum + (sale.creditOutstandingAmount ?? 0), 0);
+  }, [filteredSales]);
+
+
   const getStatusBadgeVariant = (status?: CreditPaymentStatus | null) => {
     if (status === 'PENDING') return 'destructive';
     if (status === 'PARTIALLY_PAID') return 'secondary';
@@ -467,7 +472,7 @@ export default function CreditManagementPage() {
               </CardHeader>
                <Accordion type="single" collapsible defaultValue="item-1" className="w-full px-4 pb-2">
                 <AccordionItem value="item-1">
-                  <AccordionTrigger>Open Credit Bills</AccordionTrigger>
+                  <AccordionTrigger className="hover:no-underline"><div className="flex items-center"><ListFilter className="mr-2 h-4 w-4" /> Open Credit Bills</div></AccordionTrigger>
                   <AccordionContent>
                       <CardContent className="flex-1 overflow-hidden p-0 mt-2">
                         <ScrollArea className="h-[40vh]">
@@ -509,6 +514,13 @@ export default function CreditManagementPage() {
                                   </TableRow>
                                 ))}
                               </TableBody>
+                              <TableFooter>
+                                <TableRow>
+                                  <TableCell colSpan={4} className="text-right font-semibold">Total Displayed Outstanding:</TableCell>
+                                  <TableCell className="text-right font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-xs">({filteredSales.length} bills)</TableCell>
+                                </TableRow>
+                              </TableFooter>
                             </Table>
                           )}
                         </ScrollArea>
@@ -553,39 +565,43 @@ export default function CreditManagementPage() {
                   ) : (
                     <>
                       <Card className="p-4 bg-muted/20 border-border/40">
-                        <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary</CardTitle></CardHeader>
-                        <CardContent className="p-0 space-y-2">
-                             <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                    <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
-                                    <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
-                                </div>
-                                <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                    <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
-                                    <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
-                                </div>
-                            </div>
-                            <Separator className="bg-border/30 my-3"/>
-                            <div className="space-y-1 p-3 rounded-md bg-red-950/20 border border-red-500/30">
-                                <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
-                                <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
-                            </div>
-                             <Separator className="bg-border/30 my-3"/>
-                             <div className="space-y-1 text-xs px-1">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center text-muted-foreground">Payment Status:</div>
-                                    <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
-                                 </div>
-                                 <div className="flex justify-between items-center">
-                                    <div className="flex items-center text-muted-foreground">Sale Date:</div>
-                                    <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
-                                 </div>
-                                 {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center">
-                                    <div className="flex items-center text-muted-foreground">Last Payment:</div>
-                                    <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
-                                 </div>}
-                             </div>
-                        </CardContent>
+                          <CardHeader className="p-0 pb-3">
+                              <CardTitle className="text-lg font-medium text-foreground flex items-center">
+                                  <ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary
+                              </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-0 space-y-2">
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="space-y-1 p-3 rounded-md bg-background/40">
+                                      <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
+                                      <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
+                                  </div>
+                                  <div className="space-y-1 p-3 rounded-md bg-background/40">
+                                      <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
+                                      <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
+                                  </div>
+                              </div>
+                              <Separator className="bg-border/30 my-3"/>
+                              <div className="space-y-1 p-3 rounded-md bg-red-950/20 border border-red-500/30">
+                                  <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                  <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
+                              </div>
+                              <Separator className="bg-border/30 my-3"/>
+                              <div className="space-y-1 text-xs px-1">
+                                  <div className="flex justify-between items-center">
+                                      <div className="flex items-center text-muted-foreground">Payment Status:</div>
+                                      <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <div className="flex items-center text-muted-foreground">Sale Date:</div>
+                                      <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
+                                  </div>
+                                  {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center">
+                                      <div className="flex items-center text-muted-foreground">Last Payment:</div>
+                                      <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
+                                  </div>}
+                              </div>
+                          </CardContent>
                       </Card>
 
                       {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
@@ -621,9 +637,8 @@ export default function CreditManagementPage() {
                       )}
 
                       <Accordion type="single" collapsible defaultValue="item-1">
-                        <AccordionItem value="item-1">
-                          <AccordionTrigger className="text-sm">View Payment History</AccordionTrigger>
-                          <AccordionContent>
+                        <AccordionTrigger>View Payment History</AccordionTrigger>
+                        <AccordionContent>
                             <div className="p-3 bg-muted/20 border-border/40 rounded-md">
                               {isLoadingInstallments ? (
                                 <p className="text-muted-foreground text-xs">Loading payment history...</p>
@@ -643,7 +658,6 @@ export default function CreditManagementPage() {
                               )}
                             </div>
                           </AccordionContent>
-                        </AccordionItem>
                       </Accordion>
 
                     </>
