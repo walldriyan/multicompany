@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, FilePlus2, CheckCircle, Percent, DollarSign, Info, ChevronsUpDown, X, Package2, History } from 'lucide-react';
+import { PlusCircle, Trash2, FilePlus2, CheckCircle, Percent, DollarSign, Info, ChevronsUpDown, X, Package2, History, Wand2, ArrowLeft, ArrowRight, Layers, Settings2 as SettingsIcon } from 'lucide-react';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -22,6 +22,9 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+import { useSelector } from 'react-redux';
+import { selectAllProducts } from '@/store/slices/saleSlice';
 
 interface ProductFormProps {
   product?: ProductType | null;
@@ -71,6 +74,12 @@ const defaultUnitOptions = [
     { value: 'card', label: 'Card' },
 ];
 
+const formSteps = [
+    { id: 'details', title: 'Basic Details', icon: Package2 },
+    { id: 'pricing', title: 'Pricing & Tax', icon: DollarSign },
+    { id: 'stock', title: 'Stock & Units', icon: Layers },
+    { id: 'other', title: 'Other Details', icon: SettingsIcon },
+];
 
 export function ProductForm({
   product,
@@ -82,6 +91,9 @@ export function ProductForm({
   onSwitchToAddNew,
   submissionDetails,
 }: ProductFormProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const allProductsFromStore = useSelector(selectAllProducts);
+
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
     defaultValues: product
@@ -97,6 +109,7 @@ export function ProductForm({
     reset,
     watch,
     setValue,
+    trigger,
     formState: { errors: localErrors, isDirty, isValid: formIsValid },
   } = methods;
 
@@ -113,24 +126,28 @@ export function ProductForm({
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [isCategoryPopoverOpen, setIsCategoryPopoverOpen] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
     try {
-      const storedCategories = localStorage.getItem('productCategories');
+      const storedCategories = JSON.parse(localStorage.getItem('productCategories') || '[]');
+      const categoriesFromProducts = Array.from(new Set(allProductsFromStore.map(p => p.category).filter(Boolean) as string[]));
+      const combined = Array.from(new Set([...categoriesFromProducts, ...storedCategories].map(c => c.toUpperCase())));
+      setAllCategories(combined.sort());
+
       const storedUnits = localStorage.getItem('aroniumCustomProductUnits');
-      if (storedCategories) {
-        setAllCategories(JSON.parse(storedCategories));
-      }
       if (storedUnits) {
         const parsedUnits = JSON.parse(storedUnits);
         if (Array.isArray(parsedUnits)) setCustomUnits(parsedUnits);
       }
-    } catch (e) { console.error("Failed to load from localStorage", e); }
-  }, []);
+    } catch (e) { console.error("Failed to load initial data from localStorage", e); }
+  }, [allProductsFromStore]);
+
 
   useEffect(() => {
-    try {
-      localStorage.setItem('productCategories', JSON.stringify(allCategories));
-    } catch (e) { console.error("Failed to save categories to localStorage", e); }
+    if (allCategories.length > 0) {
+        try {
+            localStorage.setItem('productCategories', JSON.stringify(allCategories));
+        } catch (e) { console.error("Failed to save categories to localStorage", e); }
+    }
   }, [allCategories]);
 
   useEffect(() => {
@@ -185,7 +202,11 @@ export function ProductForm({
 
 
   const handleProductFormSubmitInternal = async (data: ProductFormData) => {
-    await onSubmit(data, product?.id);
+    const category = data.category?.trim().toUpperCase();
+    if (category && !allCategories.some(c => c.toUpperCase() === category)) {
+      setAllCategories(prev => [...prev, category].sort());
+    }
+    await onSubmit({ ...data, category: category || null }, product?.id);
   };
 
   const handleClearAndPrepareForNew = () => {
@@ -224,6 +245,49 @@ export function ProductForm({
     e.stopPropagation();
     setAllCategories(prev => prev.filter(c => c !== categoryToDelete));
   };
+  
+  const generateRandomNumericString = (length: number) => {
+    let result = '';
+    const characters = '0123456789';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  };
+
+  const handleGenerateCode = () => {
+    const randomCode = `PROD-${generateRandomNumericString(8)}`;
+    setValue('code', randomCode, { shouldDirty: true });
+  };
+
+  const handleGenerateBarcode = () => {
+    const randomBarcode = generateRandomNumericString(12);
+    setValue('barcode', randomBarcode, { shouldDirty: true });
+  };
+
+  const handleNextStep = async () => {
+      const fieldsPerStep: (keyof ProductFormData)[][] = [
+          ['name', 'code', 'category', 'barcode'],
+          ['sellingPrice', 'costPrice', 'productSpecificTaxRate'],
+          ['stock', 'units'],
+          ['defaultQuantity', 'imageUrl', 'description', 'isActive', 'isService']
+      ];
+      const currentStepFields = fieldsPerStep[currentStep];
+      const isValid = await trigger(currentStepFields);
+
+      if (isValid) {
+          if (currentStep < formSteps.length - 1) {
+              setCurrentStep(currentStep + 1);
+          }
+      }
+  };
+
+  const handlePrevStep = () => {
+      if (currentStep > 0) {
+          setCurrentStep(currentStep - 1);
+      }
+  };
 
 
   const filteredUnitOptions = unitOptions.filter(option =>
@@ -249,403 +313,387 @@ export function ProductForm({
             </TabsTrigger>
           </TabsList>
           <TabsContent value="details" className="mt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name" className="text-foreground text-xs">Product Name*</Label>
-                  <Input id="name" {...register('name')} className="bg-input border-border focus:ring-primary text-sm" />
-                  {(combinedFieldErrors.name || serverFieldErrors?.name) && (
-                    <p className="text-xs text-destructive mt-1">{combinedFieldErrors.name?.message || serverFieldErrors?.name?.[0]}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="code" className="text-foreground text-xs">Product Code</Label>
-                  <Input id="code" {...register('code')} className="bg-input border-border focus:ring-primary text-sm" />
-                  {(combinedFieldErrors.code || serverFieldErrors?.code) && (
-                    <p className="text-xs text-destructive mt-1">{combinedFieldErrors.code?.message || serverFieldErrors?.code?.[0]}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                   <Label htmlFor="category-combobox-trigger" className="text-foreground text-xs">Category</Label>
-                    <Controller
-                      name="category"
-                      control={control}
-                      render={({ field }) => (
-                        <Popover open={isCategoryPopoverOpen} onOpenChange={setIsCategoryPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              id="category-combobox-trigger"
-                              variant="outline"
-                              role="combobox"
-                              className="w-full justify-between bg-input border-border focus:ring-primary text-sm text-foreground hover:bg-muted/30 font-normal"
-                            >
-                              {field.value || "Select category..."}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <div className="flex items-center gap-4 mb-4">
+                {formSteps.map((step, index) => (
+                <React.Fragment key={step.id}>
+                    <div className="flex flex-col items-center">
+                    <div
+                        className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                        currentStep === index
+                            ? "bg-primary text-primary-foreground"
+                            : currentStep > index
+                            ? "bg-green-500 text-white"
+                            : "bg-muted border border-border"
+                        )}
+                    >
+                        {currentStep > index ? <CheckCircle className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
+                    </div>
+                    <p className={cn(
+                        "text-xs mt-1 text-center",
+                        currentStep === index ? "text-primary font-semibold" : "text-muted-foreground"
+                    )}>{step.title}</p>
+                    </div>
+                    {index < formSteps.length - 1 && (
+                    <Separator
+                        className={cn(
+                        "flex-1 transition-colors h-0.5",
+                        currentStep > index ? "bg-primary" : "bg-border"
+                        )}
+                    />
+                    )}
+                </React.Fragment>
+                ))}
+            </div>
+            
+            <div className="p-4 border border-dashed border-border/50 rounded-lg min-h-[300px]">
+                {/* Step 1: Basic Details */}
+                <div className={cn("space-y-4", currentStep !== 0 && "hidden")}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                        <Label htmlFor="name" className="text-foreground text-xs">Product Name*</Label>
+                        <Input id="name" {...register('name')} className="bg-input border-border focus:ring-primary text-sm" />
+                        {(combinedFieldErrors.name || serverFieldErrors?.name) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.name?.message || serverFieldErrors?.name?.[0]}</p>
+                        )}
+                        </div>
+                        <div>
+                        <Label htmlFor="code" className="text-foreground text-xs">Product Code</Label>
+                        <div className="flex items-center space-x-2">
+                            <Input id="code" {...register('code')} className="bg-input border-border focus:ring-primary text-sm" />
+                            <Button type="button" variant="outline" size="icon" onClick={handleGenerateCode} className="h-9 w-9 flex-shrink-0" title="Generate Random Code">
+                                <Wand2 className="h-4 w-4" />
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                              <div className="p-2">
-                                <Input
-                                  placeholder="Search or add category..."
-                                  value={categorySearchTerm}
-                                  onChange={(e) => setCategorySearchTerm(e.target.value)}
-                                  className="h-8"
-                                />
-                              </div>
-                              <ScrollArea className="max-h-48">
-                                  {filteredCategories.map((cat) => (
-                                    <div key={cat} className="flex items-center group text-sm pl-2 pr-1 hover:bg-accent/50 rounded-md">
+                        </div>
+                        {(combinedFieldErrors.code || serverFieldErrors?.code) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.code?.message || serverFieldErrors?.code?.[0]}</p>
+                        )}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                        <Label htmlFor="category-combobox-trigger" className="text-foreground text-xs">Category</Label>
+                            <Controller
+                            name="category"
+                            control={control}
+                            render={({ field }) => (
+                                <Popover open={isCategoryPopoverOpen} onOpenChange={setIsCategoryPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                    id="category-combobox-trigger"
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between bg-input border-border focus:ring-primary text-sm text-foreground hover:bg-muted/30 font-normal"
+                                    >
+                                    {field.value || "Select category..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <div className="p-2">
+                                        <Input
+                                        placeholder="Search or add category..."
+                                        value={categorySearchTerm}
+                                        onChange={(e) => setCategorySearchTerm(e.target.value)}
+                                        className="h-8"
+                                        />
+                                    </div>
+                                    <ScrollArea className="max-h-48">
+                                        {filteredCategories.map((cat) => (
+                                            <div key={cat} className="flex items-center group text-sm pl-2 pr-1 hover:bg-accent/50 rounded-md">
+                                                <Button
+                                                variant="ghost"
+                                                className="w-full justify-start font-normal h-8"
+                                                onClick={() => {
+                                                    setValue('category', cat, { shouldValidate: true, shouldDirty: true });
+                                                    setIsCategoryPopoverOpen(false);
+                                                    setCategorySearchTerm('');
+                                                }}
+                                                >
+                                                {cat}
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-50 group-hover:opacity-100" onClick={(e) => handleDeleteCategory(cat, e)}>
+                                                <X className="h-3 w-3 text-destructive" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        {categorySearchTerm && !filteredCategories.some(c => c.toLowerCase() === categorySearchTerm.toLowerCase()) && (
+                                            <Button variant="ghost" className="w-full justify-start font-normal h-8 text-sm" onClick={() => handleCreateCategory(categorySearchTerm)}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Create "{categorySearchTerm.toUpperCase()}"
+                                            </Button>
+                                        )}
+                                        {filteredCategories.length === 0 && !categorySearchTerm && <p className="p-2 text-xs text-muted-foreground text-center">No categories found.</p>}
+                                    </ScrollArea>
+                                </PopoverContent>
+                                </Popover>
+                            )}
+                            />
+                        {(combinedFieldErrors.category || serverFieldErrors?.category) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.category?.message || serverFieldErrors?.category?.[0]}</p>
+                        )}
+                        </div>
+                        <div>
+                        <Label htmlFor="barcode" className="text-foreground text-xs">Barcode</Label>
+                        <div className="flex items-center space-x-2">
+                            <Input id="barcode" {...register('barcode')} className="bg-input border-border focus:ring-primary text-sm" />
+                            <Button type="button" variant="outline" size="icon" onClick={handleGenerateBarcode} className="h-9 w-9 flex-shrink-0" title="Generate Random Barcode">
+                                <Wand2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        {(combinedFieldErrors.barcode || serverFieldErrors?.barcode) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.barcode?.message || serverFieldErrors?.barcode?.[0]}</p>
+                        )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Step 2: Pricing */}
+                <div className={cn("space-y-4", currentStep !== 1 && "hidden")}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="costPrice">
+                            {isEditingProduct ? 'Avg. Cost Price (Read-Only)' : 'Initial Cost Price (per base unit)'}
+                            </Label>
+                            <Controller
+                                name="costPrice"
+                                control={control}
+                                render={({ field }) => (
+                                    <Input
+                                        id="costPrice"
+                                        type="number"
+                                        step="any"
+                                        value={field.value === null || field.value === undefined ? '' : String(field.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            field.onChange(val === '' ? null : parseFloat(val));
+                                        }}
+                                        onBlur={field.onBlur}
+                                        placeholder="0.00"
+                                        className="bg-input border-border focus:ring-primary text-sm"
+                                        readOnly={isEditingProduct}
+                                    />
+                                )}
+                            />
+                            {(combinedFieldErrors.costPrice || serverFieldErrors?.costPrice) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.costPrice?.message || serverFieldErrors?.costPrice?.[0]}</p>)}
+                        </div>
+                        <div>
+                        <Label htmlFor="sellingPrice" className="text-foreground">Selling Price (per base unit)*</Label>
+                        <Input 
+                            id="sellingPrice" 
+                            type="number" 
+                            step="any" 
+                            {...register('sellingPrice', { 
+                                setValueAs: (v) => (v === "" || v === null || v === undefined || isNaN(parseFloat(v))) ? 0 : parseFloat(v) 
+                            })}
+                            placeholder="0.00" 
+                            className="bg-input border-border focus:ring-primary text-sm" 
+                        />
+                        {(combinedFieldErrors.sellingPrice || serverFieldErrors?.sellingPrice) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.sellingPrice?.message || serverFieldErrors?.sellingPrice?.[0]}</p>
+                        )}
+                        </div>
+                    </div>
+                    {(markup !== null || margin !== null) && (
+                        <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground mt-1 p-2 rounded-md bg-background/50 border border-dashed border-border/30">
+                        <div>
+                            <Label className="flex items-center"><Percent className="h-3 w-3 mr-1" /> Markup</Label>
+                            <p className={markup !== null && markup < 0 ? "text-red-500" : ""}>{markup !== null ? `${markup.toFixed(2)}%` : 'N/A'}</p>
+                        </div>
+                        <div>
+                            <Label className="flex items-center"><DollarSign className="h-3 w-3 mr-1" /> Margin</Label>
+                            <p className={margin !== null && margin < 0 ? "text-red-500" : ""}>{margin !== null ? `${margin.toFixed(2)}%` : 'N/A'}</p>
+                        </div>
+                        </div>
+                    )}
+                    <div>
+                        <Label htmlFor="productSpecificTaxRate" className="text-foreground">
+                            Product Specific Tax Rate (%)
+                            <Info size={12} className="inline ml-1 text-muted-foreground cursor-help" title="Leave blank to use global tax. Enter a number from 0 to 100."/>
+                        </Label>
+                        <Controller
+                            name="productSpecificTaxRate"
+                            control={control}
+                            render={({ field }) => (
+                            <Input 
+                                id="productSpecificTaxRate" 
+                                type="number" 
+                                step="0.01"
+                                value={field.value === null || field.value === undefined ? '' : String(field.value)}
+                                onChange={(e) => {
+                                const val = e.target.value;
+                                field.onChange(val === '' ? null : parseFloat(val));
+                                }}
+                                onBlur={field.onBlur}
+                                placeholder="e.g., 5 for 5%" 
+                                className="bg-input border-border focus:ring-primary text-sm" 
+                            />
+                            )}
+                        />
+                        {(combinedFieldErrors.productSpecificTaxRate || serverFieldErrors?.productSpecificTaxRate) && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.productSpecificTaxRate?.message || serverFieldErrors?.productSpecificTaxRate?.[0]}</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Step 3: Stock & Units */}
+                <div className={cn("space-y-4", currentStep !== 2 && "hidden")}>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div className="space-y-2">
+                           <Label>Current Stock</Label>
+                           <div className="flex items-center mt-1 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                             {(product?.stock ?? 0)}
+                             <span className="ml-2 flex-shrink-0">{watchedUnits.baseUnit || 'units'}</span>
+                           </div>
+                        </div>
+                        {isEditingProduct && (
+                            <div className="space-y-2">
+                                <p className="text-xs text-foreground font-medium">Add Manual Stock Adjustment (On Save)</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                    <Label htmlFor="stock-adj" className="text-xs">Quantity to Add</Label>
+                                    <Input id="stock-adj" type="number" step="any" placeholder="0" {...register('stock', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="h-7 text-xs bg-background"/>
+                                    </div>
+                                    <div>
+                                    <Label htmlFor="cost-adj" className="text-xs">Cost Price for Adj.</Label>
+                                    <Input id="cost-adj" type="number" step="any" placeholder="0.00" {...register('costPrice', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="h-7 text-xs bg-background"/>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {!isEditingProduct && (
+                           <div>
+                                <Label htmlFor="initial-stock">Initial Stock Quantity (per base unit)</Label>
+                                <Input id="initial-stock" type="number" step="any" {...register('stock', { setValueAs: v => (v === "" || v === null || v === undefined) ? null : parseFloat(v) })} className="bg-input border-border focus:ring-primary text-sm"/>
+                                {(combinedFieldErrors.stock || serverFieldErrors?.stock) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.stock?.message || serverFieldErrors?.stock?.[0]}</p>)}
+                           </div>
+                        )}
+                    </div>
+                    <Separator className="bg-border/30"/>
+                    <div>
+                        <Label htmlFor="units.baseUnit" className="text-foreground">Base Unit*</Label>
+                        <Controller
+                            name="units.baseUnit"
+                            control={control}
+                            render={({ field }) => (
+                            <Popover open={isUnitPopoverOpen} onOpenChange={setIsUnitPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" aria-expanded={isUnitPopoverOpen} className="w-full justify-between bg-input border-border focus:ring-primary text-sm text-foreground hover:bg-muted/30 font-normal">
+                                    {field.value ? unitOptions.find((opt) => opt.value === field.value)?.label : "Select unit..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <div className="p-2">
+                                    <Input placeholder="Search or add unit..." value={unitSearchTerm} onChange={(e) => setUnitSearchTerm(e.target.value)} className="h-8"/>
+                                </div>
+                                <ScrollArea className="max-h-60">
+                                    {filteredUnitOptions.map((option) => (
+                                    <div key={option.value} className="flex items-center group text-sm pl-2 pr-1 hover:bg-accent/50 rounded-md">
                                         <Button
                                         variant="ghost"
                                         className="w-full justify-start font-normal h-8"
                                         onClick={() => {
-                                            setValue('category', cat, { shouldValidate: true, shouldDirty: true });
-                                            setIsCategoryPopoverOpen(false);
-                                            setCategorySearchTerm('');
+                                            field.onChange(option.value);
+                                            setIsUnitPopoverOpen(false);
                                         }}
                                         >
-                                        {cat}
+                                        {option.label}
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-50 group-hover:opacity-100" onClick={(e) => handleDeleteCategory(cat, e)}>
-                                         <X className="h-3 w-3 text-destructive" />
+                                        {customUnits.includes(option.value) && (
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-50 group-hover:opacity-100" onClick={(e) => handleDeleteCustomUnit(option.value, e)}>
+                                            <X className="h-3 w-3 text-destructive" />
                                         </Button>
+                                        )}
                                     </div>
-                                  ))}
-                                   {categorySearchTerm && !filteredCategories.some(c => c.toLowerCase() === categorySearchTerm.toLowerCase()) && (
-                                    <Button variant="ghost" className="w-full justify-start font-normal h-8 text-sm" onClick={() => handleCreateCategory(categorySearchTerm)}>
-                                      <PlusCircle className="mr-2 h-4 w-4" /> Create "{categorySearchTerm.toUpperCase()}"
+                                    ))}
+                                    {filteredUnitOptions.length === 0 && unitSearchTerm && (
+                                    <Button variant="ghost" className="w-full justify-start font-normal h-8 text-sm" onClick={() => handleAddCustomUnit(unitSearchTerm)}>
+                                        Create "{unitSearchTerm}"
                                     </Button>
-                                  )}
-                                   {filteredCategories.length === 0 && !categorySearchTerm && <p className="p-2 text-xs text-muted-foreground text-center">No categories found.</p>}
-                              </ScrollArea>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    />
-                  {(combinedFieldErrors.category || serverFieldErrors?.category) && (
-                    <p className="text-xs text-destructive mt-1">{combinedFieldErrors.category?.message || serverFieldErrors?.category?.[0]}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="barcode" className="text-foreground text-xs">Barcode</Label>
-                  <Input id="barcode" {...register('barcode')} className="bg-input border-border focus:ring-primary text-sm" />
-                  {(combinedFieldErrors.barcode || serverFieldErrors?.barcode) && (
-                    <p className="text-xs text-destructive mt-1">{combinedFieldErrors.barcode?.message || serverFieldErrors?.barcode?.[0]}</p>
-                  )}
-                </div>
-              </div>
-
-              <Card className="bg-muted/20 border-border/40">
-                <CardHeader className="pb-2 pt-3">
-                  <CardTitle className="text-sm text-foreground">Pricing</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div>
-                        <Label htmlFor="costPrice">
-                           {isEditingProduct ? 'Avg. Cost Price (Read-Only)' : 'Initial Cost Price (per base unit)'}
-                        </Label>
-                        <Controller
-                            name="costPrice"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    id="costPrice"
-                                    type="number"
-                                    step="any"
-                                    value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        field.onChange(val === '' ? null : parseFloat(val));
-                                    }}
-                                    onBlur={field.onBlur}
-                                    placeholder="0.00"
-                                    className="bg-input border-border focus:ring-primary text-sm"
-                                    readOnly={isEditingProduct}
-                                />
+                                    )}
+                                </ScrollArea>
+                                </PopoverContent>
+                            </Popover>
                             )}
                         />
-                         {(combinedFieldErrors.costPrice || serverFieldErrors?.costPrice) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.costPrice?.message || serverFieldErrors?.costPrice?.[0]}</p>)}
+                    {(combinedFieldErrors.units?.baseUnit || serverFieldErrors?.["units.baseUnit"]) && (
+                        <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units?.baseUnit?.message || serverFieldErrors?.["units.baseUnit"]?.[0]}</p>
+                    )}
                     </div>
                     <div>
-                      <Label htmlFor="sellingPrice" className="text-foreground">Selling Price (per base unit)*</Label>
-                      <Input 
-                        id="sellingPrice" 
-                        type="number" 
-                        step="any" 
-                        {...register('sellingPrice', { 
-                            setValueAs: (v) => (v === "" || v === null || v === undefined || isNaN(parseFloat(v))) ? 0 : parseFloat(v) 
-                        })}
-                        placeholder="0.00" 
-                        className="bg-input border-border focus:ring-primary text-sm" 
-                      />
-                      {(combinedFieldErrors.sellingPrice || serverFieldErrors?.sellingPrice) && (
-                        <p className="text-xs text-destructive mt-1">{combinedFieldErrors.sellingPrice?.message || serverFieldErrors?.sellingPrice?.[0]}</p>
-                      )}
-                    </div>
-                  </div>
-                  {(markup !== null || margin !== null) && (
-                    <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground mt-1 p-2 rounded-md bg-background/50 border border-dashed border-border/30">
-                      <div>
-                        <Label className="flex items-center"><Percent className="h-3 w-3 mr-1" /> Markup</Label>
-                        <p className={markup !== null && markup < 0 ? "text-red-500" : ""}>{markup !== null ? `${markup.toFixed(2)}%` : 'N/A'}</p>
-                      </div>
-                      <div>
-                        <Label className="flex items-center"><DollarSign className="h-3 w-3 mr-1" /> Margin</Label>
-                         <p className={margin !== null && margin < 0 ? "text-red-500" : ""}>{margin !== null ? `${margin.toFixed(2)}%` : 'N/A'}</p>
-                      </div>
-                    </div>
-                  )}
-                   <div>
-                    <Label htmlFor="productSpecificTaxRate" className="text-foreground">
-                        Product Specific Tax Rate (%)
-                        <Info size={12} className="inline ml-1 text-muted-foreground cursor-help" title="Leave blank to use global tax. Enter a number from 0 to 100."/>
-                    </Label>
-                     <Controller
-                        name="productSpecificTaxRate"
-                        control={control}
-                        render={({ field }) => (
-                          <Input 
-                            id="productSpecificTaxRate" 
-                            type="number" 
-                            step="0.01"
-                            value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(val === '' ? null : parseFloat(val));
-                            }}
-                            onBlur={field.onBlur}
-                            placeholder="e.g., 5 for 5%" 
-                            className="bg-input border-border focus:ring-primary text-sm" 
-                          />
+                        <div className="flex justify-between items-center mb-1">
+                            <h4 className="text-xs font-medium text-foreground flex items-center">
+                            Derived Units (Optional)
+                            </h4>
+                        </div>
+                        {derivedUnitFields.map((field, index) => (
+                        <Card key={field.id} className="mb-2 p-2.5 bg-background/50 border-border/30 space-y-1.5">
+                            <div className="flex justify-between items-center mb-1">
+                                <p className="text-xs text-muted-foreground">Derived Unit {index + 1}</p>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => removeDerivedUnit(index)} className="h-5 w-5 text-destructive hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></Button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                                <Label htmlFor={`units.derivedUnits.${index}.name`} className="text-foreground text-xs">Name* (e.g., kg)</Label>
+                                <Input {...register(`units.derivedUnits.${index}.name`)} className="bg-input border-border focus:ring-primary h-7 text-xs" />
+                                {(combinedFieldErrors.units?.derivedUnits?.[index]?.name || serverFieldErrors?.[`units.derivedUnits.${index}.name`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.name?.message || serverFieldErrors?.[`units.derivedUnits.${index}.name`]?.[0]}</p>}
+                            </div>
+                            <div>
+                                <Label htmlFor={`units.derivedUnits.${index}.conversionFactor`} className="text-foreground text-xs">Conversion Factor*</Label>
+                                <Input type="number" step="any" {...register(`units.derivedUnits.${index}.conversionFactor`, { valueAsNumber: true })} className="bg-input border-border focus:ring-primary h-7 text-xs" />
+                                {(combinedFieldErrors.units?.derivedUnits?.[index]?.conversionFactor || serverFieldErrors?.[`units.derivedUnits.${index}.conversionFactor`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.conversionFactor?.message || serverFieldErrors?.[`units.derivedUnits.${index}.conversionFactor`]?.[0]}</p>}
+                            </div>
+                            <div>
+                                <Label htmlFor={`units.derivedUnits.${index}.threshold`} className="text-foreground text-xs">Display Threshold*</Label>
+                                <Input type="number" step="any" {...register(`units.derivedUnits.${index}.threshold`, { valueAsNumber: true })} className="bg-input border-border focus:ring-primary h-7 text-xs" />
+                                {(combinedFieldErrors.units?.derivedUnits?.[index]?.threshold || serverFieldErrors?.[`units.derivedUnits.${index}.threshold`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.threshold?.message || serverFieldErrors?.[`units.derivedUnits.${index}.threshold`]?.[0]}</p>}
+                            </div>
+                            </div>
+                        </Card>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={() => appendDerivedUnit({ name: '', conversionFactor: 1, threshold: 0 })} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground mt-1 text-xs h-7">
+                        <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Add Derived Unit
+                        </Button>
+                        {(combinedFieldErrors.units?.derivedUnits && typeof combinedFieldErrors.units.derivedUnits.message === 'string') && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units.derivedUnits.message}</p>
                         )}
-                      />
-                    {(combinedFieldErrors.productSpecificTaxRate || serverFieldErrors?.productSpecificTaxRate) && (
-                        <p className="text-xs text-destructive mt-1">{combinedFieldErrors.productSpecificTaxRate?.message || serverFieldErrors?.productSpecificTaxRate?.[0]}</p>
-                    )}
-                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/20 border-border/40">
-                <CardHeader className="pb-2 pt-3">
-                  <CardTitle className="text-sm text-foreground flex items-center">
-                    Stock & Units
-                    <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                        <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground cursor-help ml-1"><Info className="h-4 w-4" /></Button>
-                    </TooltipTrigger><TooltipContent className="max-w-xs text-xs" side="top">
-                        <p className="font-bold mb-1">Unit Configuration</p>
-                        <p><strong className="text-primary">Base Unit:</strong> The smallest unit stock is tracked in (e.g., grams, ml, pcs). Pricing and discounts are based on this unit.</p>
-                        <p className="mt-2"><strong className="text-primary">Derived Units:</strong> Larger units composed of the base unit (e.g., kg). The system will display stock in these units when the quantity exceeds the `Display Threshold`.</p>
-                    </TooltipContent></Tooltip></TooltipProvider>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                      <div>
-                         <Label htmlFor="stock">
-                           {isEditingProduct ? 'Current Stock (Read-Only)' : 'Initial Stock Quantity (per base unit)'}
-                         </Label>
-                        <Controller
-                            name="stock"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    id="stock"
-                                    type="number"
-                                    step="any"
-                                    className="bg-input border-border focus:ring-primary text-sm"
-                                    readOnly={isEditingProduct}
-                                    value={field.value === null || field.value === undefined ? '' : String(field.value)}
-                                    onChange={(e) => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-                                />
-                            )}
-                        />
-                         {(combinedFieldErrors.stock || serverFieldErrors?.stock) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.stock?.message || serverFieldErrors?.stock?.[0]}</p>)}
-                      </div>
-                      {isEditingProduct && (
-                          <div className="space-y-2">
-                             <p className="text-xs text-foreground font-medium">Add Manual Stock Adjustment (On Save)</p>
-                             <div className="grid grid-cols-2 gap-2">
-                               <div>
-                                 <Label htmlFor="stock-adj" className="text-xs">Quantity to Add</Label>
-                                 <Input id="stock-adj" type="number" step="any" placeholder="0" {...register('stock')} className="h-7 text-xs bg-background"/>
-                               </div>
-                               <div>
-                                 <Label htmlFor="cost-adj" className="text-xs">Cost Price for Adj.</Label>
-                                 <Input id="cost-adj" type="number" step="any" placeholder="0.00" {...register('costPrice')} className="h-7 text-xs bg-background"/>
-                               </div>
-                             </div>
-                           </div>
-                      )}
-                  </div>
-                  <Separator className="bg-border/30"/>
-                   <div>
-                    <Label htmlFor="units.baseUnit" className="text-foreground">Base Unit*</Label>
-                     <Controller
-                        name="units.baseUnit"
-                        control={control}
-                        render={({ field }) => (
-                          <Popover open={isUnitPopoverOpen} onOpenChange={setIsUnitPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" role="combobox" aria-expanded={isUnitPopoverOpen} className="w-full justify-between bg-input border-border focus:ring-primary text-sm text-foreground hover:bg-muted/30 font-normal">
-                                {field.value ? unitOptions.find((opt) => opt.value === field.value)?.label : "Select unit..."}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                              <div className="p-2">
-                                <Input placeholder="Search or add unit..." value={unitSearchTerm} onChange={(e) => setUnitSearchTerm(e.target.value)} className="h-8"/>
-                              </div>
-                              <ScrollArea className="max-h-60">
-                                {filteredUnitOptions.map((option) => (
-                                  <div key={option.value} className="flex items-center group text-sm pl-2 pr-1 hover:bg-accent/50 rounded-md">
-                                    <Button
-                                      variant="ghost"
-                                      className="w-full justify-start font-normal h-8"
-                                      onClick={() => {
-                                        field.onChange(option.value);
-                                        setIsUnitPopoverOpen(false);
-                                      }}
-                                    >
-                                      {option.label}
-                                    </Button>
-                                    {customUnits.includes(option.value) && (
-                                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-50 group-hover:opacity-100" onClick={(e) => handleDeleteCustomUnit(option.value, e)}>
-                                        <X className="h-3 w-3 text-destructive" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                ))}
-                                {filteredUnitOptions.length === 0 && unitSearchTerm && (
-                                   <Button variant="ghost" className="w-full justify-start font-normal h-8 text-sm" onClick={() => handleAddCustomUnit(unitSearchTerm)}>
-                                     Create "{unitSearchTerm}"
-                                   </Button>
-                                )}
-                              </ScrollArea>
-                            </PopoverContent>
-                          </Popover>
+                        {(combinedFieldErrors.units && !combinedFieldErrors.units.baseUnit && !combinedFieldErrors.units.derivedUnits && typeof combinedFieldErrors.units.message === 'string') && (
+                            <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units.message}</p>
                         )}
-                    />
-                   {(combinedFieldErrors.units?.baseUnit || serverFieldErrors?.["units.baseUnit"]) && (
-                     <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units?.baseUnit?.message || serverFieldErrors?.["units.baseUnit"]?.[0]}</p>
-                    )}
+                    </div>
                 </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                        <h4 className="text-xs font-medium text-foreground flex items-center">
-                        Derived Units (Optional)
-                        </h4>
-                    </div>
-                    {derivedUnitFields.map((field, index) => (
-                      <Card key={field.id} className="mb-2 p-2.5 bg-background/50 border-border/30 space-y-1.5">
-                        <div className="flex justify-between items-center mb-1">
-                            <p className="text-xs text-muted-foreground">Derived Unit {index + 1}</p>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => removeDerivedUnit(index)} className="h-5 w-5 text-destructive hover:bg-destructive/10"><Trash2 className="h-3 w-3" /></Button>
+                {/* Step 4: Other Details */}
+                <div className={cn("space-y-4", currentStep !== 3 && "hidden")}>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="defaultQuantity" className="text-foreground">Default Sale Quantity</Label>
+                            <Input id="defaultQuantity" type="number" step="any" {...register('defaultQuantity', { setValueAs: (v) => (v === "" || v === null || v === undefined || isNaN(parseFloat(v))) ? 1 : parseFloat(v) })} className="bg-input border-border focus:ring-primary text-sm" />
+                            {(combinedFieldErrors.defaultQuantity || serverFieldErrors?.defaultQuantity) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.defaultQuantity?.message || serverFieldErrors?.defaultQuantity?.[0]}</p>)}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <div>
-                            <Label htmlFor={`units.derivedUnits.${index}.name`} className="text-foreground text-xs">Name* (e.g., kg)</Label>
-                            <Input {...register(`units.derivedUnits.${index}.name`)} className="bg-input border-border focus:ring-primary h-7 text-xs" />
-                             {(combinedFieldErrors.units?.derivedUnits?.[index]?.name || serverFieldErrors?.[`units.derivedUnits.${index}.name`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.name?.message || serverFieldErrors?.[`units.derivedUnits.${index}.name`]?.[0]}</p>}
-                          </div>
-                          <div>
-                            <Label htmlFor={`units.derivedUnits.${index}.conversionFactor`} className="text-foreground text-xs">Conversion Factor*</Label>
-                            <Input type="number" step="any" {...register(`units.derivedUnits.${index}.conversionFactor`, { valueAsNumber: true })} className="bg-input border-border focus:ring-primary h-7 text-xs" />
-                             {(combinedFieldErrors.units?.derivedUnits?.[index]?.conversionFactor || serverFieldErrors?.[`units.derivedUnits.${index}.conversionFactor`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.conversionFactor?.message || serverFieldErrors?.[`units.derivedUnits.${index}.conversionFactor`]?.[0]}</p>}
-                          </div>
-                          <div>
-                            <Label htmlFor={`units.derivedUnits.${index}.threshold`} className="text-foreground text-xs">Display Threshold*</Label>
-                            <Input type="number" step="any" {...register(`units.derivedUnits.${index}.threshold`, { valueAsNumber: true })} className="bg-input border-border focus:ring-primary h-7 text-xs" />
-                            {(combinedFieldErrors.units?.derivedUnits?.[index]?.threshold || serverFieldErrors?.[`units.derivedUnits.${index}.threshold`]) && <p className="text-xs text-destructive mt-0.5">{combinedFieldErrors.units?.derivedUnits?.[index]?.threshold?.message || serverFieldErrors?.[`units.derivedUnits.${index}.threshold`]?.[0]}</p>}
-                          </div>
+                        <div>
+                            <Label htmlFor="imageUrl" className="text-foreground text-xs">Image URL</Label>
+                            <Input id="imageUrl" {...register('imageUrl')} placeholder="https://placehold.co/100x100.png" className="bg-input border-border focus:ring-primary text-sm" />
+                            {(combinedFieldErrors.imageUrl || serverFieldErrors?.imageUrl) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.imageUrl?.message || serverFieldErrors?.imageUrl?.[0]}</p>)}
                         </div>
-                      </Card>
-                    ))}
-                    <Button type="button" variant="outline" size="sm" onClick={() => appendDerivedUnit({ name: '', conversionFactor: 1, threshold: 0 })} className="border-primary text-primary hover:bg-primary hover:text-primary-foreground mt-1 text-xs h-7">
-                      <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Add Derived Unit
-                    </Button>
-                    {(combinedFieldErrors.units?.derivedUnits && typeof combinedFieldErrors.units.derivedUnits.message === 'string') && (
-                         <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units.derivedUnits.message}</p>
-                    )}
-                     {(combinedFieldErrors.units && !combinedFieldErrors.units.baseUnit && !combinedFieldErrors.units.derivedUnits && typeof combinedFieldErrors.units.message === 'string') && (
-                        <p className="text-xs text-destructive mt-1">{combinedFieldErrors.units.message}</p>
-                    )}
-                     <Accordion type="single" collapsible className="w-full mt-2">
-                        <AccordionItem value="item-1" className="border-none">
-                        <AccordionTrigger className="text-xs text-muted-foreground hover:no-underline p-1 justify-start">
-                            උදාහරණයක් බලන්න (View Example)
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="p-3 text-xs border border-dashed rounded-md bg-background/30 text-muted-foreground space-y-2">
-                              <p><strong className="text-foreground">තත්ත්වය (Scenario):</strong> අපි පැනඩෝල් විකුණනවා.</p>
-                              <p><strong className="text-foreground">ප්‍රධාන මිනුම (Base Unit):</strong> `tablet` (පෙත්ත) - අපේ තොගය සහ මිල ගණන් පදනම් වෙන්නේ පෙති ගණන මතයි.</p>
-                              
-                              <p className="font-semibold text-foreground pt-2 border-t border-border/30">පළමු විශාල ඒකකය (Derived Unit 1): කාඩ් එක</p>
-                              <ul className="list-disc pl-5">
-                                  <li><strong>Name:</strong> `card`</li>
-                                  <li><strong>Conversion Factor:</strong> `12` (මොකද 1 card = 12 tablets)</li>
-                                  <li><strong>Display Threshold:</strong> `12` (තොගය පෙති 12ක් හෝ ඊට වැඩි නම්, 'card' වලින් පෙන්වන්න)</li>
-                              </ul>
-
-                              <p className="font-semibold text-foreground pt-2 border-t border-border/30">දෙවන විශාල ඒකකය (Derived Unit 2): පෙට්ටිය</p>
-                              <ul className="list-disc pl-5">
-                                  <li><strong>Name:</strong> `box`</li>
-                                  <li><strong>Conversion Factor:</strong> `72` (මොකද 1 box = 6 cards, සහ 1 card = 12 tablets නිසා, 6 x 12 = 72 tablets)</li>
-                                  <li><strong>Display Threshold:</strong> `72` (තොගය පෙති 72ක් හෝ ඊට වැඩි නම්, 'box' වලින් පෙන්වන්න)</li>
-                              </ul>
-
-                              <p className="font-semibold text-foreground pt-2 border-t border-border/30">ප්‍රතිඵලය (Result):</p>
-                              <ul className="list-disc pl-5">
-                                  <li>ඔබේ තොගයේ පෙති `3`ක් තිබුණොත්, එය **`3 tablet`** ලෙස පෙන්වයි.</li>
-                                  <li>ඔබේ තොගයේ පෙති `15`ක් තිබුණොත්, එය **`1.25 card`** ලෙස පෙන්වයි (15 / 12).</li>
-                                  <li>ඔබේ තොගයේ පෙති `144`ක් තිබුණොත්, එය **`2 box`** ලෙස පෙන්වයි (144 / 72).</li>
-                              </ul>
-                          </div>
-                        </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/20 border-border/40">
-                <CardHeader className="pb-2 pt-3">
-                  <CardTitle className="text-sm text-foreground">Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                          <Label htmlFor="defaultQuantity" className="text-foreground">Default Sale Quantity</Label>
-                          <Input id="defaultQuantity" type="number" step="any" {...register('defaultQuantity', { setValueAs: (v) => (v === "" || v === null || v === undefined || isNaN(parseFloat(v))) ? 1 : parseFloat(v) })} className="bg-input border-border focus:ring-primary text-sm" />
-                          {(combinedFieldErrors.defaultQuantity || serverFieldErrors?.defaultQuantity) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.defaultQuantity?.message || serverFieldErrors?.defaultQuantity?.[0]}</p>)}
-                      </div>
-                      <div>
-                        <Label htmlFor="imageUrl" className="text-foreground text-xs">Image URL</Label>
-                        <Input id="imageUrl" {...register('imageUrl')} placeholder="https://placehold.co/100x100.png" className="bg-input border-border focus:ring-primary text-sm" />
-                        {(combinedFieldErrors.imageUrl || serverFieldErrors?.imageUrl) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.imageUrl?.message || serverFieldErrors?.imageUrl?.[0]}</p>)}
-                      </div>
-                  </div>
-                   <div>
-                    <Label htmlFor="description" className="text-foreground text-xs">Description/Comment</Label>
-                    <Textarea id="description" {...register('description')} placeholder="Enter any notes or description for the product..." className="bg-input border-border focus:ring-primary text-sm min-h-[60px]" />
-                    {(combinedFieldErrors.description || serverFieldErrors?.description) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.description?.message || serverFieldErrors?.description?.[0]}</p>)}
-                  </div>
-                  <div className="flex items-center space-x-6 pt-2">
-                    <div className="flex items-center space-x-2">
-                      <Controller name="isActive" control={control} render={({ field }) => (<Switch id="isActive" checked={field.value} onCheckedChange={field.onChange} aria-label="Product Active Status"/>)} />
-                      <Label htmlFor="isActive" className="text-foreground text-xs">Product Active</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Controller name="isService" control={control} render={({ field }) => (<Switch id="isService" checked={field.value} onCheckedChange={field.onChange} aria-label="Product Service Status"/>)} />
-                      <Label htmlFor="isService" className="text-foreground text-xs">Is Service Item (No Stock)</Label>
+                    <div>
+                        <Label htmlFor="description" className="text-foreground text-xs">Description/Comment</Label>
+                        <Textarea id="description" {...register('description')} placeholder="Enter any notes or description for the product..." className="bg-input border-border focus:ring-primary text-sm min-h-[60px]" />
+                        {(combinedFieldErrors.description || serverFieldErrors?.description) && (<p className="text-xs text-destructive mt-1">{combinedFieldErrors.description?.message || serverFieldErrors?.description?.[0]}</p>)}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div className="flex items-center space-x-6 pt-2">
+                        <div className="flex items-center space-x-2">
+                        <Controller name="isActive" control={control} render={({ field }) => (<Switch id="isActive" checked={field.value} onCheckedChange={field.onChange} aria-label="Product Active Status"/>)} />
+                        <Label htmlFor="isActive" className="text-foreground text-xs">Product Active</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                        <Controller name="isService" control={control} render={({ field }) => (<Switch id="isService" checked={field.value} onCheckedChange={field.onChange} aria-label="Product Service Status"/>)} />
+                        <Label htmlFor="isService" className="text-foreground text-xs">Is Service Item (No Stock)</Label>
+                        </div>
+                    </div>
+                </div>
+            </div>
           </TabsContent>
           <TabsContent value="batches" className="mt-4">
             <Card className="bg-muted/20 border-border/40">
@@ -713,15 +761,22 @@ export function ProductForm({
         </div>
       )}
 
-      <div className="flex justify-end space-x-3 pt-3 border-t border-border mt-4">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isProductFormLoading} className="border-muted text-muted-foreground hover:bg-muted/80">
-            Cancel
-          </Button>
-        )}
-        <Button type="submit" disabled={isProductFormLoading || !formIsValid || (!isDirty && isEditingProduct)} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[120px]">
-          {isProductFormLoading ? 'Saving...' : (isEditingProduct ? 'Update Product' : 'Create Product')}
+      <div className="flex justify-between items-center pt-3 border-t border-border mt-4">
+        <Button type="button" variant="outline" onClick={handlePrevStep} disabled={currentStep === 0}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Previous
         </Button>
+        
+        {currentStep < formSteps.length - 1 && (
+            <Button type="button" onClick={handleNextStep}>
+                Next <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+        )}
+        
+        {currentStep === formSteps.length - 1 && (
+            <Button type="submit" disabled={isProductFormLoading || !formIsValid || (!isDirty && isEditingProduct)} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[120px]">
+                {isProductFormLoading ? 'Saving...' : (isEditingProduct ? 'Update Product' : 'Create Product')}
+            </Button>
+        )}
       </div>
     </form>
     </FormProvider>
