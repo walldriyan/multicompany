@@ -2,6 +2,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { getUnpaidOrPartiallyPaidPurchaseBillsAction, recordPurchasePaymentAction, getPaymentsForPurchaseBillAction, getAllSuppliersAction } from '@/app/actions/purchaseActions';
 import { getOpenCreditSalesAction, recordCreditPaymentAction, getInstallmentsForSaleAction } from '@/app/actions/saleActions';
 import { getAllCustomersAction } from '@/app/actions/partyActions';
 import type { SaleRecord, PaymentInstallment, CreditPaymentStatus, Party as CustomerType } from '@/types';
@@ -343,10 +347,10 @@ export default function CreditManagementPage() {
           </Card>
         )}
 
-        <fieldset className="flex flex-1 gap-4 overflow-hidden" disabled={isSuperAdminWithoutCompany}>
+        <div className="flex flex-1 gap-4 overflow-hidden" >
             <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
               <CardHeader>
-                <CardTitle className="text-card-foreground">Open Credit Bills</CardTitle>
+                <CardTitle className="text-card-foreground">Search & Filter Bills</CardTitle>
                 <Card className="p-3 bg-muted/30 mt-2 border-border/50">
                     <CardDescription className="mb-2 text-muted-foreground">Filter by Date &amp; Customer</CardDescription>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -454,64 +458,71 @@ export default function CreditManagementPage() {
                 <div className="relative mt-4">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Quick-search this page..."
+                    placeholder="Quick-search by Bill ID or Customer..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 bg-input border-border focus:ring-primary text-card-foreground"
                   />
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0">
-                <ScrollArea className="h-full">
-                  {isLoadingSales ? (
-                    <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
-                  ) : filteredSales.length === 0 ? (
-                    <div className="p-4 text-center text-muted-foreground">No open credit sales matching criteria.</div>
-                  ) : (
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-card z-10">
-                        <TableRow>
-                          <TableHead className="text-muted-foreground">Date</TableHead>
-                          <TableHead className="text-muted-foreground">Bill ID</TableHead>
-                          <TableHead className="text-muted-foreground">Customer</TableHead>
-                          <TableHead className="text-muted-foreground">User</TableHead>
-                          <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
-                          <TableHead className="text-center text-muted-foreground">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredSales.map((sale) => (
-                          <TableRow
-                            key={sale.id}
-                            onClick={() => handleSelectSale(sale)}
-                            className={`cursor-pointer hover:bg-muted/50 ${selectedSale?.id === sale.id ? 'bg-primary/10' : ''}`}
-                          >
-                            <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
-                            <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
-                            <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
-                            <TableCell className="text-right text-card-foreground text-xs py-2">
-                              Rs. {(sale.creditOutstandingAmount ?? sale.totalAmount).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-center py-2">
-                              <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
-                                {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </ScrollArea>
-              </CardContent>
-              <CardFooter className="p-2 border-t border-border/50">
-                {totalCount > 0 && (<div className="flex justify-between items-center w-full">
-                    <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                    <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                    <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
-                </div>)}
-              </CardFooter>
+               <Accordion type="single" collapsible defaultValue="item-1" className="w-full px-4 pb-2">
+                <AccordionItem value="item-1">
+                  <AccordionTrigger>Open Credit Bills</AccordionTrigger>
+                  <AccordionContent>
+                      <CardContent className="flex-1 overflow-hidden p-0 mt-2">
+                        <ScrollArea className="h-[40vh]">
+                          {isLoadingSales ? (
+                            <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
+                          ) : filteredSales.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground">No open credit sales matching criteria.</div>
+                          ) : (
+                            <Table>
+                              <TableHeader className="sticky top-0 bg-card z-10">
+                                <TableRow>
+                                  <TableHead className="text-muted-foreground">Date</TableHead>
+                                  <TableHead className="text-muted-foreground">Bill ID</TableHead>
+                                  <TableHead className="text-muted-foreground">Customer</TableHead>
+                                  <TableHead className="text-muted-foreground">User</TableHead>
+                                  <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
+                                  <TableHead className="text-center text-muted-foreground">Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filteredSales.map((sale) => (
+                                  <TableRow
+                                    key={sale.id}
+                                    onClick={() => handleSelectSale(sale)}
+                                    className={`cursor-pointer hover:bg-muted/50 ${selectedSale?.id === sale.id ? 'bg-primary/10' : ''}`}
+                                  >
+                                    <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
+                                    <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
+                                    <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
+                                    <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
+                                    <TableCell className="text-right text-card-foreground text-xs py-2">
+                                      Rs. {(sale.creditOutstandingAmount ?? sale.totalAmount).toFixed(2)}
+                                    </TableCell>
+                                    <TableCell className="text-center py-2">
+                                      <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
+                                        {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </ScrollArea>
+                      </CardContent>
+                      <CardFooter className="p-2 border-t border-border/50">
+                        {totalCount > 0 && (<div className="flex justify-between items-center w-full">
+                            <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                            <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                            <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                        </div>)}
+                      </CardFooter>
+                   </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </Card>
 
             <Card className="flex-1 flex flex-col bg-card border-border shadow-lg overflow-hidden">
@@ -544,7 +555,7 @@ export default function CreditManagementPage() {
                       <Card className="p-4 bg-muted/20 border-border/40">
                         <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary</CardTitle></CardHeader>
                         <CardContent className="p-0 space-y-2">
-                           <div className="grid grid-cols-2 gap-4 text-sm">
+                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div className="space-y-1 p-3 rounded-md bg-background/40">
                                     <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
                                     <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
@@ -581,22 +592,22 @@ export default function CreditManagementPage() {
                         <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                             <CardHeader className="p-0 pb-3"><CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle></CardHeader>
                             <CardContent className="p-0 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)*</Label>
-                                    <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method*</Label>
-                                    <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
-                                    <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1"><SelectValue placeholder="Select method" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
-                                        <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
-                                        <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
-                                    </SelectContent>
-                                    </Select>
-                                </div>
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                      <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)*</Label>
+                                      <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                  </div>
+                                  <div>
+                                      <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method*</Label>
+                                      <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
+                                      <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1"><SelectValue placeholder="Select method" /></SelectTrigger>
+                                      <SelectContent>
+                                          <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                          <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
+                                          <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
+                                      </SelectContent>
+                                      </Select>
+                                  </div>
                                 </div>
                                 <div>
                                 <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
@@ -640,7 +651,7 @@ export default function CreditManagementPage() {
                 </CardContent>
               </ScrollArea>
             </Card>
-        </fieldset>
+        </div>
         {isPrintingBill && selectedSale && (
           <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
             <CreditBillPrintContent
