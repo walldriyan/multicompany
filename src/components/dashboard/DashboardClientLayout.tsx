@@ -106,7 +106,7 @@ export function DashboardClientLayout({
   const SidebarInternal = () => {
     const { isMobile, toggleSidebar } = useSidebar();
     return (
-      <Sidebar side="left" collapsible="icon" className="border-r border-border/30">
+      <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
         {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
         <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
           <Link href="/" className="flex items-center gap-2">
