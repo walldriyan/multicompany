@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -47,7 +47,7 @@ export default function CreditManagementPage() {
   const [isPrintingBill, setIsPrintingBill] = useState(false);
 
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'OTHER'>('CASH');
   const [paymentNotes, setPaymentNotes] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,7 +153,7 @@ export default function CreditManagementPage() {
   const handleSelectSale = (sale: SaleRecord) => {
     setSelectedSale(sale);
     setPaymentAmount('');
-    setPaymentMethod('cash');
+    setPaymentMethod('CASH');
     setPaymentNotes('');
   };
 
@@ -176,7 +176,7 @@ export default function CreditManagementPage() {
       toast({ title: 'Validation Error', description: 'Invalid payment amount.', variant: 'destructive' });
       return;
     }
-    if (amount > (selectedSale.creditOutstandingAmount ?? 0)) {
+    if (amount > (selectedSale.creditOutstandingAmount ?? 0) + 0.01) { // Add a small tolerance
       toast({ title: 'Validation Error', description: `Payment cannot exceed outstanding Rs. ${(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}.`, variant: 'destructive' });
       return;
     }
@@ -295,7 +295,11 @@ export default function CreditManagementPage() {
     return 'outline';
   };
   
-  const totalPaidForSelectedSale = installments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+  const totalPaidForSelectedSale = useMemo(() => {
+      if (!selectedSale) return 0;
+      return installments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+  }, [installments, selectedSale]);
+
   const maxPage = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const filteredCustomersForDropdown = useMemo(() => {
@@ -340,7 +344,7 @@ export default function CreditManagementPage() {
             <CardHeader>
               <CardTitle className="text-card-foreground">Open Credit Bills</CardTitle>
               <Card className="p-3 bg-muted/30 mt-2 border-border/50">
-                  <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Customer</CardDescription>
+                  <CardDescription className="mb-2 text-muted-foreground">Filter by Date &amp; Customer</CardDescription>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="grid gap-1">
                         <Label htmlFor="date-filter" className="text-xs">Date Range</Label>
@@ -534,15 +538,37 @@ export default function CreditManagementPage() {
                 ) : (
                   <>
                     <Card className="p-3 bg-muted/20 border-border/40">
-                      <CardHeader className="p-0 pb-2"><CardTitle className="text-sm text-foreground">Bill Summary</CardTitle></CardHeader>
-                      <CardContent className="p-0 text-sm space-y-1">
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary/70"/>Original Total:</span> <span className="text-card-foreground font-medium">Rs. {selectedSale.totalAmount.toFixed(2)}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500"/>Total Paid:</span> <span className="text-green-400 font-medium">Rs. {totalPaidForSelectedSale.toFixed(2)}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4 text-red-500"/>Currently Outstanding:</span> <span className="text-red-400 font-bold">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary/70"/>Payment Status:</span> <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)} className="text-xs">{selectedSale.creditPaymentStatus || 'N/A'}</Badge></div>
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary/70"/>Sale Date:</span> <span className="text-card-foreground"> {new Date(selectedSale.date).toLocaleDateString()}</span></div>
-                        {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-green-500"/>Last Payment:</span> <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span></div>}
-                      </CardContent>
+                        <CardHeader className="p-0 pb-2"><CardTitle className="text-base font-medium text-foreground">Bill Summary</CardTitle></CardHeader>
+                        <CardContent className="p-0 space-y-3">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="space-y-1">
+                                    <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
+                                    <p className="font-semibold text-lg text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
+                                    <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <Separator className="bg-border/30"/>
+                             <div className="space-y-1">
+                                <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                <p className="font-bold text-2xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
+                            </div>
+                             <Separator className="bg-border/30"/>
+                             <div className="flex justify-between items-center text-xs">
+                                <div className="flex items-center text-muted-foreground"><ListChecks className="h-4 w-4 mr-2 text-primary/70"/>Payment Status:</div>
+                                <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
+                             </div>
+                             <div className="flex justify-between items-center text-xs">
+                                <div className="flex items-center text-muted-foreground"><CalendarIcon className="h-4 w-4 mr-2 text-primary/70"/>Sale Date:</div>
+                                <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
+                             </div>
+                             {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center text-xs">
+                                <div className="flex items-center text-muted-foreground"><CalendarIcon className="h-4 w-4 mr-2 text-green-500"/>Last Payment:</div>
+                                <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
+                             </div>}
+                        </CardContent>
                     </Card>
 
                     {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
@@ -555,11 +581,12 @@ export default function CreditManagementPage() {
                           </div>
                           <div>
                             <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method</Label>
-                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'credit')}>
+                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
                               <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1"><SelectValue placeholder="Select method" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="cash"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
-                                <SelectItem value="credit"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Card/Bank Transfer</div></SelectItem>
+                                <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
+                                 <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
