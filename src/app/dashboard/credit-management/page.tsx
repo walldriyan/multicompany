@@ -283,7 +283,7 @@ export default function CreditManagementPage() {
     }, 200);
   };
 
-  const filteredSales = unpaidBills.filter(sale =>
+  const filteredSales = openCreditSales.filter(sale =>
     sale.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
