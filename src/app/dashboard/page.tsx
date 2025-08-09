@@ -240,24 +240,25 @@ export default function WelcomePage() {
         <Image
             src="https://placehold.co/1200x800.png"
             alt="Dashboard background"
-            layout="fill"
-            objectFit="cover"
+            fill={true}
+            style={{objectFit: 'cover'}}
             className="absolute inset-0 w-full h-full -z-10"
             data-ai-hint="abstract gradient"
             priority={true}
-            loading="eager"
+            unoptimized={true}
         />
         <div className="absolute inset-0 w-full h-full bg-black/50 -z-10"></div>
-
-        <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
-        <p className="text-muted-foreground mb-6">
-          Here is a roadmap of the features available to you for managing your business.
-        </p>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {widgetItems.map((item, index) => (
-            <Widget key={index} {...item} />
-          ))}
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
+          <p className="text-muted-foreground mb-6">
+            Here is a roadmap of the features available to you for managing your business.
+          </p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {widgetItems.map((item, index) => (
+              <Widget key={index} {...item} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
