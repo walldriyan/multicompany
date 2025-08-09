@@ -470,9 +470,13 @@ export default function CreditManagementPage() {
                   />
                 </div>
               </CardHeader>
-               <Accordion type="single" collapsible defaultValue="item-1" className="w-full px-4 pb-2">
+              <Accordion type="single" collapsible defaultValue="item-1" className="w-full px-4 pb-2">
                 <AccordionItem value="item-1">
-                  <AccordionTrigger className="hover:no-underline"><div className="flex items-center"><ListFilter className="mr-2 h-4 w-4" /> Open Credit Bills</div></AccordionTrigger>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center">
+                      <ListFilter className="mr-2 h-4 w-4" /> Open Credit Bills
+                    </div>
+                  </AccordionTrigger>
                   <AccordionContent>
                       <CardContent className="flex-1 overflow-hidden p-0 mt-2">
                         <ScrollArea className="h-[40vh]">
@@ -514,13 +518,6 @@ export default function CreditManagementPage() {
                                   </TableRow>
                                 ))}
                               </TableBody>
-                              <TableFooter>
-                                <TableRow>
-                                  <TableCell colSpan={4} className="text-right font-semibold">Total Displayed Outstanding:</TableCell>
-                                  <TableCell className="text-right font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-xs">({filteredSales.length} bills)</TableCell>
-                                </TableRow>
-                              </TableFooter>
                             </Table>
                           )}
                         </ScrollArea>
