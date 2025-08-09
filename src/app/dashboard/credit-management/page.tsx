@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -283,7 +283,7 @@ export default function CreditManagementPage() {
     }, 200);
   };
 
-  const filteredSales = openCreditSales.filter(sale =>
+  const filteredSales = unpaidBills.filter(sale =>
     sale.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -533,96 +533,68 @@ export default function CreditManagementPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="p-3 rounded-md bg-muted/30 border border-border/50 space-y-1 text-sm">
-                      <h4 className="font-semibold text-card-foreground mb-1">Bill Summary</h4>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Original Total:</span> <span className="text-card-foreground font-medium">Rs. {selectedSale.totalAmount.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Total Paid:</span> <span className="text-green-400 font-medium">Rs. {totalPaidForSelectedSale.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Currently Outstanding:</span> <span className="text-red-400 font-bold">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Payment Status:</span> <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)} className="text-xs">{selectedSale.creditPaymentStatus || 'N/A'}</Badge></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Sale Date:</span> <span className="text-card-foreground"> {new Date(selectedSale.date).toLocaleDateString()}</span></div>
-                      {selectedSale.creditLastPaymentDate && <div className="flex justify-between"><span className="text-muted-foreground">Last Payment:</span> <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span></div>}
-                    </div>
-
-                    <Separator className="my-3 bg-border/30" />
+                    <Card className="p-3 bg-muted/20 border-border/40">
+                      <CardHeader className="p-0 pb-2"><CardTitle className="text-sm text-foreground">Bill Summary</CardTitle></CardHeader>
+                      <CardContent className="p-0 text-sm space-y-1">
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary/70"/>Original Total:</span> <span className="text-card-foreground font-medium">Rs. {selectedSale.totalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500"/>Total Paid:</span> <span className="text-green-400 font-medium">Rs. {totalPaidForSelectedSale.toFixed(2)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4 text-red-500"/>Currently Outstanding:</span> <span className="text-red-400 font-bold">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary/70"/>Payment Status:</span> <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)} className="text-xs">{selectedSale.creditPaymentStatus || 'N/A'}</Badge></div>
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary/70"/>Sale Date:</span> <span className="text-card-foreground"> {new Date(selectedSale.date).toLocaleDateString()}</span></div>
+                        {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-green-500"/>Last Payment:</span> <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span></div>}
+                      </CardContent>
+                    </Card>
 
                     {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
-                      <div className="space-y-3 p-3 border border-dashed border-primary/40 rounded-md bg-primary/5">
-                        <h4 className="font-semibold text-primary mb-1">Record New Payment Installment</h4>
-                        <div>
-                          <Label htmlFor="paymentAmount" className="text-card-foreground">Amount to Pay (Rs.)</Label>
-                          <Input
-                            id="paymentAmount"
-                            type="number"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                            placeholder="Enter amount"
-                            className="bg-input border-border focus:ring-primary text-card-foreground"
-                            min="0.01"
-                            step="0.01"
-                            max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="paymentMethod" className="text-card-foreground">Payment Method for this Installment</Label>
-                          <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'credit')}>
-                            <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground">
-                              <SelectValue placeholder="Select method" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cash">Cash</SelectItem>
-                              <SelectItem value="credit">Card/Bank Transfer</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="paymentNotes" className="text-card-foreground">Notes (Optional)</Label>
-                          <Textarea
-                            id="paymentNotes"
-                            value={paymentNotes}
-                            onChange={(e) => setPaymentNotes(e.target.value)}
-                            placeholder="e.g., Paid by John Doe, Ref#123"
-                            className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px]"
-                          />
-                        </div>
-                        <Button onClick={handleRecordPayment} disabled={isProcessingPayment || !paymentAmount || parseFloat(paymentAmount) <=0 || !canUpdateSale} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-                          {isProcessingPayment ? 'Processing...' : <><DollarSign className="mr-2 h-4 w-4" /> Record Payment</>}
-                        </Button>
-                      </div>
+                      <Card className="p-3 bg-primary/5 border-primary/40 border-dashed">
+                        <CardHeader className="p-0 pb-2"><CardTitle className="text-sm text-primary">Record New Payment Installment</CardTitle></CardHeader>
+                        <CardContent className="p-0 space-y-3">
+                          <div>
+                            <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)</Label>
+                            <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                          </div>
+                          <div>
+                            <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method</Label>
+                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'cash' | 'credit')}>
+                              <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1"><SelectValue placeholder="Select method" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="cash"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                <SelectItem value="credit"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Card/Bank Transfer</div></SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
+                            <Textarea id="paymentNotes" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Paid by John Doe, Ref#123" className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px] mt-1" />
+                          </div>
+                          <Button onClick={handleRecordPayment} disabled={isProcessingPayment || !paymentAmount || parseFloat(paymentAmount) <=0 || !canUpdateSale} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                            {isProcessingPayment ? 'Processing...' : <><DollarSign className="mr-2 h-4 w-4" /> Record Payment</>}
+                          </Button>
+                        </CardContent>
+                      </Card>
                     )}
 
-                    <Separator className="my-3 bg-border/30" />
-                    
-                    <div>
-                      <h4 className="font-semibold text-card-foreground mb-2">Payment History</h4>
-                      {isLoadingInstallments ? (
-                        <p className="text-muted-foreground">Loading payment history...</p>
-                      ) : installments.length === 0 ? (
-                        <p className="text-muted-foreground">No payment installments recorded for this bill yet.</p>
-                      ) : (
-                        <ScrollArea className="max-h-48 border border-green-700 bg-green-950 rounded-md">
-                          <Table>
-                            <TableHeader className="sticky top-0 bg-green-800 z-10">
-                              <TableRow className="border-b-green-700/80">
-                                <TableHead className="text-green-100">Date</TableHead>
-                                <TableHead className="text-right text-green-100">Amount Paid</TableHead>
-                                <TableHead className="text-green-100">Method</TableHead>
-                                <TableHead className="text-green-100">Notes</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {installments.map((inst) => (
-                                <TableRow key={inst.id} className="hover:bg-green-900/70 border-b-green-700/50">
-                                  <TableCell className="text-green-200 text-xs">{new Date(inst.paymentDate).toLocaleString()}</TableCell>
-                                  <TableCell className="text-right text-green-200 text-xs">Rs. {inst.amountPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-green-200 text-xs">{inst.method}</TableCell>
-                                  <TableCell className="text-green-200 text-xs truncate max-w-[150px]" title={inst.notes || ''}>{inst.notes || 'N/A'}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                      )}
-                    </div>
+                    <Card className="p-3 bg-muted/20 border-border/40">
+                      <CardHeader className="p-0 pb-2"><CardTitle className="text-sm text-foreground">Payment History</CardTitle></CardHeader>
+                      <CardContent className="p-0">
+                        {isLoadingInstallments ? (
+                          <p className="text-muted-foreground text-xs">Loading payment history...</p>
+                        ) : installments.length === 0 ? (
+                          <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
+                        ) : (
+                          <ScrollArea className="h-48">
+                            <Table>
+                              <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
+                              <TableBody>
+                                {installments.map((inst) => (
+                                  <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </ScrollArea>
+                        )}
+                      </CardContent>
+                    </Card>
                   </>
                 )}
               </CardContent>
