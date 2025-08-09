@@ -234,8 +234,9 @@ export default function CreditManagementPage() {
           <head>
               <title>Credit Bill - ${selectedSale.billNumber}</title>
               <style>
-                  body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
-                  .receipt-container { width: 280px; margin: 0 auto; padding: 5px; }
+                  @page { size: auto; margin: 5px; }
+                  body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
+                  .receipt-container { width: 100%; margin: 0; padding: 0; height: fit-content; }
                   table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
                   th, td { padding: 1px 2px; vertical-align: top; }
                   .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
@@ -250,8 +251,8 @@ export default function CreditManagementPage() {
                   .thank-you { margin-top: 5px; text-align: center; font-size: 8pt; }
                   .section-break { margin-top: 5px; margin-bottom: 5px; }
                   @media print {
-                      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; }
-                      .receipt-container { margin: 0; padding:0; width: 100%; }
+                      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; height: auto !important; }
+                      .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; }
                       table { font-size: 7pt !important; }
                   }
               </style>
@@ -538,7 +539,7 @@ export default function CreditManagementPage() {
                     </div>
                   ) : (
                     <>
-                      <Card className="p-4 bg-muted/20 border-border/40">
+                     <Card className="p-4 bg-muted/20 border-border/40">
                         <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary</CardTitle></CardHeader>
                         <CardContent className="p-0 space-y-4">
                             <div className="grid grid-cols-2 gap-4 text-sm">
