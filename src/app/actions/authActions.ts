@@ -9,6 +9,7 @@ import { seedPermissionsAction } from './permissionActions';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
 import 'dotenv/config';
+import { z } from 'zod';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-default-secret-key-that-is-long-enough');
 
@@ -207,3 +208,74 @@ export async function verifyAdminPasswordAction(password: string): Promise<{ suc
     return { success: false, error: "An unexpected error occurred during password verification." };
   }
 }
+
+// Action for new company registration
+const RegisterSchema = z.object({
+  companyName: z.string().min(3, 'Company name must be at least 3 characters.'),
+  username: z.string().min(3, 'Username must be at least 3 characters.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
+});
+
+export async function registerCompanyAdminAction(
+  formData: unknown
+): Promise<{ success: boolean; message: string; fieldErrors?: Record<string, string[]> }> {
+  const validation = RegisterSchema.safeParse(formData);
+  if (!validation.success) {
+    return {
+      success: false,
+      message: "Validation failed.",
+      fieldErrors: validation.error.flatten().fieldErrors,
+    };
+  }
+  const { companyName, username, password } = validation.data;
+
+  try {
+    // Check for existing company name or username in a single query
+    const existingCompany = await prisma.companyProfile.findUnique({ where: { name: companyName } });
+    if (existingCompany) {
+      return { success: false, message: "A company with this name already exists.", fieldErrors: { companyName: ["This company name is already taken."] } };
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { username } });
+    if (existingUser) {
+      return { success: false, message: "This username is already taken.", fieldErrors: { username: ["This username is already taken."] } };
+    }
+    
+    // Find the 'Admin' role
+    const adminRole = await prisma.role.findFirst({ where: { name: 'Admin' } });
+    if (!adminRole) {
+      // This is a system-level issue. The Admin role should always exist (seeded).
+      throw new Error("Critical: Admin role not found. Please seed the database.");
+    }
+    
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Create company and user in a transaction
+    await prisma.$transaction(async (tx) => {
+      const newCompany = await tx.companyProfile.create({
+        data: {
+          name: companyName,
+          // 'createdByUserId' can be null or a system ID if you want to track it
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          username,
+          passwordHash,
+          roleId: adminRole.id,
+          companyId: newCompany.id,
+          isActive: true, // New users are active by default
+        },
+      });
+    });
+    
+    return { success: true, message: "Registration successful! You can now log in with your new credentials." };
+
+  } catch (error: any) {
+    console.error("Registration error:", error);
+    return { success: false, message: error.message || "An unexpected server error occurred during registration." };
+  }
+}
+
+    
