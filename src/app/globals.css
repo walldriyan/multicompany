@@ -36,7 +36,7 @@ body {
     --border: 0 0% 30%; /* Border color */
     --input: 0 0% 22%; /* Input background - slightly different from card */
     --ring: 217 100% 72%; /* Sky Blue for focus rings */
-    --radius: 0.5rem;
+    --radius: 1rem;
 
     /* Chart colors - retain from original but ensure they fit dark theme */
     --chart-1: 220 70% 50%;
