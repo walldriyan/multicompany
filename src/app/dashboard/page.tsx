@@ -103,7 +103,7 @@ export default function WelcomePage() {
     };
 
   return (
-    <div className="grid grid-cols-3 gap-6 h-full">
+    <div className="grid grid-cols-3 gap-6">
         {/* Left two columns */}
         <div className="col-span-2 flex flex-col gap-6">
             {/* Navigation Bar */}
@@ -196,7 +196,7 @@ export default function WelcomePage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="flex-1 h-40">
+              <div className="flex-1 min-h-[250px]">
                 {isLoading ? <Skeleton className="w-full h-full" /> :
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data?.financials.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
