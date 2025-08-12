@@ -26,7 +26,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReturnReceiptPrintContent } from '@/components/pos/ReturnReceiptPrintContent';
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
@@ -255,9 +255,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             if (relevantReturnLogs && Array.isArray(relevantReturnLogs) && (relevantReturnLogs as any[]).filter(log => !log.isUndone).length > 0) {
                 newAccordionValue.push('return-history');
             }
-            if (saleForReturnUi && saleForReturnUi.items.filter(item => item.quantity > 0).length > 0) {
-                newAccordionValue.push('items-for-return');
-            }
+            
             setAccordionValue(newAccordionValue);
 
         } else {
@@ -694,7 +692,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                     </AccordionContent>
                 </AccordionItem>
                 
-                <AccordionItem value="return-history" className="border-b border-red-800/50">
+                <AccordionItem value="return-history" className="border-b-0">
                     <AccordionTrigger className="py-1.5 text-red-400 hover:text-red-300 [&[data-state=open]>svg]:text-red-500 text-sm font-semibold">
                       <History className="inline-block h-4 w-4 mr-2 text-red-500" /> View Return History Log for Bill {pristineOriginalSaleForDisplay?.billNumber || 'N/A'}
                     </AccordionTrigger>
@@ -712,22 +710,24 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                       ) : (<p className="text-sm text-muted-foreground p-3">No active returns logged for this bill.</p>)}
                     </AccordionContent>
                 </AccordionItem>
-
-                 <AccordionItem value="items-for-return" className="border-b-0">
-                    <AccordionTrigger className="py-1.5 text-orange-400 hover:text-orange-300 [&[data-state=open]>svg]:text-orange-500 text-sm font-semibold">
-                      <ListChecks className="inline-block h-4 w-4 mr-2 text-orange-500" /> Select Items for New Return Transaction (from Bill: {latestAdjustedSaleForDisplay?.billNumber || 'N/A'})
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-1 pb-2">
-                       <ScrollArea className="flex-shrink-0 border border-orange-700 rounded-md bg-orange-950/50 min-h-[150px]">
-                          <Table><TableHeader><TableRow className="bg-orange-800/60 sticky top-0 z-[1] hover:bg-orange-800/70 border-b-orange-700"><TableHead className="text-orange-200 py-1.5">Item</TableHead><TableHead className="text-center text-orange-200 py-1.5">Qty in Bill</TableHead><TableHead className="text-right text-orange-200 py-1.5">Unit Price (Orig)</TableHead><TableHead className="text-right text-orange-400 py-1.5">Line Disc. (In Bill)</TableHead><TableHead className="text-right text-orange-200 py-1.5">Eff. Price/Unit (In Bill)</TableHead><TableHead className="text-right text-orange-300 font-medium py-1.5">Line Total (Net In Bill)</TableHead><TableHead className="w-32 text-center text-orange-200 py-1.5">Qty to Return Now</TableHead></TableRow></TableHeader>
-                            <TableBody>{itemsToReturnUiList.length > 0 ? itemsToReturnUiList.map(item => { const currentLineDiscount = (item.priceAtSale - item.effectivePricePaidPerUnit) * item.quantity; const currentLineNetTotal = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`ret-item-${item.productId}`} className={`hover:bg-orange-900/60 border-b-orange-800/50 ${item.quantity === 0 ? 'opacity-60' : ''}`}><TableCell className="text-orange-300 py-1">{item.name}</TableCell><TableCell className="text-center text-orange-300 py-1">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="text-right text-orange-300 py-1">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="text-right text-orange-400 py-1">Rs. {currentLineDiscount.toFixed(2)}</TableCell><TableCell className="text-right text-orange-300 py-1">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="text-right text-orange-300 font-medium py-1">Rs. {currentLineNetTotal.toFixed(2)}</TableCell><TableCell className="text-center py-1"><Input type="number" min="0" max={item.quantity} value={item.returnQuantity.toString()} onChange={(e) => handleReturnQuantityChange(item.productId, e.target.value)} className="w-20 h-8 bg-orange-950 border-orange-600 focus:ring-orange-500 text-orange-200 text-center p-1 text-sm" disabled={isLoading || item.quantity === 0}/></TableCell></TableRow>);
-                              }) : (<TableRow className="border-b-orange-800/50"><TableCell colSpan={7} className="text-center py-4 text-orange-500/70">{latestAdjustedSaleForDisplay ? 'No items available for return in the current bill state.' : 'Load a sale to see items.'}</TableCell></TableRow>)}</TableBody></Table>
-                        </ScrollArea>
-                        {itemsToReturnUiList.some(item => item.returnQuantity > 0) && (<div className="mt-2 p-3 border-t border-orange-700/60 text-right bg-orange-950/50 rounded-b-md"><span className="text-sm font-medium text-orange-300">Total Expected Refund (This Transaction): </span><span className="text-sm font-bold text-orange-200">Rs. {totalExpectedRefundForNewTransaction.toFixed(2)}</span></div>)}
-                    </AccordionContent>
-                </AccordionItem>
               </Accordion>
                 
+              <Card className="bg-card border-border/70 mt-2">
+                <CardHeader className="p-3">
+                  <CardTitle className="text-base flex items-center text-orange-400">
+                    <ListChecks className="inline-block h-4 w-4 mr-2" /> Select Items for New Return Transaction
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  <ScrollArea className="flex-shrink-0 border border-orange-700 rounded-md bg-orange-950/50 min-h-[150px]">
+                      <Table><TableHeader><TableRow className="bg-orange-800/60 sticky top-0 z-[1] hover:bg-orange-800/70 border-b-orange-700"><TableHead className="text-orange-200 py-1.5">Item</TableHead><TableHead className="text-center text-orange-200 py-1.5">Qty in Bill</TableHead><TableHead className="text-right text-orange-200 py-1.5">Unit Price (Orig)</TableHead><TableHead className="text-right text-orange-400 py-1.5">Line Disc. (In Bill)</TableHead><TableHead className="text-right text-orange-200 py-1.5">Eff. Price/Unit (In Bill)</TableHead><TableHead className="text-right text-orange-300 font-medium py-1.5">Line Total (Net In Bill)</TableHead><TableHead className="w-32 text-center text-orange-200 py-1.5">Qty to Return Now</TableHead></TableRow></TableHeader>
+                        <TableBody>{itemsToReturnUiList.length > 0 ? itemsToReturnUiList.map(item => { const currentLineDiscount = (item.priceAtSale - item.effectivePricePaidPerUnit) * item.quantity; const currentLineNetTotal = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`ret-item-${item.productId}`} className={`hover:bg-orange-900/60 border-b-orange-800/50 ${item.quantity === 0 ? 'opacity-60' : ''}`}><TableCell className="text-orange-300 py-1">{item.name}</TableCell><TableCell className="text-center text-orange-300 py-1">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="text-right text-orange-300 py-1">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="text-right text-orange-400 py-1">Rs. {currentLineDiscount.toFixed(2)}</TableCell><TableCell className="text-right text-orange-300 py-1">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="text-right text-orange-300 font-medium py-1">Rs. {currentLineNetTotal.toFixed(2)}</TableCell><TableCell className="text-center py-1"><Input type="number" min="0" max={item.quantity} value={item.returnQuantity.toString()} onChange={(e) => handleReturnQuantityChange(item.productId, e.target.value)} className="w-20 h-8 bg-orange-950 border-orange-600 focus:ring-orange-500 text-orange-200 text-center p-1 text-sm" disabled={isLoading || item.quantity === 0}/></TableCell></TableRow>);
+                          }) : (<TableRow className="border-b-orange-800/50"><TableCell colSpan={7} className="text-center py-4 text-orange-500/70">{latestAdjustedSaleForDisplay ? 'No items available for return in the current bill state.' : 'Load a sale to see items.'}</TableCell></TableRow>)}</TableBody></Table>
+                    </ScrollArea>
+                    {itemsToReturnUiList.some(item => item.returnQuantity > 0) && (<div className="mt-2 p-3 border-t border-orange-700/60 text-right bg-orange-950/50 rounded-b-md"><span className="text-sm font-medium text-orange-300">Total Expected Refund (This Transaction): </span><span className="text-sm font-bold text-orange-200">Rs. {totalExpectedRefundForNewTransaction.toFixed(2)}</span></div>)}
+                </CardContent>
+              </Card>
+
               
                 {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && (<div className="mt-4 p-3 border border-dashed border-primary/50 rounded-md bg-primary/10 flex-shrink-0"><h4 className="text-md font-medium text-primary mb-2 flex items-center"><FileText className="mr-2 h-5 w-5" /> Last Return Transaction Details</h4><p className="text-xs text-muted-foreground">Return Txn Bill No: <span className="font-semibold text-foreground">{lastProcessedReturn.returnTransactionRecord.billNumber}</span></p><p className="text-xs text-muted-foreground">Total Refunded (This Txn): <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.returnTransactionRecord.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Current Adjusted Bill ({lastProcessedReturn.currentAdjustedSaleAfterReturn.billNumber}) Total: <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.currentAdjustedSaleAfterReturn.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Original Sale Bill ({pristineOriginalSaleForDisplay?.billNumber}) Status: <span className="font-semibold text-foreground">{latestAdjustedSaleForDisplay?.status.replace(/_/g, ' ')}</span></p></div>)}
                  <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
