@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag, Briefcase, UserRound, Contact, LayoutGrid } from 'lucide-react';
@@ -51,7 +50,7 @@ const viewConfig: Record<DashboardView, ViewConfigItem> = {
 };
 
 const groupConfig = {
-    main: { label: "Dashboard", icon: LayoutGrid },
+    main: { label: "Main", icon: Briefcase },
     inventory: { label: "Inventory", icon: PackageIcon },
     customers: { label: "Customers & Sales", icon: UsersIcon },
     admin: { label: "Administration", icon: ShieldAlert },
@@ -98,7 +97,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
         if (inventoryViews.some(key => pathname.startsWith(viewConfig[key].path))) return "inventory";
         if (customerViews.some(key => pathname.startsWith(viewConfig[key].path))) return "customers";
         if (adminViews.some(key => pathname.startsWith(viewConfig[key].path))) return "admin";
-        return "";
+        return "main"; // Default to main
     };
     
     return (
