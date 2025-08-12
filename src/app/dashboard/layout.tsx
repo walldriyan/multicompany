@@ -8,16 +8,17 @@ import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, useSidebar, SidebarFooter, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from "@/components/ui/sidebar";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from "@/components/ui/alert-dialog";
-import { Sheet, SheetHeader, SheetTitle, SheetContent } from "@/components/ui/sheet";
-import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag, Briefcase, UserRound, Contact, Search } from 'lucide-react';
+import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag, Briefcase, UserRound, Contact, LayoutGrid } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AuthUser } from '@/store/slices/authSlice';
 import { logoutAction } from '@/app/actions/authActions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from '@/components/ui/input';
-import { SidebarProvider, useSidebar, Sidebar, SidebarHeader, SidebarTrigger, SidebarContent, SidebarMenu, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset } from '@/components/ui/sidebar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -30,7 +31,7 @@ interface ViewConfigItem {
 }
 
 const viewConfig: Record<DashboardView, ViewConfigItem> = {
-  welcome: { name: 'Welcome', icon: Home, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
+  welcome: { name: 'Welcome', icon: LayoutGrid, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
   reports: { name: 'Reports', icon: BarChart3, path: '/dashboard/reports', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
   cashRegister: { name: 'Cash Register', icon: WalletCards, path: '/dashboard/cash-register', permission: { action: 'access', subject: 'CashRegister' }, group: 'main' },
 
@@ -50,13 +51,14 @@ const viewConfig: Record<DashboardView, ViewConfigItem> = {
 };
 
 const groupConfig = {
-    main: { label: "Main", icon: Briefcase },
+    main: { label: "Dashboard", icon: LayoutGrid },
     inventory: { label: "Inventory", icon: PackageIcon },
     customers: { label: "Customers & Sales", icon: UsersIcon },
     admin: { label: "Administration", icon: ShieldAlert },
-};
+}
 
-const SidebarNav = ({ currentUser }: { currentUser: AuthUser | null }) => {
+
+const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
     const pathname = usePathname();
     const router = useRouter();
     const dispatch: AppDispatch = useDispatch();
@@ -86,18 +88,22 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser | null }) => {
         acc[group].push(viewKey);
         return acc;
     }, {} as Record<ViewConfigItem['group'], DashboardView[]>);
-    
-    if (!currentUser) {
-        return (
-            <div className="w-64 bg-card p-4">
-                <p>Loading...</p>
-            </div>
-        );
-    }
+
+    const mainViews = groupedVisibleViews['main'] || [];
+    const inventoryViews = groupedVisibleViews['inventory'] || [];
+    const customerViews = groupedVisibleViews['customers'] || [];
+    const adminViews = groupedVisibleViews['admin'] || [];
+
+    const getActiveGroup = () => {
+        if (inventoryViews.some(key => pathname.startsWith(viewConfig[key].path))) return "inventory";
+        if (customerViews.some(key => pathname.startsWith(viewConfig[key].path))) return "customers";
+        if (adminViews.some(key => pathname.startsWith(viewConfig[key].path))) return "admin";
+        return "";
+    };
     
     return (
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-            <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
+            <Sidebar side="left" collapsible="icon" variant="sidebar" className="border-r border-border/30">
               {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
               <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
                 <Link href="/" className="flex items-center gap-2">
@@ -108,37 +114,102 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser | null }) => {
                 {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
               </SidebarHeader>
               <SidebarContent>
-                <SidebarMenu>
-                    {(Object.keys(groupedVisibleViews) as Array<keyof typeof groupedVisibleViews>).map(groupKey => {
-                        const viewsInGroup = groupedVisibleViews[groupKey];
-                        const GroupIcon = groupConfig[groupKey].icon;
-                        return (
-                            <SidebarGroup key={groupKey}>
-                                <SidebarGroupLabel className="flex items-center gap-2">
-                                   <GroupIcon className="h-4 w-4" />
-                                   {groupConfig[groupKey].label}
-                                </SidebarGroupLabel>
-                                <SidebarGroupContent>
-                                    {viewsInGroup.map(viewKey => {
-                                        const config = viewConfig[viewKey];
-                                        const IconComponent = config.icon;
-                                        const isActive = pathname === config.path || (config.path !== '/dashboard' && pathname.startsWith(config.path));
-                                        return (
-                                            <SidebarMenuItem key={viewKey}>
-                                                <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: config.name, side: "right" }}>
-                                                    <Link href={config.path}>
-                                                        <IconComponent className="h-5 w-5" />
-                                                        <span className="group-data-[collapsible=icon]:hidden">{config.name}</span>
-                                                    </Link>
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        );
-                                    })}
-                                </SidebarGroupContent>
-                            </SidebarGroup>
-                        );
-                    })}
-                </SidebarMenu>
+                <Accordion type="single" collapsible defaultValue={getActiveGroup()} className="w-full">
+                    <SidebarMenu>
+                        {mainViews.map(viewKey => {
+                            const config = viewConfig[viewKey];
+                            const IconComponent = config.icon;
+                            const isActive = pathname === config.path;
+                             return (
+                                <SidebarMenuItem key={viewKey} className="px-2">
+                                     <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: config.name, side: "right" }}>
+                                         <Link href={config.path}>
+                                             <IconComponent className="h-5 w-5" />
+                                             <span className="group-data-[collapsible=icon]:hidden">{config.name}</span>
+                                         </Link>
+                                     </SidebarMenuButton>
+                                 </SidebarMenuItem>
+                            )
+                        })}
+
+                        {inventoryViews.length > 0 && (
+                            <AccordionItem value="inventory" className="border-none">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                   <div className="flex items-center gap-2">
+                                     <PackageIcon className="h-5 w-5" />
+                                     <span className="group-data-[collapsible=icon]:hidden">Inventory</span>
+                                   </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-0">
+                                    <SidebarMenuSub>
+                                        {inventoryViews.map(viewKey => {
+                                            const config = viewConfig[viewKey];
+                                            const isActive = pathname.startsWith(config.path);
+                                            return (
+                                                <SidebarMenuSubItem key={viewKey}>
+                                                    <SidebarMenuSubButton asChild isActive={isActive}>
+                                                         <Link href={config.path}>{config.name}</Link>
+                                                    </SidebarMenuSubButton>
+                                                </SidebarMenuSubItem>
+                                            )
+                                        })}
+                                    </SidebarMenuSub>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+                        {customerViews.length > 0 && (
+                            <AccordionItem value="customers" className="border-none">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                   <div className="flex items-center gap-2">
+                                     <UsersIcon className="h-5 w-5" />
+                                     <span className="group-data-[collapsible=icon]:hidden">Customers & Sales</span>
+                                   </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-0">
+                                    <SidebarMenuSub>
+                                        {customerViews.map(viewKey => {
+                                            const config = viewConfig[viewKey];
+                                            const isActive = pathname.startsWith(config.path);
+                                            return (
+                                                <SidebarMenuSubItem key={viewKey}>
+                                                    <SidebarMenuSubButton asChild isActive={isActive}>
+                                                         <Link href={config.path}>{config.name}</Link>
+                                                    </SidebarMenuSubButton>
+                                                </SidebarMenuSubItem>
+                                            )
+                                        })}
+                                    </SidebarMenuSub>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+                         {adminViews.length > 0 && (
+                            <AccordionItem value="admin" className="border-none">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                   <div className="flex items-center gap-2">
+                                     <ShieldAlert className="h-5 w-5" />
+                                     <span className="group-data-[collapsible=icon]:hidden">Administration</span>
+                                   </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-0">
+                                    <SidebarMenuSub>
+                                        {adminViews.map(viewKey => {
+                                            const config = viewConfig[viewKey];
+                                            const isActive = pathname.startsWith(config.path);
+                                            return (
+                                                <SidebarMenuSubItem key={viewKey}>
+                                                    <SidebarMenuSubButton asChild isActive={isActive}>
+                                                         <Link href={config.path}>{config.name}</Link>
+                                                    </SidebarMenuSubButton>
+                                                </SidebarMenuSubItem>
+                                            )
+                                        })}
+                                    </SidebarMenuSub>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+
+                    </SidebarMenu>
+                </Accordion>
               </SidebarContent>
               <SidebarFooter className="border-t border-border/30">
                 <SidebarMenu>
@@ -198,27 +269,21 @@ const MobileToggleButton = () => {
     );
 };
 
-export default function DashboardClientLayout({
-  initialUser,
-  children,
-}: {
-  initialUser: AuthUser;
-  children: React.ReactNode;
-}) {
+export default function DashboardClientLayout({ children }: { children: React.ReactNode }) {
   const dispatch: AppDispatch = useDispatch();
+  const currentUser = useSelector(selectCurrentUser);
+  const router = useRouter();
 
   useEffect(() => {
-    if (initialUser) {
-      dispatch(setUser(initialUser));
+    if (!currentUser) {
+      router.push('/login');
     }
-  }, [dispatch, initialUser]);
-
-  const currentUser = useSelector(selectCurrentUser);
+  }, [currentUser, router]);
 
   if (!currentUser) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
-            <p className="text-muted-foreground">Loading user data...</p>
+            <p className="text-muted-foreground">Redirecting to login...</p>
         </div>
     );
   }
