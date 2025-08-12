@@ -2,265 +2,137 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Package, ShoppingCart, BarChart3, ReceiptText, WalletCards, Percent, TrendingUp, Users, Archive, ArchiveX, UserCog, Building, ArrowRight, ShoppingBag, LogOut, DoorClosed } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useSelector, useDispatch } from 'react-redux';
-import { selectCurrentUser, clearUser } from '@/store/slices/authSlice';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useRouter } from 'next/navigation';
-import type { AppDispatch } from '@/store/store';
-
-interface WidgetProps {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  link: string;
-  permission: { action: string; subject: string };
-  className?: string;
-  size?: 'small' | 'medium' | 'large';
-}
-
-const Widget = ({ icon: Icon, title, description, link, permission, className = '', size = 'medium' }: WidgetProps) => {
-  const { can } = usePermissions();
-  const hasAccess = can(permission.action as any, permission.subject as any);
-
-  if (!hasAccess) {
-    return null;
-  }
-
-  const sizeClasses = {
-    small: 'md:col-span-1',
-    medium: 'md:col-span-1',
-    large: 'md:col-span-2',
-  };
-
-  return (
-    <div className={cn(
-      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between bg-card/40 dark:bg-card/60 border border-border/30 overflow-hidden hover:border-primary",
-      sizeClasses[size],
-      className
-    )}>
-      <div className="flex flex-col flex-grow">
-        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/20 mb-3">
-          <Icon className="w-6 h-6 text-primary" />
-        </div>
-        <h3 className="text-base font-semibold text-card-foreground">{title}</h3>
-        <p className="mt-1 text-xs text-muted-foreground flex-grow">{description}</p>
-      </div>
-      <Button asChild variant="secondary" size="sm" className="mt-4 rounded-full self-start h-8 px-3 text-xs bg-primary/10 hover:bg-primary/20 text-primary-foreground border border-primary/20">
-        <Link href={link}>
-          Go to Page <ArrowRight className="ml-1.5 h-3 w-3" />
-        </Link>
-      </Button>
-    </div>
-  );
-};
-
+import { ArrowRight, Users, BarChart3, TrendingUp } from 'lucide-react';
 
 export default function WelcomePage() {
-    const currentUser = useSelector(selectCurrentUser);
-    const dispatch: AppDispatch = useDispatch();
-    const router = useRouter();
-    const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-
-    const handleDirectLogout = () => {
-        dispatch(clearUser());
-        router.push('/login');
-    };
-
-    const widgetItems: Omit<WidgetProps, 'isLast'>[] = [
-        { 
-            icon: Package, 
-            title: "Product Management", 
-            description: "Add, edit, and manage all your products, their prices, and stock levels.", 
-            link: "/dashboard/products", 
-            permission: { action: 'read', subject: 'Product' },
-            size: 'large',
-        },
-        { 
-            icon: ShoppingCart, 
-            title: "Purchases (GRN)", 
-            description: "Record incoming goods from suppliers to update stock levels.", 
-            link: "/dashboard/purchases", 
-            permission: { action: 'read', subject: 'PurchaseBill' },
-            size: 'medium',
-        },
-        { 
-            icon: BarChart3, 
-            title: "Reports", 
-            description: "Generate detailed reports on sales, profits, and inventory.", 
-            link: "/dashboard/reports", 
-            permission: { action: 'access', subject: 'Dashboard' },
-            size: 'medium',
-        },
-        { 
-            icon: ReceiptText, 
-            title: "Credit Management", 
-            description: "Manage credit sales and track payments from customers.", 
-            link: "/dashboard/credit-management", 
-            permission: { action: 'read', subject: 'Sale' },
-            size: 'medium',
-        },
-        { 
-            icon: WalletCards, 
-            title: "Cash Register", 
-            description: "Start and end your daily shifts by recording cash flow.", 
-            link: "/dashboard/cash-register", 
-            permission: { action: 'access', subject: 'CashRegister' },
-            size: 'medium',
-        },
-        { 
-            icon: Building, 
-            title: "Company Details", 
-            description: "Set up your company's name, address, and logo for receipts.", 
-            link: "/dashboard/company", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: Percent, 
-            title: "Discount Management", 
-            description: "Create and manage discount campaigns for your store.", 
-            link: "/dashboard/discounts", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: TrendingUp, 
-            title: "Income & Expense", 
-            description: "Record other business incomes and expenses like rent or bills.", 
-            link: "/dashboard/financials", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: Users, 
-            title: "Contacts Management", 
-            description: "Manage your customers and suppliers information.", 
-            link: "/dashboard/parties", 
-            permission: { action: 'read', subject: 'Party' },
-            size: 'small',
-        },
-        { 
-            icon: Archive, 
-            title: "Stock Levels", 
-            description: "View and adjust stock levels for all products in one place.", 
-            link: "/dashboard/stock", 
-            permission: { action: 'read', subject: 'Product' },
-            size: 'large'
-        },
-        { 
-            icon: ArchiveX, 
-            title: "Stock Adjustments", 
-            description: "Record expired, damaged, or lost stock.", 
-            link: "/dashboard/lost-damage", 
-            permission: { action: 'update', subject: 'Product' },
-            size: 'medium',
-        },
-        { 
-            icon: UserCog, 
-            title: "Users & Roles", 
-            description: "Create user accounts for employees and control their access.", 
-            link: "/dashboard/users", 
-            permission: { action: 'read', subject: 'User' },
-            size: 'medium',
-        },
-    ];
     
+  // Placeholder data to match the design
+  const customerCount = 1293;
+  const balance = "256k";
+  const newCustomers = [
+    { name: "Gladyce", image: "https://placehold.co/40x40.png", hint: "woman" },
+    { name: "Elbert", image: "https://placehold.co/40x40.png", hint: "man" },
+    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "woman portrait" },
+    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "man portrait" },
+    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "person" },
+  ];
+  const popularProducts = [
+      { name: "Crypter - NFT UI Kit", price: "$3,250.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "abstract art" },
+      { name: "Bento Pro 2.0 Illustrations", price: "$7,890.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "geometric shapes" },
+      { name: "Fleet - travel shopping kit", price: "$1,500.00", status: "Offline", image: "https://placehold.co/40x40.png", hint: "leather bag" },
+      { name: "SimpleSocial UI Design Kit", price: "$4,750.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "sunset landscape" },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
-      <header className="mb-6 md:mb-8 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-            <Home className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-primary">
-              Welcome, {currentUser?.username || 'User'}!
-            </h1>
-        </div>
-        <div className="flex items-center space-x-2">
-            <Button asChild>
-                <Link href="/">
-                    <ShoppingBag className="mr-2 h-5 w-5" /> Go to POS
-                </Link>
-            </Button>
-            <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-9 w-9 p-0">
-                            <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/20 text-primary font-semibold">
-                                {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
-                                </AvatarFallback>
+    <div className="grid grid-cols-3 grid-rows-2 gap-6 h-full">
+
+        {/* Overview Card */}
+        <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+                <CardTitle className="text-lg font-semibold">Overview</CardTitle>
+                <Button variant="outline" size="sm" className="text-xs h-7">Last 7 days</Button>
+            </div>
+            <div className="flex-1 grid grid-cols-2 gap-6">
+                <Card className="bg-background/40 p-4 flex flex-col justify-between">
+                    <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4"/> Customers</div>
+                    <div>
+                        <span className="text-4xl font-bold">1,293</span>
+                        <span className="ml-2 text-sm text-red-400 flex items-center">↓ 36.8% <span className="text-muted-foreground ml-1">vs last month</span></span>
+                    </div>
+                </Card>
+                <Card className="bg-background/40 p-4 flex flex-col justify-between">
+                     <div className="flex items-center text-sm text-muted-foreground gap-2"><TrendingUp className="h-4 w-4"/> Balance</div>
+                    <div>
+                        <span className="text-4xl font-bold">$256k</span>
+                        <span className="ml-2 text-sm text-green-400 flex items-center">↑ 36.8% <span className="text-muted-foreground ml-1">vs last month</span></span>
+                    </div>
+                </Card>
+            </div>
+            <div className="mt-6">
+                <p className="font-semibold">857 new customers today!</p>
+                <p className="text-sm text-muted-foreground mb-3">Send a welcome message to all new customers.</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center -space-x-3">
+                        {newCustomers.map((customer, index) => (
+                             <Avatar key={index} className="border-2 border-card">
+                                <img src={customer.image} alt={customer.name} data-ai-hint={customer.hint} />
+                                <AvatarFallback>{customer.name.charAt(0)}</AvatarFallback>
                             </Avatar>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuLabel className="font-normal">
-                            <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">{currentUser?.username}</p>
-                                <p className="text-xs leading-none text-muted-foreground">{currentUser?.role?.name}</p>
-                                <p className="text-xs leading-none text-primary/80">{currentUser?.company?.name || 'Super Admin'}</p>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <AlertDialogTrigger asChild>
-                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
-                                <LogOut className="mr-2 h-4 w-4" />
-                                <span>Logout</span>
-                            </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            How would you like to proceed? Your current shift will remain open unless you end it.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                         <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
-                            <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
-                          </Button>
-                         <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
-                            <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
-                          </Button>
-                        <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
-      </header>
-      <div className="relative flex-1 rounded-2xl md:rounded-3xl p-4 md:p-6 border border-border/10 shadow-xl overflow-hidden">
-        <Image
-            src="https://placehold.co/1200x800.png"
-            alt="Dashboard background"
-            fill={true}
-            style={{objectFit: 'cover'}}
-            className="absolute inset-0 w-full h-full -z-10"
-            data-ai-hint="abstract gradient"
-            priority={true}
-            unoptimized={true}
-        />
-        <div className="absolute inset-0 w-full h-full bg-black/50 -z-10"></div>
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
-          <p className="text-muted-foreground mb-6">
-            Here is a roadmap of the features available to you for managing your business.
-          </p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {widgetItems.map((item, index) => (
-              <Widget key={index} {...item} />
-            ))}
-          </div>
-        </div>
-      </div>
+                        ))}
+                    </div>
+                    <Button variant="ghost" size="icon"><ArrowRight className="h-5 w-5"/></Button>
+                </div>
+            </div>
+        </Card>
+        
+        {/* Devices Card */}
+        <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
+            <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
+            <div className="flex-1 flex items-center justify-center">
+                 <div className="relative w-48 h-48">
+                    <svg className="w-full h-full" viewBox="0 0 36 36">
+                        <path className="stroke-current text-muted-foreground/20"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none" strokeWidth="3"></path>
+                        <path className="stroke-current text-green-500"
+                            strokeDasharray="66, 100"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none" strokeWidth="3" strokeLinecap="round"></path>
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-4xl font-bold">12.5%</span>
+                        <span className="text-muted-foreground">Mobile</span>
+                    </div>
+                </div>
+            </div>
+            <div className="flex justify-around text-xs mt-4">
+                <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
+                <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
+                <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
+            </div>
+        </Card>
+        
+        {/* Product View Card */}
+        <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+                <CardTitle className="text-lg font-semibold">Product view</CardTitle>
+                <Button variant="outline" size="sm" className="text-xs h-7">Last 7 days</Button>
+            </div>
+            <div className="flex-1 flex flex-col justify-end">
+                <div className="mb-2"><p className="text-4xl font-bold">$10.2m</p><p className="text-sm text-green-400">↑ 36.8% vs last month</p></div>
+                <div className="flex items-end justify-between h-40 gap-2">
+                    <div className="w-full h-[30%] bg-muted-foreground/20 rounded-t-md"></div>
+                    <div className="w-full h-[50%] bg-muted-foreground/20 rounded-t-md"></div>
+                    <div className="w-full h-[40%] bg-muted-foreground/20 rounded-t-md"></div>
+                    <div className="w-full h-[90%] bg-green-500 rounded-t-md"></div>
+                    <div className="w-full h-[60%] bg-muted-foreground/20 rounded-t-md"></div>
+                    <div className="w-full h-[35%] bg-muted-foreground/20 rounded-t-md"></div>
+                    <div className="w-full h-[70%] bg-muted-foreground/20 rounded-t-md"></div>
+                </div>
+            </div>
+        </Card>
+        
+        {/* Popular Products Card */}
+        <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
+            <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
+            <div className="flex-1 space-y-4">
+                {popularProducts.map((product, index) => (
+                    <div key={index} className="flex items-center gap-4">
+                        <img src={product.image} alt={product.name} className="w-10 h-10 rounded-md" data-ai-hint={product.hint}/>
+                        <div className="flex-1">
+                            <p className="font-semibold text-sm">{product.name}</p>
+                            <p className={`text-xs ${product.status === 'Active' ? 'text-green-400' : 'text-red-400'}`}>{product.status}</p>
+                        </div>
+                        <p className="font-semibold text-sm">{product.price}</p>
+                    </div>
+                ))}
+            </div>
+             <Button variant="outline" className="w-full mt-4">All products</Button>
+        </Card>
+
     </div>
   );
 }
