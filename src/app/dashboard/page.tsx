@@ -1,266 +1,279 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Home, Package, ShoppingCart, BarChart3, ReceiptText, WalletCards, Percent, TrendingUp, Users, Archive, ArchiveX, UserCog, Building, ArrowRight, ShoppingBag, LogOut, DoorClosed } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useSelector, useDispatch } from 'react-redux';
-import { selectCurrentUser, clearUser } from '@/store/slices/authSlice';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useRouter } from 'next/navigation';
-import type { AppDispatch } from '@/store/store';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3, Users2, Calendar as CalendarIcon, Clock, Moon } from 'lucide-react';
+import { getDashboardSummaryAction } from '@/app/actions/reportActions';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
+import { Skeleton } from '@/components/ui/skeleton';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Image from 'next/image';
+import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { Input } from '@/components/ui/input';
 
-interface WidgetProps {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  link: string;
-  permission: { action: string; subject: string };
-  className?: string;
-  size?: 'small' | 'medium' | 'large';
+
+interface DashboardData {
+    totalCustomers: number;
+    newCustomersToday: number;
+    totalSuppliers: number;
+    recentParties: { id: string; name: string; }[];
+    financials: {
+        totalIncome: number;
+        totalExpenses: number;
+        chartData: { date: string; income: number; expenses: number }[];
+    };
+    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; stock: number; }[];
 }
-
-const Widget = ({ icon: Icon, title, description, link, permission, className = '', size = 'medium' }: WidgetProps) => {
-  const { can } = usePermissions();
-  const hasAccess = can(permission.action as any, permission.subject as any);
-
-  if (!hasAccess) {
-    return null;
-  }
-
-  const sizeClasses = {
-    small: 'md:col-span-1',
-    medium: 'md:col-span-1',
-    large: 'md:col-span-2',
-  };
-
-  return (
-    <div className={cn(
-      "relative group rounded-2xl md:rounded-3xl p-4 flex flex-col justify-between bg-card/40 dark:bg-card/60 border border-border/30 overflow-hidden hover:border-primary",
-      sizeClasses[size],
-      className
-    )}>
-      <div className="flex flex-col flex-grow">
-        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 border-2 border-primary/20 mb-3">
-          <Icon className="w-6 h-6 text-primary" />
-        </div>
-        <h3 className="text-base font-semibold text-card-foreground">{title}</h3>
-        <p className="mt-1 text-xs text-muted-foreground flex-grow">{description}</p>
-      </div>
-      <Button asChild variant="secondary" size="sm" className="mt-4 rounded-full self-start h-8 px-3 text-xs bg-primary/10 hover:bg-primary/20 text-primary-foreground border border-primary/20">
-        <Link href={link}>
-          Go to Page <ArrowRight className="ml-1.5 h-3 w-3" />
-        </Link>
-      </Button>
-    </div>
-  );
-};
 
 
 export default function WelcomePage() {
+    const [data, setData] = useState<DashboardData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const currentUser = useSelector(selectCurrentUser);
-    const dispatch: AppDispatch = useDispatch();
-    const router = useRouter();
-    const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+    const [timeFilter, setTimeFilter] = useState<'today' | 'last7days' | 'thismonth'>('last7days');
 
-    const handleDirectLogout = () => {
-        dispatch(clearUser());
-        router.push('/login');
+    const loadData = useCallback(async (filter: 'today' | 'last7days' | 'thismonth') => {
+        if (!currentUser?.id) return;
+        setIsLoading(true);
+        const result = await getDashboardSummaryAction(currentUser.id, filter);
+        if (result.success && result.data) {
+            setData(result.data);
+        }
+        setIsLoading(false);
+    }, [currentUser]);
+
+    useEffect(() => {
+        loadData(timeFilter);
+    }, [currentUser, timeFilter, loadData]);
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            const incomePayload = payload.find((p: any) => p.dataKey === 'income');
+            const expensePayload = payload.find((p: any) => p.dataKey === 'expenses');
+            return (
+            <div className="rounded-lg border bg-background p-2 shadow-sm">
+                <div className="flex flex-col space-y-1">
+                    <span className="text-[0.70rem] uppercase text-muted-foreground">
+                    {label}
+                    </span>
+                    {incomePayload && 
+                        <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span className="font-bold text-muted-foreground">
+                            Income:
+                            </span>
+                             <span className="font-bold">
+                               Rs. {incomePayload.value.toLocaleString()}
+                            </span>
+                        </div>
+                    }
+                     {expensePayload && 
+                        <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#ef444490'}}></div>
+                            <span className="font-bold text-muted-foreground">
+                            Expenses:
+                            </span>
+                             <span className="font-bold">
+                               Rs. {expensePayload.value.toLocaleString()}
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+            );
+        }
+        return null;
+    };
+    
+    const { incomePercentage, totalFinancials } = useMemo(() => {
+      if (!data) return { incomePercentage: 0, totalFinancials: 0 };
+      const { totalIncome, totalExpenses } = data.financials;
+      const total = totalIncome + totalExpenses;
+      const percentage = total > 0 ? (totalIncome / total) * 100 : 0;
+      return { incomePercentage: percentage, totalFinancials: total };
+    }, [data]);
+
+    const filterLabels: Record<typeof timeFilter, string> = {
+        today: 'Today',
+        last7days: 'Last 7 Days',
+        thismonth: 'This Month'
     };
 
-    const widgetItems: Omit<WidgetProps, 'isLast'>[] = [
-        { 
-            icon: Package, 
-            title: "Product Management", 
-            description: "Add, edit, and manage all your products, their prices, and stock levels.", 
-            link: "/dashboard/products", 
-            permission: { action: 'read', subject: 'Product' },
-            size: 'large',
-        },
-        { 
-            icon: ShoppingCart, 
-            title: "Purchases (GRN)", 
-            description: "Record incoming goods from suppliers to update stock levels.", 
-            link: "/dashboard/purchases", 
-            permission: { action: 'read', subject: 'PurchaseBill' },
-            size: 'medium',
-        },
-        { 
-            icon: BarChart3, 
-            title: "Reports", 
-            description: "Generate detailed reports on sales, profits, and inventory.", 
-            link: "/dashboard/reports", 
-            permission: { action: 'access', subject: 'Dashboard' },
-            size: 'medium',
-        },
-        { 
-            icon: ReceiptText, 
-            title: "Credit Management", 
-            description: "Manage credit sales and track payments from customers.", 
-            link: "/dashboard/credit-management", 
-            permission: { action: 'read', subject: 'Sale' },
-            size: 'medium',
-        },
-        { 
-            icon: WalletCards, 
-            title: "Cash Register", 
-            description: "Start and end your daily shifts by recording cash flow.", 
-            link: "/dashboard/cash-register", 
-            permission: { action: 'access', subject: 'CashRegister' },
-            size: 'medium',
-        },
-        { 
-            icon: Building, 
-            title: "Company Details", 
-            description: "Set up your company's name, address, and logo for receipts.", 
-            link: "/dashboard/company", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: Percent, 
-            title: "Discount Management", 
-            description: "Create and manage discount campaigns for your store.", 
-            link: "/dashboard/discounts", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: TrendingUp, 
-            title: "Income & Expense", 
-            description: "Record other business incomes and expenses like rent or bills.", 
-            link: "/dashboard/financials", 
-            permission: { action: 'manage', subject: 'Settings' },
-            size: 'small',
-        },
-        { 
-            icon: Users, 
-            title: "Contacts Management", 
-            description: "Manage your customers and suppliers information.", 
-            link: "/dashboard/parties", 
-            permission: { action: 'read', subject: 'Party' },
-            size: 'small',
-        },
-        { 
-            icon: Archive, 
-            title: "Stock Levels", 
-            description: "View and adjust stock levels for all products in one place.", 
-            link: "/dashboard/stock", 
-            permission: { action: 'read', subject: 'Product' },
-            size: 'large'
-        },
-        { 
-            icon: ArchiveX, 
-            title: "Stock Adjustments", 
-            description: "Record expired, damaged, or lost stock.", 
-            link: "/dashboard/lost-damage", 
-            permission: { action: 'update', subject: 'Product' },
-            size: 'medium',
-        },
-        { 
-            icon: UserCog, 
-            title: "Users & Roles", 
-            description: "Create user accounts for employees and control their access.", 
-            link: "/dashboard/users", 
-            permission: { action: 'read', subject: 'User' },
-            size: 'medium',
-        },
-    ];
-    
   return (
-    <div className="flex flex-col flex-1 p-4 md:p-6 bg-gradient-to-br from-background to-secondary text-foreground">
-      <header className="mb-6 md:mb-8 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-            <Home className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-primary">
-              Welcome, {currentUser?.username || 'User'}!
-            </h1>
-        </div>
-        <div className="flex items-center space-x-2">
-            <Button asChild>
-                <Link href="/">
-                    <ShoppingBag className="mr-2 h-5 w-5" /> Go to POS
-                </Link>
-            </Button>
-            <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-9 w-9 p-0">
-                            <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/20 text-primary font-semibold">
-                                {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
-                                </AvatarFallback>
-                            </Avatar>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuLabel className="font-normal">
-                            <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">{currentUser?.username}</p>
-                                <p className="text-xs leading-none text-muted-foreground">{currentUser?.role?.name}</p>
-                                <p className="text-xs leading-none text-primary/80">{currentUser?.company?.name || 'Super Admin'}</p>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <AlertDialogTrigger asChild>
-                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-400 focus:bg-destructive/20 focus:text-red-300">
-                                <LogOut className="mr-2 h-4 w-4" />
-                                <span>Logout</span>
-                            </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            How would you like to proceed? Your current shift will remain open unless you end it.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                         <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
-                            <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
-                          </Button>
-                         <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
-                            <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
-                          </Button>
-                        <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
-      </header>
-      <div className="relative flex-1 rounded-2xl md:rounded-3xl p-4 md:p-6 border border-border/10 shadow-xl overflow-hidden">
-        <Image
-            src="https://placehold.co/1200x800.png"
-            alt="Dashboard background"
-            fill={true}
-            style={{objectFit: 'cover'}}
-            className="absolute inset-0 w-full h-full -z-10"
-            data-ai-hint="abstract gradient"
-            priority={true}
-            unoptimized={true}
-        />
-        <div className="absolute inset-0 w-full h-full bg-black/50 -z-10"></div>
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-semibold text-card-foreground mb-1">Control Center</h2>
-          <p className="text-muted-foreground mb-6">
-            Here is a roadmap of the features available to you for managing your business.
-          </p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {widgetItems.map((item, index) => (
-              <Widget key={index} {...item} />
-            ))}
+    <div className="grid grid-cols-3 gap-6">
+      <div className="col-span-2 flex flex-col gap-6">
+        <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
           </div>
-        </div>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+              <Bell className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+              <MessageSquare className="h-5 w-5" />
+            </Button>
+            <Avatar className="h-11 w-11 border-2 border-primary/50">
+              <AvatarFallback>{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+            </Avatar>
+            <Button asChild className="rounded-full bg-primary text-primary-foreground font-semibold h-11 px-6 hover:bg-primary/90">
+              <Link href="/">
+                <ShoppingCart className="mr-2 h-4 w-4" /> POS
+              </Link>
+            </Button>
+          </div>
+        </header>
+
+        <Card className="bg-card border-border p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <CardTitle className="text-lg font-semibold">Overview</CardTitle>
+          </div>
+          <div className="flex-1 grid grid-cols-2 gap-6">
+            <Card className="bg-background/40 p-4 flex flex-col justify-between">
+              <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4" /> Customers</div>
+              <div>
+                {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalCustomers || 0).toLocaleString()}</span>}
+              </div>
+            </Card>
+            <Card className="bg-background/40 p-4 flex flex-col justify-between">
+              <div className="flex items-center text-sm text-muted-foreground gap-2"><ShoppingBag className="h-4 w-4" /> Suppliers</div>
+              <div>
+                {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalSuppliers || 0).toLocaleString()}</span>}
+              </div>
+            </Card>
+          </div>
+          <div className="mt-6">
+            {isLoading ? <Skeleton className="h-5 w-48" /> : <p className="font-semibold">{data?.newCustomersToday || 0} new customers today!</p>}
+            <p className="text-sm text-muted-foreground mb-3">Recent activity in contacts.</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center -space-x-3">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-10 rounded-full" />)
+                ) : (data?.recentParties || []).map((party) => (
+                  <Avatar key={party.id} className="border-2 border-card">
+                    <AvatarFallback>{party.name.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                ))}
+              </div>
+              <Button variant="ghost" size="icon"><ArrowRight className="h-5 w-5" /></Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-card border-border p-6 flex flex-col">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
+               <div className="flex items-center gap-4 mt-2">
+                  <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
+                    <TrendingUp className="h-4 w-4" />
+                     {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
+                    <TrendingDown className="h-4 w-4" />
+                    {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>}
+                  </div>
+                </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setTimeFilter('today')}><Clock className="mr-2 h-4 w-4"/>Today</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}><CalendarIcon className="mr-2 h-4 w-4"/>Last 7 days</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}><Moon className="mr-2 h-4 w-4"/>This month</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="flex-1 min-h-[250px]">
+            {isLoading ? <Skeleton className="w-full h-full" /> :
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data?.financials.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.3)" />
+                  <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
+                  <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" fill="#ef444490" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          </div>
+        </Card>
+      </div>
+
+      <div className="col-span-1 flex flex-col gap-6">
+        <Card className="bg-card border-border p-6 flex flex-col">
+          <CardTitle className="text-lg font-semibold mb-4">{filterLabels[timeFilter]}</CardTitle>
+           <div className="flex-1 flex items-center justify-center">
+            <div className="relative w-48 h-48">
+              <svg className="w-full h-full" viewBox="0 0 36 36">
+                <path className="stroke-current text-muted-foreground/20"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none" strokeWidth="3"></path>
+                <path className="stroke-current text-green-500"
+                  strokeDasharray={`${incomePercentage.toFixed(2)}, 100`}
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none" strokeWidth="3" strokeLinecap="round"></path>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-4xl font-bold">{incomePercentage.toFixed(1)}%</span>
+                <span className="text-muted-foreground">Income</span>
+              </div>
+            </div>
+          </div>
+            <div className="mt-6 grid grid-cols-2 gap-4">
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Income</p>
+                    <p className="font-bold text-lg">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p>
+                </div>
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Expenses</p>
+                    <p className="font-bold text-lg">Rs. {data?.financials.totalExpenses.toLocaleString() || '0'}</p>
+                </div>
+            </div>
+        </Card>
+
+        <Card className="bg-card border-border p-6 flex flex-col">
+          <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
+          <div className="flex-1 space-y-3">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
+            ) : (data?.recentProducts || []).length > 0 ? (
+              (data?.recentProducts || []).map((product) => (
+                <div key={product.id} className="flex items-center gap-4 p-2 rounded-md transition-colors hover:bg-muted/30 hover:border-border border border-transparent">
+                  <div className="relative w-12 h-12 rounded-md bg-muted flex-shrink-0">
+                    {product.imageUrl ? (
+                      <Image src={product.imageUrl} alt={product.name} layout="fill" className="object-cover rounded-md" data-ai-hint="product image" />
+                    ) : (
+                      <ImageOff className="h-6 w-6 text-muted-foreground m-auto" />
+                    )}
+                  </div>
+                  <div className="flex-grow">
+                    <p className="font-semibold text-sm truncate">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.category || 'No Category'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Stock: {product.stock}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm text-center py-10">No recent products to display.</p>
+            )}
+          </div>
+          <Button variant="outline" className="w-full mt-4">All products</Button>
+        </Card>
       </div>
     </div>
   );
 }
+
