@@ -33,7 +33,7 @@ export async function getDashboardSummaryAction(
             chartData: { date: string; income: number; expenses: number }[];
         };
 
-        recentProducts: { id: string; name: string; category: string | null; sellingPrice: number}[];
+        recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; }[];
     };
     error?: string;
 }> {
@@ -58,7 +58,7 @@ export async function getDashboardSummaryAction(
                 where: productWhereClause,
                 orderBy: { createdAt: 'desc' },
                 take: 5,
-                select: { id: true, name: true, category: true, sellingPrice: true }
+                select: { id: true, name: true, category: true, sellingPrice: true, isActive: true, imageUrl: true }
             })
         ]);
 

@@ -5,13 +5,15 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Image from 'next/image';
+import { Badge } from '@/components/ui/badge';
 
 
 interface DashboardData {
@@ -24,7 +26,7 @@ interface DashboardData {
         totalExpenses: number;
         chartData: { date: string; income: number; expenses: number }[];
     }
-    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number}[];
+    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; }[];
 }
 
 
@@ -208,20 +210,32 @@ export default function WelcomePage() {
           </div>
         </Card>
         
-        {/* Recent Products Card */}
+        {/* Popular Products Card */}
         <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
-            <CardTitle className="text-lg font-semibold mb-4">Recent Products</CardTitle>
-            <div className="flex-1 space-y-4">
+            <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
+            <div className="flex-1 space-y-3">
                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
+                    Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
                  ) : (data?.recentProducts || []).length > 0 ? (
                     (data?.recentProducts || []).map((product) => (
-                        <div key={product.id} className="flex justify-between items-center">
-                            <div>
-                                <p className="font-medium text-sm">{product.name}</p>
+                        <div key={product.id} className="flex items-center gap-4">
+                            <div className="relative w-12 h-12 rounded-md bg-muted flex-shrink-0">
+                                {product.imageUrl ? (
+                                    <Image src={product.imageUrl} alt={product.name} layout="fill" className="object-cover rounded-md" data-ai-hint="product image"/>
+                                ) : (
+                                    <ImageOff className="h-6 w-6 text-muted-foreground m-auto"/>
+                                )}
+                            </div>
+                            <div className="flex-grow">
+                                <p className="font-semibold text-sm truncate">{product.name}</p>
                                 <p className="text-xs text-muted-foreground">{product.category || 'No Category'}</p>
                             </div>
-                            <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
+                            <div className="text-right">
+                                <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
+                                <Badge variant={product.isActive ? "default" : "destructive"} className={`text-xs mt-1 ${product.isActive ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
+                                    {product.isActive ? 'Active' : 'Offline'}
+                                </Badge>
+                            </div>
                         </div>
                     ))
                  ) : (
@@ -234,3 +248,5 @@ export default function WelcomePage() {
     </div>
   );
 }
+
+    
