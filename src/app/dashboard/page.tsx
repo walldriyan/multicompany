@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -10,7 +10,8 @@ import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 interface DashboardData {
@@ -18,7 +19,7 @@ interface DashboardData {
     newCustomersToday: number;
     totalSuppliers: number;
     recentParties: { id: string; name: string; }[];
-    last7DaysFinancials: {
+    financials: {
         totalIncome: number;
         totalExpenses: number;
         chartData: { date: string; income: number; expenses: number }[];
@@ -30,20 +31,55 @@ export default function WelcomePage() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const currentUser = useSelector(selectCurrentUser);
+    const [timeFilter, setTimeFilter] = useState<'today' | 'last7days' | 'thismonth'>('last7days');
+
+    const loadData = useCallback(async (filter: 'today' | 'last7days' | 'thismonth') => {
+        if (!currentUser?.id) return;
+        setIsLoading(true);
+        const result = await getDashboardSummaryAction(currentUser.id, filter);
+        if (result.success && result.data) {
+            setData(result.data);
+        }
+        setIsLoading(false);
+    }, [currentUser]);
 
     useEffect(() => {
-        async function loadData() {
-            if (!currentUser?.id) return;
-            setIsLoading(true);
-            const result = await getDashboardSummaryAction(currentUser.id);
-            if (result.success && result.data) {
-                setData(result.data);
-            }
-            setIsLoading(false);
+        loadData(timeFilter);
+    }, [currentUser, timeFilter, loadData]);
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+            <div className="rounded-lg border bg-background p-2 shadow-sm">
+                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col space-y-1">
+                    <span className="text-[0.70rem] uppercase text-muted-foreground">
+                    {label}
+                    </span>
+                    <span className="font-bold text-muted-foreground">
+                    Income:
+                    </span>
+                     <span className="font-bold">
+                       Rs. {payload[0].value.toLocaleString()}
+                    </span>
+                </div>
+                </div>
+            </div>
+            );
         }
-        loadData();
-    }, [currentUser]);
+        return null;
+    };
     
+    const maxIncome = useMemo(() => {
+        return Math.max(...(data?.financials.chartData.map(d => d.income) || [0]));
+    }, [data]);
+    
+    const filterLabels = {
+        today: 'Today',
+        last7days: 'Last 7 days',
+        thismonth: 'This month'
+    };
+
   return (
     <div className="grid grid-cols-3 grid-rows-2 gap-6 h-full">
 
@@ -113,42 +149,38 @@ export default function WelcomePage() {
         
         {/* Income & Expense Card */}
         <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-                <CardTitle className="text-lg font-semibold">Income &amp; Expenses (Last 7 Days)</CardTitle>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <CardTitle className="text-lg font-semibold">Product view</CardTitle>
+              {isLoading ? <Skeleton className="h-10 w-24 mt-2" /> : <p className="text-4xl font-bold mt-2">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>}
             </div>
-            <div className="flex-1 grid grid-cols-3 gap-6">
-                <div className="col-span-1 flex flex-col justify-end gap-6">
-                     <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
-                         <div className="flex items-center text-sm text-green-300 gap-2"><TrendingUp className="h-4 w-4"/> Total Income</div>
-                         {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-green-400">Rs. {(data?.last7DaysFinancials.totalIncome || 0).toLocaleString()}</p>}
-                    </div>
-                     <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-                         <div className="flex items-center text-sm text-red-300 gap-2"><TrendingDown className="h-4 w-4"/> Total Expenses</div>
-                         {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-red-400">Rs. {(data?.last7DaysFinancials.totalExpenses || 0).toLocaleString()}</p>}
-                    </div>
-                </div>
-                <div className="col-span-2 h-40">
-                   {isLoading ? <Skeleton className="w-full h-full" /> :
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data?.last7DaysFinancials.chartData} margin={{ top: 5, right: 10, left: -20, bottom: -5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.3)" />
-                            <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <Tooltip
-                                cursor={{ fill: 'hsl(var(--muted-foreground) / 0.1)' }}
-                                contentStyle={{ 
-                                    backgroundColor: 'hsl(var(--background) / 0.9)', 
-                                    border: '1px solid hsl(var(--border))',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '12px'
-                                }}
-                            />
-                            <Bar dataKey="income" fill="#22c55e" name="Income" radius={[4, 4, 0, 0]} barSize={20} />
-                            <Bar dataKey="expenses" fill="#ef4444" name="Expenses" radius={[4, 4, 0, 0]} barSize={20} />
-                        </BarChart>
-                    </ResponsiveContainer>}
-                </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">{filterLabels[timeFilter]}</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}>Last 7 days</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}>This month</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="flex-1 h-40">
+            {isLoading ? <Skeleton className="w-full h-full" /> :
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data?.financials.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.3)" />
+                  <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
+                  <Bar dataKey="income" radius={[4, 4, 0, 0]}>
+                    {data?.financials.chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.income === maxIncome && maxIncome > 0 ? '#22c55e' : '#4b5563'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          </div>
         </Card>
         
         {/* Popular Products Card */}
@@ -163,3 +195,5 @@ export default function WelcomePage() {
     </div>
   );
 }
+
+    

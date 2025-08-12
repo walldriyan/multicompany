@@ -4,7 +4,7 @@
 import prisma from '@/lib/prisma';
 import type { ComprehensiveReport, SaleRecord, FinancialTransaction, StockAdjustmentLog, PurchaseBill, CashRegisterShift, Product, Party, User, SaleRecordItem } from '@/types';
 import { Prisma } from '@prisma/client';
-import { startOfDay, subDays, format } from 'date-fns';
+import { startOfDay, subDays, format, startOfMonth } from 'date-fns';
 
 async function getCompanyIdForReport(userId?: string | null): Promise<string | null> {
     if (!userId) return null;
@@ -16,7 +16,10 @@ async function getCompanyIdForReport(userId?: string | null): Promise<string | n
     return user?.companyId || null;
 }
 
-export async function getDashboardSummaryAction(userId: string | null): Promise<{
+export async function getDashboardSummaryAction(
+    userId: string | null,
+    filter: 'today' | 'last7days' | 'thismonth' = 'last7days'
+): Promise<{
     success: boolean;
     data?: {
         totalCustomers: number;
@@ -24,8 +27,8 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
         totalSuppliers: number;
         recentParties: { id: string; name: string; }[];
         
-        // New chart data
-        last7DaysFinancials: {
+        // Updated chart data
+        financials: {
             totalIncome: number;
             totalExpenses: number;
             chartData: { date: string; income: number; expenses: number }[];
@@ -51,9 +54,9 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
         ]);
 
         // New Customers Today
-        const today = startOfDay(new Date());
+        const todayForNewCust = startOfDay(new Date());
         const newCustomersToday = await prisma.party.count({
-            where: { ...whereClause, type: 'CUSTOMER', createdAt: { gte: today } },
+            where: { ...whereClause, type: 'CUSTOMER', createdAt: { gte: todayForNewCust } },
         });
         
         // Recent 5 Parties
@@ -64,32 +67,46 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
             select: { id: true, name: true }
         });
 
-        // --- Financial Chart Data (Last 7 Days) ---
-        const sevenDaysAgo = subDays(new Date(), 7);
+        // --- Financial Chart Data ---
+        let startDate: Date;
+        const now = new Date();
+        switch (filter) {
+            case 'today':
+                startDate = startOfDay(now);
+                break;
+            case 'thismonth':
+                startDate = startOfMonth(now);
+                break;
+            case 'last7days':
+            default:
+                startDate = subDays(now, 7);
+                break;
+        }
 
         const [dailySales, dailyPurchases, dailyExpenses] = await Promise.all([
             prisma.saleRecord.groupBy({
                 by: ['date'],
-                where: { ...salesWhereClause, date: { gte: sevenDaysAgo }, recordType: 'SALE' },
+                where: { ...salesWhereClause, date: { gte: startDate }, recordType: 'SALE' },
                 _sum: { totalAmount: true },
             }),
             prisma.purchaseBill.groupBy({
                 by: ['purchaseDate'],
-                where: { ...purchaseWhereClause, purchaseDate: { gte: sevenDaysAgo } },
+                where: { ...purchaseWhereClause, purchaseDate: { gte: startDate } },
                 _sum: { totalAmount: true },
             }),
             prisma.financialTransaction.groupBy({
                 by: ['date'],
-                where: { ...expenseWhereClause, date: { gte: sevenDaysAgo } },
+                where: { ...expenseWhereClause, date: { gte: startDate } },
                 _sum: { amount: true },
             }),
         ]);
 
         const financialDataMap = new Map<string, { income: number, expenses: number }>();
+        const daysInRange = filter === 'today' ? 1 : filter === 'thismonth' ? now.getDate() : 7;
 
-        // Initialize last 7 days
-        for (let i = 0; i < 7; i++) {
-            const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
+        // Initialize last N days
+        for (let i = 0; i < daysInRange; i++) {
+            const date = format(subDays(now, i), 'yyyy-MM-dd');
             financialDataMap.set(date, { income: 0, expenses: 0 });
         }
         
@@ -118,7 +135,11 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
         });
         
         const chartData = Array.from(financialDataMap.entries())
-            .map(([date, values]) => ({ date: format(new Date(date), 'MMM d'), ...values }))
+            .map(([date, values]) => ({ 
+              date: filter === 'today' ? 'Today' : format(new Date(date), 'dd MMM'), 
+              income: values.income,
+              expenses: values.expenses
+            }))
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const totalIncome = chartData.reduce((sum, day) => sum + day.income, 0);
@@ -131,7 +152,7 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
                 newCustomersToday,
                 totalSuppliers,
                 recentParties,
-                last7DaysFinancials: {
+                financials: {
                     totalIncome,
                     totalExpenses,
                     chartData,
@@ -367,3 +388,5 @@ export async function getUsersForReportFilterAction(actorUserId: string | null):
   }
 }
       
+
+    
