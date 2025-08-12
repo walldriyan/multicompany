@@ -49,20 +49,36 @@ export default function WelcomePage() {
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
+            const incomePayload = payload.find((p: any) => p.dataKey === 'income');
+            const expensePayload = payload.find((p: any) => p.dataKey === 'expenses');
             return (
             <div className="rounded-lg border bg-background p-2 shadow-sm">
-                <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col space-y-1">
                     <span className="text-[0.70rem] uppercase text-muted-foreground">
                     {label}
                     </span>
-                    <span className="font-bold text-muted-foreground">
-                    Income:
-                    </span>
-                     <span className="font-bold">
-                       Rs. {payload[0].value.toLocaleString()}
-                    </span>
-                </div>
+                    {incomePayload && 
+                        <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span className="font-bold text-muted-foreground">
+                            Income:
+                            </span>
+                             <span className="font-bold">
+                               Rs. {incomePayload.value.toLocaleString()}
+                            </span>
+                        </div>
+                    }
+                     {expensePayload && 
+                        <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            <span className="font-bold text-muted-foreground">
+                            Expenses:
+                            </span>
+                             <span className="font-bold">
+                               Rs. {expensePayload.value.toLocaleString()}
+                            </span>
+                        </div>
+                    }
                 </div>
             </div>
             );
@@ -152,7 +168,12 @@ export default function WelcomePage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <CardTitle className="text-lg font-semibold">Product view</CardTitle>
-              {isLoading ? <Skeleton className="h-10 w-24 mt-2" /> : <p className="text-4xl font-bold mt-2">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>}
+              {isLoading ? <Skeleton className="h-10 w-24 mt-2" /> : 
+                <div className="flex items-baseline gap-4 mt-2">
+                  <p className="text-4xl font-bold text-green-400">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-red-400">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</p>
+                </div>
+              }
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -172,11 +193,8 @@ export default function WelcomePage() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.3)" />
                   <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
-                  <Bar dataKey="income" radius={[4, 4, 0, 0]}>
-                    {data?.financials.chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.income === maxIncome && maxIncome > 0 ? '#22c55e' : '#4b5563'} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             }
