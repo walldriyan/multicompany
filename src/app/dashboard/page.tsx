@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3 } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -27,7 +27,7 @@ interface DashboardData {
         totalIncome: number;
         totalExpenses: number;
         chartData: { date: string; income: number; expenses: number }[];
-    }
+    };
     recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; stock: number; }[];
 }
 
@@ -91,11 +91,14 @@ export default function WelcomePage() {
         return null;
     };
     
-    const maxIncome = useMemo(() => {
-        if (!data?.financials.chartData) return 0;
-        return Math.max(...data.financials.chartData.map(d => d.income));
+    const { incomePercentage, totalFinancials } = useMemo(() => {
+      if (!data) return { incomePercentage: 0, totalFinancials: 0 };
+      const { totalIncome, totalExpenses } = data.financials;
+      const total = totalIncome + totalExpenses;
+      const percentage = total > 0 ? (totalIncome / total) * 100 : 0;
+      return { incomePercentage: percentage, totalFinancials: total };
     }, [data]);
-    
+
     const filterLabels = {
         today: 'Today',
         last7days: 'Last 7 days',
@@ -168,18 +171,16 @@ export default function WelcomePage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
-              {isLoading ? <Skeleton className="h-10 w-48 mt-2" /> :
-                <div className="flex items-center gap-4 mt-2">
+               <div className="flex items-center gap-4 mt-2">
                   <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
                     <TrendingUp className="h-4 w-4" />
-                    <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>
+                     {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>}
                   </div>
                   <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
                     <TrendingDown className="h-4 w-4" />
-                    <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>
+                    {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>}
                   </div>
                 </div>
-              }
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -210,7 +211,7 @@ export default function WelcomePage() {
 
       <div className="col-span-1 flex flex-col gap-6">
         <Card className="bg-card border-border p-6 flex flex-col">
-          <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
+          <CardTitle className="text-lg font-semibold mb-4">Today</CardTitle>
           <div className="flex-1 flex items-center justify-center">
             <div className="relative w-48 h-48">
               <svg className="w-full h-full" viewBox="0 0 36 36">
@@ -218,20 +219,19 @@ export default function WelcomePage() {
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none" strokeWidth="3"></path>
                 <path className="stroke-current text-green-500"
-                  strokeDasharray="66, 100"
+                  strokeDasharray={`${incomePercentage.toFixed(2)}, 100`}
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   fill="none" strokeWidth="3" strokeLinecap="round"></path>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-bold">12.5%</span>
-                <span className="text-muted-foreground">Mobile</span>
+                <span className="text-4xl font-bold">{incomePercentage.toFixed(1)}%</span>
+                <span className="text-muted-foreground">Income</span>
               </div>
             </div>
           </div>
           <div className="flex justify-around text-xs mt-4">
-            <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
-            <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
-            <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
+            <div className="text-center"><p>Total Income</p><p className="font-semibold">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p></div>
+            <div className="text-center"><p>Total Expenses</p><p className="font-semibold">Rs. {data?.financials.totalExpenses.toLocaleString() || '0'}</p></div>
           </div>
         </Card>
 
