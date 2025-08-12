@@ -123,7 +123,7 @@ export default function WelcomePage() {
             <Avatar className="h-11 w-11 border-2 border-primary/50">
               <AvatarFallback>{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
             </Avatar>
-            <Button asChild className="rounded-full bg-primary-foreground text-background font-semibold h-11 px-6 hover:bg-white/90">
+            <Button asChild className="rounded-full bg-primary text-primary-foreground font-semibold h-11 px-6 hover:bg-primary/90">
               <Link href="/">
                 <ShoppingCart className="mr-2 h-4 w-4" /> POS
               </Link>
