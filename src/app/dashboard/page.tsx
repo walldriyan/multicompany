@@ -103,35 +103,35 @@ export default function WelcomePage() {
     };
 
   return (
-    <div className="flex flex-col h-full">
-        {/* Navigation Bar */}
-        <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg mb-6">
-            <div className="relative w-full max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
-            </div>
-            <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
-                    <Bell className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
-                    <MessageSquare className="h-5 w-5" />
-                </Button>
-                <Avatar className="h-11 w-11 border-2 border-primary/50">
-                    <AvatarFallback>{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
-                </Avatar>
-                <Button asChild className="rounded-full bg-primary-foreground text-background font-semibold h-11 px-6 hover:bg-white/90">
-                    <Link href="/">
-                        <ShoppingCart className="mr-2 h-4 w-4"/> POS
-                    </Link>
-                </Button>
-            </div>
-        </header>
+    <div className="grid grid-cols-3 gap-6 h-full">
+        {/* Left two columns */}
+        <div className="col-span-2 flex flex-col gap-6">
+            {/* Navigation Bar */}
+            <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg">
+                <div className="relative w-full max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
+                </div>
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+                        <Bell className="h-5 w-5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+                        <MessageSquare className="h-5 w-5" />
+                    </Button>
+                    <Avatar className="h-11 w-11 border-2 border-primary/50">
+                        <AvatarFallback>{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+                    </Avatar>
+                    <Button asChild className="rounded-full bg-primary-foreground text-background font-semibold h-11 px-6 hover:bg-white/90">
+                        <Link href="/">
+                            <ShoppingCart className="mr-2 h-4 w-4"/> POS
+                        </Link>
+                    </Button>
+                </div>
+            </header>
 
-        {/* Masonry-style Grid for Cards */}
-        <div className="grid grid-cols-3 gap-6 auto-rows-fr">
             {/* Overview Card */}
-            <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+            <Card className="bg-card border-border p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                     <CardTitle className="text-lg font-semibold">Overview</CardTitle>
                 </div>
@@ -166,36 +166,9 @@ export default function WelcomePage() {
                     </div>
                 </div>
             </Card>
-            
-            {/* Devices Card */}
-            <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
-                <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
-                <div className="flex-1 flex items-center justify-center">
-                     <div className="relative w-48 h-48">
-                        <svg className="w-full h-full" viewBox="0 0 36 36">
-                            <path className="stroke-current text-muted-foreground/20"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" strokeWidth="3"></path>
-                            <path className="stroke-current text-green-500"
-                                strokeDasharray="66, 100"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" strokeWidth="3" strokeLinecap="round"></path>
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-4xl font-bold">12.5%</span>
-                            <span className="text-muted-foreground">Mobile</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex justify-around text-xs mt-4">
-                    <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
-                    <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
-                    <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
-                </div>
-            </Card>
-            
+
             {/* Income & Expense Card */}
-            <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+            <Card className="bg-card border-border p-6 flex flex-col">
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
@@ -237,9 +210,39 @@ export default function WelcomePage() {
                 }
               </div>
             </Card>
-            
+        </div>
+
+        {/* Right one column */}
+        <div className="col-span-1 flex flex-col gap-6">
+            {/* Devices Card */}
+            <Card className="bg-card border-border p-6 flex flex-col">
+                <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
+                <div className="flex-1 flex items-center justify-center">
+                     <div className="relative w-48 h-48">
+                        <svg className="w-full h-full" viewBox="0 0 36 36">
+                            <path className="stroke-current text-muted-foreground/20"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none" strokeWidth="3"></path>
+                            <path className="stroke-current text-green-500"
+                                strokeDasharray="66, 100"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none" strokeWidth="3" strokeLinecap="round"></path>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-4xl font-bold">12.5%</span>
+                            <span className="text-muted-foreground">Mobile</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-around text-xs mt-4">
+                    <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
+                    <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
+                    <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
+                </div>
+            </Card>
+
             {/* Popular Products Card */}
-            <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
+            <Card className="bg-card border-border p-6 flex flex-col">
                 <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
                 <div className="flex-1 space-y-3">
                      {isLoading ? (
@@ -270,7 +273,6 @@ export default function WelcomePage() {
                 </div>
                  <Button variant="outline" className="w-full mt-4">All products</Button>
             </Card>
-
         </div>
     </div>
   );
