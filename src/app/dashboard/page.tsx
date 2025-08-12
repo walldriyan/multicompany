@@ -167,8 +167,8 @@ export default function WelcomePage() {
         <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <CardTitle className="text-lg font-semibold">Product view</CardTitle>
-              {isLoading ? <Skeleton className="h-10 w-24 mt-2" /> : 
+              <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
+              {isLoading ? <Skeleton className="h-10 w-48 mt-2" /> : 
                 <div className="flex items-baseline gap-4 mt-2">
                   <p className="text-4xl font-bold text-green-400">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>
                   <p className="text-2xl font-bold text-red-400">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</p>
@@ -177,7 +177,7 @@ export default function WelcomePage() {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">{filterLabels[timeFilter]}</Button>
+                <Button variant="outline" size="sm" className="rounded-full">{filterLabels[timeFilter]}</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
