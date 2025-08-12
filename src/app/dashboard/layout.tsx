@@ -9,6 +9,7 @@ import type { AppDispatch } from '@/store/store';
 import { clearUser, setUser, selectCurrentUser } from '@/store/slices/authSlice';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { Sheet, SheetHeader, SheetTitle, SheetContent } from "@/components/ui/sheet";
 import { Settings, PackageIcon, UsersIcon, UserCogIcon, ArchiveIcon, BuildingIcon, ReceiptText, MenuIcon as MobileMenuIcon, ShoppingCartIcon, PercentIcon, ArchiveX, TrendingUp, LogOut, WalletCards, FileText, DoorClosed, BarChart3, ShieldAlert, Home, ShoppingBag, Briefcase, UserRound, Contact, Search } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -16,7 +17,7 @@ import type { AuthUser } from '@/store/slices/authSlice';
 import { logoutAction } from '@/app/actions/authActions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from '@/components/ui/input';
-
+import { SidebarProvider, useSidebar, Sidebar, SidebarHeader, SidebarTrigger, SidebarContent, SidebarMenu, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset } from '@/components/ui/sidebar';
 
 type DashboardView = 'welcome' | 'products' | 'purchases' | 'reports' | 'creditManagement' | 'cashRegister' | 'discounts' | 'financials' | 'parties' | 'stock' | 'lostDamage' | 'users' | 'company' | 'settings';
 
@@ -29,41 +30,39 @@ interface ViewConfigItem {
 }
 
 const viewConfig: Record<DashboardView, ViewConfigItem> = {
-  welcome: { name: 'Dashboard', icon: Home, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
-  products: { name: 'Product', icon: PackageIcon, path: '/dashboard/products', permission: { action: 'read', subject: 'Product' }, group: 'main' },
-  parties: { name: 'Customers', icon: Contact, path: '/dashboard/parties', permission: { action: 'read', subject: 'Party' }, group: 'main' },
-  financials: { name: 'Income', icon: TrendingUp, path: '/dashboard/financials', permission: { action: 'manage', subject: 'Settings' }, group: 'main' },
-  reports: { name: 'Promote', icon: BarChart3, path: '/dashboard/reports', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
-  
+  welcome: { name: 'Welcome', icon: Home, path: '/dashboard', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
+  reports: { name: 'Reports', icon: BarChart3, path: '/dashboard/reports', permission: { action: 'access', subject: 'Dashboard' }, group: 'main' },
+  cashRegister: { name: 'Cash Register', icon: WalletCards, path: '/dashboard/cash-register', permission: { action: 'access', subject: 'CashRegister' }, group: 'main' },
+
+  products: { name: 'Product Management', icon: PackageIcon, path: '/dashboard/products', permission: { action: 'read', subject: 'Product' }, group: 'inventory' },
   purchases: { name: 'Purchases (GRN)', icon: ShoppingCartIcon, path: '/dashboard/purchases', permission: { action: 'read', subject: 'PurchaseBill' }, group: 'inventory' },
   stock: { name: 'Stock Levels', icon: ArchiveIcon, path: '/dashboard/stock', permission: { action: 'read', subject: 'Product' }, group: 'inventory' },
   lostDamage: { name: 'Stock Adjustments', icon: ArchiveX, path: '/dashboard/lost-damage', permission: { action: 'update', subject: 'Product' }, group: 'inventory' },
   
   creditManagement: { name: 'Credit Management', icon: ReceiptText, path: '/dashboard/credit-management', permission: { action: 'read', subject: 'Sale' }, group: 'customers' },
-  cashRegister: { name: 'Cash Register', icon: WalletCards, path: '/dashboard/cash-register', permission: { action: 'access', subject: 'CashRegister' }, group: 'customers' },
+  parties: { name: 'Contacts (Cust/Supp)', icon: Contact, path: '/dashboard/parties', permission: { action: 'read', subject: 'Party' }, group: 'customers' },
 
   users: { name: 'Users & Roles', icon: UserCogIcon, path: '/dashboard/users', permission: { action: 'read', subject: 'User' }, group: 'admin' },
   company: { name: 'Company Details', icon: BuildingIcon, path: '/dashboard/company', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
   discounts: { name: 'Discount Campaigns', icon: PercentIcon, path: '/dashboard/discounts', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
+  financials: { name: 'Income & Expense', icon: TrendingUp, path: '/dashboard/financials', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
   settings: { name: 'General Settings', icon: Settings, path: '/dashboard/settings', permission: { action: 'manage', subject: 'Settings' }, group: 'admin' },
 };
 
+const groupConfig = {
+    main: { label: "Main", icon: Briefcase },
+    inventory: { label: "Inventory", icon: PackageIcon },
+    customers: { label: "Customers & Sales", icon: UsersIcon },
+    admin: { label: "Administration", icon: ShieldAlert },
+};
 
-const Sidebar = ({ initialUser }: { initialUser: AuthUser }) => {
+const SidebarNav = ({ currentUser }: { currentUser: AuthUser | null }) => {
     const pathname = usePathname();
-    const dispatch: AppDispatch = useDispatch();
     const router = useRouter();
+    const dispatch: AppDispatch = useDispatch();
     const { can } = usePermissions();
-
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-    
-    useEffect(() => {
-        if (initialUser) {
-          dispatch(setUser(initialUser));
-        }
-    }, [dispatch, initialUser]);
-
-    const currentUser = useSelector(selectCurrentUser);
+    const { isMobile, toggleSidebar } = useSidebar();
 
     const handleLogout = async () => {
         await logoutAction();
@@ -78,86 +77,126 @@ const Sidebar = ({ initialUser }: { initialUser: AuthUser }) => {
     const visibleViews = (Object.keys(viewConfig) as DashboardView[]).filter(viewKey => 
         can(viewConfig[viewKey].permission?.action as any, viewConfig[viewKey].permission?.subject as any)
     );
-
-    const mainGroupViews = visibleViews.filter(v => viewConfig[v].group === 'main');
-    const otherGroupViews = visibleViews.filter(v => viewConfig[v].group !== 'main');
-
+    
+    const groupedVisibleViews = visibleViews.reduce((acc, viewKey) => {
+        const { group } = viewConfig[viewKey];
+        if (!acc[group]) {
+            acc[group] = [];
+        }
+        acc[group].push(viewKey);
+        return acc;
+    }, {} as Record<ViewConfigItem['group'], DashboardView[]>);
+    
     if (!currentUser) {
-        return <div className="w-64 bg-card p-4"><p>Loading...</p></div>;
+        return (
+            <div className="w-64 bg-card p-4">
+                <p>Loading...</p>
+            </div>
+        );
     }
-
+    
     return (
-        <TooltipProvider>
-            <aside className="w-64 flex-shrink-0 bg-card p-4 flex flex-col justify-between">
-                <div>
-                    <div className="flex items-center gap-2 mb-8">
-                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                            <div className="w-4 h-4 rounded-full bg-primary" />
+        <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+            <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
+              {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
+              <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
+                <Link href="/" className="flex items-center gap-2">
+                  <ShoppingBag className="h-6 w-6 text-primary" />
+                  <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
+                </Link>
+                 <SidebarTrigger className="hidden md:flex text-foreground ml-auto"/>
+                {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
+              </SidebarHeader>
+              <SidebarContent>
+                <SidebarMenu>
+                    {(Object.keys(groupedVisibleViews) as Array<keyof typeof groupedVisibleViews>).map(groupKey => {
+                        const viewsInGroup = groupedVisibleViews[groupKey];
+                        const GroupIcon = groupConfig[groupKey].icon;
+                        return (
+                            <SidebarGroup key={groupKey}>
+                                <SidebarGroupLabel className="flex items-center gap-2">
+                                   <GroupIcon className="h-4 w-4" />
+                                   {groupConfig[groupKey].label}
+                                </SidebarGroupLabel>
+                                <SidebarGroupContent>
+                                    {viewsInGroup.map(viewKey => {
+                                        const config = viewConfig[viewKey];
+                                        const IconComponent = config.icon;
+                                        const isActive = pathname === config.path || (config.path !== '/dashboard' && pathname.startsWith(config.path));
+                                        return (
+                                            <SidebarMenuItem key={viewKey}>
+                                                <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: config.name, side: "right" }}>
+                                                    <Link href={config.path}>
+                                                        <IconComponent className="h-5 w-5" />
+                                                        <span className="group-data-[collapsible=icon]:hidden">{config.name}</span>
+                                                    </Link>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        );
+                                    })}
+                                </SidebarGroupContent>
+                            </SidebarGroup>
+                        );
+                    })}
+                </SidebarMenu>
+              </SidebarContent>
+              <SidebarFooter className="border-t border-border/30">
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2">
+                            <Avatar className="h-7 w-7 shrink-0">
+                                <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                                    {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-grow overflow-hidden group-data-[collapsible=icon]:hidden">
+                                <p className="text-sm font-semibold text-foreground truncate">{currentUser.username}</p>
+                                <p className="text-xs text-muted-foreground truncate">{currentUser.role?.name}</p>
+                                <p className="text-xs text-primary/80 truncate">{currentUser.company?.name || 'Super Admin'}</p>
+                            </div>
                         </div>
-                        <span className="font-semibold text-lg text-foreground">Dashboard</span>
-                    </div>
-                    <nav className="space-y-2">
-                        {mainGroupViews.map(key => {
-                            const { name, icon: Icon, path } = viewConfig[key];
-                            const isActive = pathname === path;
-                            return (
-                                <Tooltip key={key}>
-                                    <TooltipTrigger asChild>
-                                        <Link href={path}>
-                                            <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start gap-2">
-                                                <Icon className="h-5 w-5" />
-                                                <span>{name}</span>
-                                            </Button>
-                                        </Link>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right"><p>{name}</p></TooltipContent>
-                                </Tooltip>
-                            );
-                        })}
-                    </nav>
-                </div>
-
-                <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-                    <div className="space-y-2">
-                         <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" className="w-full justify-start gap-2">
-                                    <Settings className="h-5 w-5" />
-                                    <span>Settings</span>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right"><p>Settings</p></TooltipContent>
-                        </Tooltip>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                         <AlertDialogTrigger asChild>
-                             <Button variant="ghost" className="w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:bg-destructive/20">
+                            <SidebarMenuButton onClick={(e) => { e.preventDefault(); setIsLogoutDialogOpen(true); }} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
                                 <LogOut className="h-5 w-5" />
-                                <span>Logout</span>
-                            </Button>
+                                <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+                            </SidebarMenuButton>
                         </AlertDialogTrigger>
-                    </div>
-                     <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                How would you like to proceed? Your current shift will remain open unless you end it.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-                            <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
-                                <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
-                            </Button>
-                            <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
-                                <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
-                            </Button>
-                            <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </aside>
-        </TooltipProvider>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarFooter>
+            </Sidebar>
+             <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        How would you like to proceed? Your current shift will remain open unless you end it.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
+                     <Button onClick={() => { router.push('/dashboard/cash-register'); setIsLogoutDialogOpen(false); }} className="w-full justify-center">
+                        <DoorClosed className="mr-2 h-4 w-4" /> Go to End Shift Page
+                      </Button>
+                     <Button variant="secondary" onClick={() => { handleDirectLogout(); setIsLogoutDialogOpen(false); }} className="w-full">
+                        <LogOut className="mr-2 h-4 w-4" /> Logout Only (Keep Shift Open)
+                      </Button>
+                    <AlertDialogCancel className="w-full mt-2">Cancel</AlertDialogCancel>
+                </AlertDialogFooter>
+             </AlertDialogContent>
+        </AlertDialog>
     );
-}
+};
 
+const MobileToggleButton = () => {
+    const { isMobile, toggleSidebar } = useSidebar();
+    if (!isMobile) return null;
+    return (
+        <Button variant="ghost" size="icon" onClick={toggleSidebar} className="fixed top-4 left-4 z-50 md:hidden text-foreground">
+            <MobileMenuIcon />
+        </Button>
+    );
+};
 
 export default function DashboardClientLayout({
   initialUser,
@@ -166,32 +205,35 @@ export default function DashboardClientLayout({
   initialUser: AuthUser;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex h-screen bg-background text-foreground">
-      <Sidebar initialUser={initialUser} />
-      <main className="flex-1 flex flex-col">
-        <header className="p-4 border-b border-border flex items-center justify-between">
-            <div className="relative w-full max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search anything..." className="pl-10 bg-card border-none" />
-            </div>
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                     <Button variant="ghost" size="icon" className="text-muted-foreground"><Settings className="h-5 w-5"/></Button>
-                     <Button variant="ghost" size="icon" className="text-muted-foreground"><UsersIcon className="h-5 w-5"/></Button>
-                     <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-primary/20 text-primary font-semibold">
-                            {initialUser?.username ? initialUser.username.charAt(0).toUpperCase() : 'G'}
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
-                <Button>Create</Button>
-            </div>
-        </header>
-        <div className="flex-1 overflow-y-auto p-6">
-            {children}
+  const dispatch: AppDispatch = useDispatch();
+
+  useEffect(() => {
+    if (initialUser) {
+      dispatch(setUser(initialUser));
+    }
+  }, [dispatch, initialUser]);
+
+  const currentUser = useSelector(selectCurrentUser);
+
+  if (!currentUser) {
+    return (
+        <div className="flex h-screen items-center justify-center bg-background">
+            <p className="text-muted-foreground">Loading user data...</p>
         </div>
-      </main>
-    </div>
+    );
+  }
+
+  return (
+    <TooltipProvider>
+      <SidebarProvider defaultOpen={true}>
+          <MobileToggleButton />
+          <SidebarNav currentUser={currentUser} />
+          <SidebarInset>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                {children}
+            </div>
+          </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }
