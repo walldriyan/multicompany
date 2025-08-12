@@ -1,31 +1,45 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, BarChart3, TrendingUp } from 'lucide-react';
+import { ArrowRight, Users, BarChart3, TrendingUp, ShoppingBag, DollarSign, Package } from 'lucide-react';
+import { getDashboardSummaryAction } from '@/app/actions/reportActions';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '@/store/slices/authSlice';
+import { Skeleton } from '@/components/ui/skeleton';
+
+interface DashboardData {
+    totalCustomers: number;
+    newCustomersToday: number;
+    totalSuppliers: number;
+    totalSalesLast7Days: number;
+    recentSales: { id: string; billNumber: string; customerName: string | null; totalAmount: number; }[];
+    popularProducts: { id: string; name: string; totalSold: number; sellingPrice: number; }[];
+    recentParties: { id: string; name: string; }[];
+}
+
 
 export default function WelcomePage() {
-    
-  // Placeholder data to match the design
-  const customerCount = 1293;
-  const balance = "256k";
-  const newCustomers = [
-    { name: "Gladyce", image: "https://placehold.co/40x40.png", hint: "woman" },
-    { name: "Elbert", image: "https://placehold.co/40x40.png", hint: "man" },
-    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "woman portrait" },
-    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "man portrait" },
-    { name: "Joyce", image: "https://placehold.co/40x40.png", hint: "person" },
-  ];
-  const popularProducts = [
-      { name: "Crypter - NFT UI Kit", price: "$3,250.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "abstract art" },
-      { name: "Bento Pro 2.0 Illustrations", price: "$7,890.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "geometric shapes" },
-      { name: "Fleet - travel shopping kit", price: "$1,500.00", status: "Offline", image: "https://placehold.co/40x40.png", hint: "leather bag" },
-      { name: "SimpleSocial UI Design Kit", price: "$4,750.00", status: "Active", image: "https://placehold.co/40x40.png", hint: "sunset landscape" },
-  ];
+    const [data, setData] = useState<DashboardData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const currentUser = useSelector(selectCurrentUser);
 
+    useEffect(() => {
+        async function loadData() {
+            if (!currentUser?.id) return;
+            setIsLoading(true);
+            const result = await getDashboardSummaryAction(currentUser.id);
+            if (result.success && result.data) {
+                setData(result.data);
+            }
+            setIsLoading(false);
+        }
+        loadData();
+    }, [currentUser]);
+    
   return (
     <div className="grid grid-cols-3 grid-rows-2 gap-6 h-full">
 
@@ -39,27 +53,26 @@ export default function WelcomePage() {
                 <Card className="bg-background/40 p-4 flex flex-col justify-between">
                     <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4"/> Customers</div>
                     <div>
-                        <span className="text-4xl font-bold">1,293</span>
-                        <span className="ml-2 text-sm text-red-400 flex items-center">↓ 36.8% <span className="text-muted-foreground ml-1">vs last month</span></span>
+                        {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{data?.totalCustomers.toLocaleString() || '0'}</span>}
                     </div>
                 </Card>
                 <Card className="bg-background/40 p-4 flex flex-col justify-between">
-                     <div className="flex items-center text-sm text-muted-foreground gap-2"><TrendingUp className="h-4 w-4"/> Balance</div>
+                     <div className="flex items-center text-sm text-muted-foreground gap-2"><ShoppingBag className="h-4 w-4"/> Suppliers</div>
                     <div>
-                        <span className="text-4xl font-bold">$256k</span>
-                        <span className="ml-2 text-sm text-green-400 flex items-center">↑ 36.8% <span className="text-muted-foreground ml-1">vs last month</span></span>
+                         {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{data?.totalSuppliers.toLocaleString() || '0'}</span>}
                     </div>
                 </Card>
             </div>
             <div className="mt-6">
-                <p className="font-semibold">857 new customers today!</p>
-                <p className="text-sm text-muted-foreground mb-3">Send a welcome message to all new customers.</p>
+                 {isLoading ? <Skeleton className="h-5 w-48" /> : <p className="font-semibold">{data?.newCustomersToday || 0} new customers today!</p>}
+                <p className="text-sm text-muted-foreground mb-3">Welcome to the new members of our community.</p>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center -space-x-3">
-                        {newCustomers.map((customer, index) => (
-                             <Avatar key={index} className="border-2 border-card">
-                                <img src={customer.image} alt={customer.name} data-ai-hint={customer.hint} />
-                                <AvatarFallback>{customer.name.charAt(0)}</AvatarFallback>
+                         {isLoading ? (
+                             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-10 rounded-full" />)
+                         ) : (data?.recentParties || []).map((party) => (
+                             <Avatar key={party.id} className="border-2 border-card">
+                                <AvatarFallback>{party.name.charAt(0).toUpperCase()}</AvatarFallback>
                             </Avatar>
                         ))}
                     </div>
@@ -102,7 +115,10 @@ export default function WelcomePage() {
                 <Button variant="outline" size="sm" className="text-xs h-7">Last 7 days</Button>
             </div>
             <div className="flex-1 flex flex-col justify-end">
-                <div className="mb-2"><p className="text-4xl font-bold">$10.2m</p><p className="text-sm text-green-400">↑ 36.8% vs last month</p></div>
+                <div className="mb-2">
+                    {isLoading ? <Skeleton className="h-10 w-32" /> : <p className="text-4xl font-bold">Rs. {(data?.totalSalesLast7Days || 0).toLocaleString()}</p>}
+                    <p className="text-sm text-green-400">Total Sales in Last 7 Days</p>
+                </div>
                 <div className="flex items-end justify-between h-40 gap-2">
                     <div className="w-full h-[30%] bg-muted-foreground/20 rounded-t-md"></div>
                     <div className="w-full h-[50%] bg-muted-foreground/20 rounded-t-md"></div>
@@ -119,14 +135,22 @@ export default function WelcomePage() {
         <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
             <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
             <div className="flex-1 space-y-4">
-                {popularProducts.map((product, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                        <img src={product.image} alt={product.name} className="w-10 h-10 rounded-md" data-ai-hint={product.hint}/>
-                        <div className="flex-1">
-                            <p className="font-semibold text-sm">{product.name}</p>
-                            <p className={`text-xs ${product.status === 'Active' ? 'text-green-400' : 'text-red-400'}`}>{product.status}</p>
+                {isLoading ? (
+                     Array.from({ length: 4 }).map((_, i) => (
+                         <div key={i} className="flex items-center gap-4">
+                            <Skeleton className="w-10 h-10 rounded-md" />
+                            <div className="flex-1 space-y-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/4" /></div>
+                            <Skeleton className="h-5 w-16" />
                         </div>
-                        <p className="font-semibold text-sm">{product.price}</p>
+                     ))
+                ) : (data?.popularProducts || []).map((product) => (
+                    <div key={product.id} className="flex items-center gap-4">
+                        <Avatar className="w-10 h-10 rounded-md bg-muted"><Package /></Avatar>
+                        <div className="flex-1">
+                            <p className="font-semibold text-sm truncate">{product.name}</p>
+                            <p className="text-xs text-muted-foreground">Sold: {product.totalSold} units</p>
+                        </div>
+                        <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
                     </div>
                 ))}
             </div>
@@ -136,3 +160,5 @@ export default function WelcomePage() {
     </div>
   );
 }
+
+    

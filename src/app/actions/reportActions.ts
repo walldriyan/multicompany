@@ -4,14 +4,135 @@
 import prisma from '@/lib/prisma';
 import type { ComprehensiveReport, SaleRecord, FinancialTransaction, StockAdjustmentLog, PurchaseBill, CashRegisterShift, Product, Party, User, SaleRecordItem } from '@/types';
 import { Prisma } from '@prisma/client';
+import { startOfDay, subDays } from 'date-fns';
 
 async function getCompanyIdForReport(userId?: string | null): Promise<string | null> {
     if (!userId) return null;
+    if (userId === 'root-user') return null; // Root user may not have a company
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { companyId: true }
     });
     return user?.companyId || null;
+}
+
+export async function getDashboardSummaryAction(userId: string | null): Promise<{
+    success: boolean;
+    data?: {
+        totalCustomers: number;
+        newCustomersToday: number;
+        totalSuppliers: number;
+        totalSalesLast7Days: number;
+        recentSales: { id: string; billNumber: string; customerName: string | null; totalAmount: number; }[];
+        popularProducts: { id: string; name: string; totalSold: number; sellingPrice: number; }[];
+        recentParties: { id: string; name: string; }[];
+    };
+    error?: string;
+}> {
+    if (!userId) {
+        return { success: false, error: "User not authenticated." };
+    }
+
+    try {
+        const companyId = await getCompanyIdForReport(userId);
+        const whereClause: Prisma.PartyWhereInput = companyId ? { companyId } : {};
+        const salesWhereClause: Prisma.SaleRecordWhereInput = companyId ? { companyId } : {};
+
+        // Total Customers
+        const totalCustomers = await prisma.party.count({
+            where: { ...whereClause, type: 'CUSTOMER' },
+        });
+        
+        // Total Suppliers
+        const totalSuppliers = await prisma.party.count({
+            where: { ...whereClause, type: 'SUPPLIER' },
+        });
+
+        // New Customers Today
+        const today = startOfDay(new Date());
+        const newCustomersToday = await prisma.party.count({
+            where: { ...whereClause, type: 'CUSTOMER', createdAt: { gte: today } },
+        });
+        
+        // Recent 5 Parties
+        const recentParties = await prisma.party.findMany({
+            where: whereClause,
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: { id: true, name: true }
+        });
+
+
+        // Total Sales in the last 7 days
+        const sevenDaysAgo = subDays(new Date(), 7);
+        const salesLast7Days = await prisma.saleRecord.aggregate({
+            _sum: { totalAmount: true },
+            where: { ...salesWhereClause, date: { gte: sevenDaysAgo } },
+        });
+        const totalSalesLast7Days = salesLast7Days._sum.totalAmount || 0;
+        
+        // Recent Sales
+        const recentSalesData = await prisma.saleRecord.findMany({
+            where: salesWhereClause,
+            orderBy: { date: 'desc' },
+            take: 5,
+            select: { id: true, billNumber: true, customer: { select: { name: true } }, totalAmount: true }
+        });
+        const recentSales = recentSalesData.map(s => ({
+            id: s.id,
+            billNumber: s.billNumber,
+            customerName: s.customer?.name || 'Walk-in Customer',
+            totalAmount: s.totalAmount
+        }));
+        
+        // Popular Products (based on quantity sold in SaleRecordItem)
+        const popularProductsData = await prisma.saleRecord.findMany({
+            where: salesWhereClause,
+            select: { items: true }
+        });
+
+        const productSales = new Map<string, number>();
+        popularProductsData.forEach(sale => {
+            const items = sale.items as unknown as SaleRecordItem[];
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    productSales.set(item.productId, (productSales.get(item.productId) || 0) + item.quantity);
+                });
+            }
+        });
+        
+        const sortedProducts = Array.from(productSales.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
+        const popularProductIds = sortedProducts.map(p => p[0]);
+        const popularProductDetails = await prisma.product.findMany({
+            where: { id: { in: popularProductIds } },
+            select: { id: true, name: true, sellingPrice: true }
+        });
+
+        const popularProducts = popularProductDetails.map(p => ({
+            id: p.id,
+            name: p.name,
+            sellingPrice: p.sellingPrice,
+            totalSold: productSales.get(p.id) || 0
+        })).sort((a,b) => b.totalSold - a.totalSold);
+
+
+        return {
+            success: true,
+            data: {
+                totalCustomers,
+                newCustomersToday,
+                totalSuppliers,
+                totalSalesLast7Days,
+                recentSales,
+                popularProducts,
+                recentParties,
+            }
+        };
+
+    } catch (error: any) {
+        console.error('Error fetching dashboard summary:', error);
+        return { success: false, error: 'Failed to fetch dashboard data. ' + error.message };
+    }
 }
 
 
@@ -25,7 +146,7 @@ export async function getComprehensiveReportAction(
 
     // The report is always scoped to the company of the user RUNNING the report.
     const companyId = await getCompanyIdForReport(actorUserId);
-    if (!companyId) {
+    if (!companyId && actorUserId !== 'root-user') {
       // If the actor is a Super Admin without a company, maybe we show all? For now, let's restrict.
       return { success: false, error: "Cannot generate report. You are not assigned to a company." };
     }
@@ -33,7 +154,7 @@ export async function getComprehensiveReportAction(
     // The filter for a specific user is applied *within* the company's data.
     const userFilterForSalesAndPurchases = userIdForFilter && userIdForFilter !== 'all' ? { createdByUserId: userIdForFilter } : {};
     const userFilterForOtherRecords = userIdForFilter && userIdForFilter !== 'all' ? { userId: userIdForFilter } : {};
-    const companyFilter = { companyId: companyId };
+    const companyFilter = companyId ? { companyId: companyId } : {};
     
     // Use specific where clauses for each query to ensure correct field names are used.
     const salesWhere: Prisma.SaleRecordWhereInput = { date: { gte: startDate, lte: endDate }, ...companyFilter, ...userFilterForSalesAndPurchases };
@@ -127,7 +248,7 @@ export async function getComprehensiveReportAction(
      const allCreditPaymentsInRange = await prisma.paymentInstallment.findMany({
         where: {
             paymentDate: { gte: startDate, lte: endDate },
-            saleRecord: { companyId: companyId }
+            saleRecord: companyId ? { companyId: companyId } : {}
         }
     });
     const totalPaymentsOnCreditSales = allCreditPaymentsInRange.reduce((sum, inst) => sum + inst.amountPaid, 0);
@@ -135,7 +256,7 @@ export async function getComprehensiveReportAction(
     // Let's also get total outstanding for ALL open credit bills in the company
      const outstandingCreditBills = await prisma.saleRecord.findMany({
       where: { 
-        companyId: companyId, 
+        ...companyFilter, 
         isCreditSale: true,
         creditPaymentStatus: { in: ['PENDING', 'PARTIALLY_PAID'] }
       },
