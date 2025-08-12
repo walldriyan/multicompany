@@ -24,6 +24,7 @@ interface DashboardData {
         totalExpenses: number;
         chartData: { date: string; income: number; expenses: number }[];
     }
+    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number}[];
 }
 
 
@@ -200,20 +201,34 @@ export default function WelcomePage() {
                   <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
                   <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" fill="#ef444490" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             }
           </div>
         </Card>
         
-        {/* Popular Products Card */}
+        {/* Recent Products Card */}
         <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
-            <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
+            <CardTitle className="text-lg font-semibold mb-4">Recent Products</CardTitle>
             <div className="flex-1 space-y-4">
-                 <p className="text-muted-foreground text-sm text-center py-10">This section is under construction.</p>
+                 {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
+                 ) : (data?.recentProducts || []).length > 0 ? (
+                    (data?.recentProducts || []).map((product) => (
+                        <div key={product.id} className="flex justify-between items-center">
+                            <div>
+                                <p className="font-medium text-sm">{product.name}</p>
+                                <p className="text-xs text-muted-foreground">{product.category || 'No Category'}</p>
+                            </div>
+                            <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
+                        </div>
+                    ))
+                 ) : (
+                    <p className="text-muted-foreground text-sm text-center py-10">No recent products to display.</p>
+                 )}
             </div>
-             <Button variant="outline" className="w-full mt-4" disabled>All products</Button>
+             <Button variant="outline" className="w-full mt-4">All products</Button>
         </Card>
 
     </div>

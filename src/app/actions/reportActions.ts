@@ -27,12 +27,13 @@ export async function getDashboardSummaryAction(
         totalSuppliers: number;
         recentParties: { id: string; name: string; }[];
         
-        // Updated chart data
         financials: {
             totalIncome: number;
             totalExpenses: number;
             chartData: { date: string; income: number; expenses: number }[];
-        }
+        };
+
+        recentProducts: { id: string; name: string; category: string | null; sellingPrice: number}[];
     };
     error?: string;
 }> {
@@ -46,11 +47,19 @@ export async function getDashboardSummaryAction(
         const salesWhereClause: Prisma.SaleRecordWhereInput = companyId ? { companyId } : {};
         const purchaseWhereClause: Prisma.PurchaseBillWhereInput = companyId ? { companyId } : {};
         const expenseWhereClause: Prisma.FinancialTransactionWhereInput = companyId ? { companyId, type: 'EXPENSE' } : { type: 'EXPENSE' };
+        const productWhereClause: Prisma.ProductWhereInput = companyId ? { companyId } : {};
+
 
         // Total Customers & Suppliers
-        const [totalCustomers, totalSuppliers] = await Promise.all([
+        const [totalCustomers, totalSuppliers, recentProducts] = await Promise.all([
             prisma.party.count({ where: { ...whereClause, type: 'CUSTOMER' } }),
-            prisma.party.count({ where: { ...whereClause, type: 'SUPPLIER' } })
+            prisma.party.count({ where: { ...whereClause, type: 'SUPPLIER' } }),
+            prisma.product.findMany({
+                where: productWhereClause,
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+                select: { id: true, name: true, category: true, sellingPrice: true }
+            })
         ]);
 
         // New Customers Today
@@ -156,7 +165,8 @@ export async function getDashboardSummaryAction(
                     totalIncome,
                     totalExpenses,
                     chartData,
-                }
+                },
+                recentProducts
             }
         };
 
