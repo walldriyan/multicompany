@@ -108,13 +108,13 @@ export default function WelcomePage() {
                 <Card className="bg-background/40 p-4 flex flex-col justify-between">
                     <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4"/> Customers</div>
                     <div>
-                        {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{data?.totalCustomers.toLocaleString() || '0'}</span>}
+                        {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalCustomers || 0).toLocaleString()}</span>}
                     </div>
                 </Card>
                 <Card className="bg-background/40 p-4 flex flex-col justify-between">
                      <div className="flex items-center text-sm text-muted-foreground gap-2"><ShoppingBag className="h-4 w-4"/> Suppliers</div>
                     <div>
-                         {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{data?.totalSuppliers.toLocaleString() || '0'}</span>}
+                         {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalSuppliers || 0).toLocaleString()}</span>}
                     </div>
                 </Card>
             </div>
@@ -169,15 +169,21 @@ export default function WelcomePage() {
             <div>
               <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
               {isLoading ? <Skeleton className="h-10 w-48 mt-2" /> : 
-                <div className="flex items-baseline gap-4 mt-2">
-                  <p className="text-4xl font-bold text-green-400">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>
-                  <p className="text-2xl font-bold text-red-400">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</p>
+                <div className="flex items-center gap-4 mt-2">
+                   <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
+                      <TrendingUp className="h-4 w-4" />
+                      <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
+                      <TrendingDown className="h-4 w-4" />
+                      <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>
+                  </div>
                 </div>
               }
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full">{filterLabels[timeFilter]}</Button>
+                <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
