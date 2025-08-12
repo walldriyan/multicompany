@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3 } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3, Users2 } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -212,7 +212,7 @@ export default function WelcomePage() {
       <div className="col-span-1 flex flex-col gap-6">
         <Card className="bg-card border-border p-6 flex flex-col">
           <CardTitle className="text-lg font-semibold mb-4">Today</CardTitle>
-          <div className="flex-1 flex items-center justify-center">
+           <div className="flex-1 flex items-center justify-center">
             <div className="relative w-48 h-48">
               <svg className="w-full h-full" viewBox="0 0 36 36">
                 <path className="stroke-current text-muted-foreground/20"
@@ -229,9 +229,25 @@ export default function WelcomePage() {
               </div>
             </div>
           </div>
-          <div className="flex justify-around text-xs mt-4">
-            <div className="text-center"><p>Total Income</p><p className="font-semibold">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p></div>
-            <div className="text-center"><p>Total Expenses</p><p className="font-semibold">Rs. {data?.financials.totalExpenses.toLocaleString() || '0'}</p></div>
+           <div className="mt-6 grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-green-900/40">
+                  <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-500/20 rounded-lg"><TrendingUp className="h-5 w-5 text-green-300" /></div>
+                      <div>
+                          <p className="text-sm text-green-200/80">Total Income</p>
+                          <p className="font-bold text-lg text-green-200">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p>
+                      </div>
+                  </div>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-red-900/40">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-500/20 rounded-lg"><Users2 className="h-5 w-5 text-red-300" /></div>
+                      <div>
+                          <p className="text-sm text-red-200/80">Total Customers</p>
+                          <p className="font-bold text-lg text-red-200">{data?.totalCustomers.toLocaleString() || '0'}</p>
+                      </div>
+                  </div>
+              </div>
           </div>
         </Card>
 
@@ -270,3 +286,5 @@ export default function WelcomePage() {
     </div>
   );
 }
+
+    
