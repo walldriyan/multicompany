@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3, Users2 } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart, User, Briefcase, BarChart3, Users2, Calendar as CalendarIcon, Clock, Moon } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -99,10 +99,10 @@ export default function WelcomePage() {
       return { incomePercentage: percentage, totalFinancials: total };
     }, [data]);
 
-    const filterLabels = {
+    const filterLabels: Record<typeof timeFilter, string> = {
         today: 'Today',
-        last7days: 'Last 7 days',
-        thismonth: 'This month'
+        last7days: 'Last 7 Days',
+        thismonth: 'This Month'
     };
 
   return (
@@ -187,9 +187,9 @@ export default function WelcomePage() {
                 <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}>Last 7 days</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}>This month</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('today')}><Clock className="mr-2 h-4 w-4"/>Today</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}><CalendarIcon className="mr-2 h-4 w-4"/>Last 7 days</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}><Moon className="mr-2 h-4 w-4"/>This month</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -211,7 +211,7 @@ export default function WelcomePage() {
 
       <div className="col-span-1 flex flex-col gap-6">
         <Card className="bg-card border-border p-6 flex flex-col">
-          <CardTitle className="text-lg font-semibold mb-4">Today</CardTitle>
+          <CardTitle className="text-lg font-semibold mb-4">{filterLabels[timeFilter]}</CardTitle>
            <div className="flex-1 flex items-center justify-center">
             <div className="relative w-48 h-48">
               <svg className="w-full h-full" viewBox="0 0 36 36">
