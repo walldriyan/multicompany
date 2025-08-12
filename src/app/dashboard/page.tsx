@@ -114,11 +114,11 @@ export default function WelcomePage() {
         {/* Income & Expense Card */}
         <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
             <div className="flex justify-between items-center mb-4">
-                <CardTitle className="text-lg font-semibold">Income & Expenses (Last 7 Days)</CardTitle>
+                <CardTitle className="text-lg font-semibold">Income &amp; Expenses (Last 7 Days)</CardTitle>
             </div>
-            <div className="flex-1 flex flex-col justify-end">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+            <div className="flex-1 grid grid-cols-3 gap-6">
+                <div className="col-span-1 flex flex-col justify-end gap-6">
+                     <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
                          <div className="flex items-center text-sm text-green-300 gap-2"><TrendingUp className="h-4 w-4"/> Total Income</div>
                          {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-green-400">Rs. {(data?.last7DaysFinancials.totalIncome || 0).toLocaleString()}</p>}
                     </div>
@@ -127,17 +127,24 @@ export default function WelcomePage() {
                          {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-red-400">Rs. {(data?.last7DaysFinancials.totalExpenses || 0).toLocaleString()}</p>}
                     </div>
                 </div>
-                <div className="h-40">
+                <div className="col-span-2 h-40">
                    {isLoading ? <Skeleton className="w-full h-full" /> :
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data?.last7DaysFinancials.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
-                            <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                            <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                            <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}/>
-                            <Legend wrapperStyle={{fontSize: "12px"}}/>
-                            <Bar dataKey="income" fill="hsl(var(--primary))" name="Income" radius={[4, 4, 0, 0]}/>
-                            <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" radius={[4, 4, 0, 0]} />
+                        <BarChart data={data?.last7DaysFinancials.chartData} margin={{ top: 5, right: 10, left: -20, bottom: -5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.3)" />
+                            <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
+                            <Tooltip
+                                cursor={{ fill: 'hsl(var(--muted-foreground) / 0.1)' }}
+                                contentStyle={{ 
+                                    backgroundColor: 'hsl(var(--background) / 0.9)', 
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '12px'
+                                }}
+                            />
+                            <Bar dataKey="income" fill="#22c55e" name="Income" radius={[4, 4, 0, 0]} barSize={20} />
+                            <Bar dataKey="expenses" fill="#ef4444" name="Expenses" radius={[4, 4, 0, 0]} barSize={20} />
                         </BarChart>
                     </ResponsiveContainer>}
                 </div>
