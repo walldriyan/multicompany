@@ -697,10 +697,10 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                <Button onClick={() => handleOpenPaymentDialog('cash')} className="bg-green-500 hover:bg-green-600 text-white" disabled={saleItems.length === 0 || saleItems.every(item => item.quantity <=0)}>
+                <Button onClick={() => handleOpenPaymentDialog('cash')} className="bg-green-500 hover:bg-green-600 text-white py-3" disabled={saleItems.length === 0 || saleItems.every(item => item.quantity <=0)}>
                   <DollarSign className="mr-2 h-4 w-4" /> Cash
                 </Button>
-                <Button onClick={() => handleOpenPaymentDialog('credit')} className="bg-blue-500 hover:bg-blue-500 text-white" disabled={saleItems.length === 0 || saleItems.every(item => item.quantity <=0)}>
+                <Button onClick={() => handleOpenPaymentDialog('credit')} className="bg-blue-500 hover:bg-blue-500 text-white py-3" disabled={saleItems.length === 0 || saleItems.every(item => item.quantity <=0)}>
                   <CreditCard className="mr-2 h-4 w-4" /> Credit / Card
                 </Button>
               </div>
