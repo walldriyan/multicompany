@@ -33,7 +33,7 @@ export async function getDashboardSummaryAction(
             chartData: { date: string; income: number; expenses: number }[];
         };
 
-        recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; }[];
+        recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; stock: number; }[];
     };
     error?: string;
 }> {
@@ -51,16 +51,37 @@ export async function getDashboardSummaryAction(
 
 
         // Total Customers & Suppliers
-        const [totalCustomers, totalSuppliers, recentProducts] = await Promise.all([
+        const [totalCustomers, totalSuppliers, recentProductsFromDb] = await Promise.all([
             prisma.party.count({ where: { ...whereClause, type: 'CUSTOMER' } }),
             prisma.party.count({ where: { ...whereClause, type: 'SUPPLIER' } }),
             prisma.product.findMany({
                 where: productWhereClause,
                 orderBy: { createdAt: 'desc' },
                 take: 5,
-                select: { id: true, name: true, category: true, sellingPrice: true, isActive: true, imageUrl: true }
+                select: { 
+                    id: true, 
+                    name: true, 
+                    category: true, 
+                    sellingPrice: true, 
+                    isActive: true, 
+                    imageUrl: true,
+                    isService: true,
+                    batches: {
+                        select: {
+                            quantity: true
+                        }
+                    }
+                }
             })
         ]);
+        
+        const recentProducts = recentProductsFromDb.map(p => {
+            const stock = p.isService ? 0 : p.batches.reduce((sum, batch) => sum + batch.quantity, 0);
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { batches, ...productData } = p;
+            return { ...productData, stock };
+        });
+
 
         // New Customers Today
         const todayForNewCust = startOfDay(new Date());
@@ -398,5 +419,3 @@ export async function getUsersForReportFilterAction(actorUserId: string | null):
   }
 }
       
-
-    
