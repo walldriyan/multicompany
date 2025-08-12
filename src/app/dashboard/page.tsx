@@ -109,9 +109,21 @@ export default function WelcomePage() {
     <div className="grid grid-cols-3 gap-6">
       <div className="col-span-2 flex flex-col gap-6">
         <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
+          <div className="flex items-center flex-1">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-full border-border ml-[10px]">{filterLabels[timeFilter]}</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setTimeFilter('today')}><Clock className="mr-2 h-4 w-4"/>Today</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}><CalendarIcon className="mr-2 h-4 w-4"/>Last 7 days</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}><Moon className="mr-2 h-4 w-4"/>This month</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
@@ -182,16 +194,6 @@ export default function WelcomePage() {
                   </div>
                 </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setTimeFilter('today')}><Clock className="mr-2 h-4 w-4"/>Today</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}><CalendarIcon className="mr-2 h-4 w-4"/>Last 7 days</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}><Moon className="mr-2 h-4 w-4"/>This month</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
           <div className="flex-1 min-h-[250px]">
             {isLoading ? <Skeleton className="w-full h-full" /> :
@@ -232,11 +234,11 @@ export default function WelcomePage() {
             <div className="mt-6 grid grid-cols-2 gap-4">
                 <div>
                     <p className="text-sm text-muted-foreground">Total Income</p>
-                    <p className="font-bold text-lg">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p>
+                    <p className="font-bold text-lg">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</p>
                 </div>
                 <div>
                     <p className="text-sm text-muted-foreground">Total Expenses</p>
-                    <p className="font-bold text-lg">Rs. {data?.financials.totalExpenses.toLocaleString() || '0'}</p>
+                    <p className="font-bold text-lg">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</p>
                 </div>
             </div>
         </Card>
