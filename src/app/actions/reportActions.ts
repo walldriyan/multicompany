@@ -4,7 +4,7 @@
 import prisma from '@/lib/prisma';
 import type { ComprehensiveReport, SaleRecord, FinancialTransaction, StockAdjustmentLog, PurchaseBill, CashRegisterShift, Product, Party, User, SaleRecordItem } from '@/types';
 import { Prisma } from '@prisma/client';
-import { startOfDay, subDays } from 'date-fns';
+import { startOfDay, subDays, format } from 'date-fns';
 
 async function getCompanyIdForReport(userId?: string | null): Promise<string | null> {
     if (!userId) return null;
@@ -22,10 +22,14 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
         totalCustomers: number;
         newCustomersToday: number;
         totalSuppliers: number;
-        totalSalesLast7Days: number;
-        recentSales: { id: string; billNumber: string; customerName: string | null; totalAmount: number; }[];
-        popularProducts: { id: string; name: string; totalSold: number; sellingPrice: number; }[];
         recentParties: { id: string; name: string; }[];
+        
+        // New chart data
+        last7DaysFinancials: {
+            totalIncome: number;
+            totalExpenses: number;
+            chartData: { date: string; income: number; expenses: number }[];
+        }
     };
     error?: string;
 }> {
@@ -37,16 +41,14 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
         const companyId = await getCompanyIdForReport(userId);
         const whereClause: Prisma.PartyWhereInput = companyId ? { companyId } : {};
         const salesWhereClause: Prisma.SaleRecordWhereInput = companyId ? { companyId } : {};
+        const purchaseWhereClause: Prisma.PurchaseBillWhereInput = companyId ? { companyId } : {};
+        const expenseWhereClause: Prisma.FinancialTransactionWhereInput = companyId ? { companyId, type: 'EXPENSE' } : { type: 'EXPENSE' };
 
-        // Total Customers
-        const totalCustomers = await prisma.party.count({
-            where: { ...whereClause, type: 'CUSTOMER' },
-        });
-        
-        // Total Suppliers
-        const totalSuppliers = await prisma.party.count({
-            where: { ...whereClause, type: 'SUPPLIER' },
-        });
+        // Total Customers & Suppliers
+        const [totalCustomers, totalSuppliers] = await Promise.all([
+            prisma.party.count({ where: { ...whereClause, type: 'CUSTOMER' } }),
+            prisma.party.count({ where: { ...whereClause, type: 'SUPPLIER' } })
+        ]);
 
         // New Customers Today
         const today = startOfDay(new Date());
@@ -62,59 +64,65 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
             select: { id: true, name: true }
         });
 
-
-        // Total Sales in the last 7 days
+        // --- Financial Chart Data (Last 7 Days) ---
         const sevenDaysAgo = subDays(new Date(), 7);
-        const salesLast7Days = await prisma.saleRecord.aggregate({
-            _sum: { totalAmount: true },
-            where: { ...salesWhereClause, date: { gte: sevenDaysAgo } },
-        });
-        const totalSalesLast7Days = salesLast7Days._sum.totalAmount || 0;
+
+        const [dailySales, dailyPurchases, dailyExpenses] = await Promise.all([
+            prisma.saleRecord.groupBy({
+                by: ['date'],
+                where: { ...salesWhereClause, date: { gte: sevenDaysAgo }, recordType: 'SALE' },
+                _sum: { totalAmount: true },
+            }),
+            prisma.purchaseBill.groupBy({
+                by: ['purchaseDate'],
+                where: { ...purchaseWhereClause, purchaseDate: { gte: sevenDaysAgo } },
+                _sum: { totalAmount: true },
+            }),
+            prisma.financialTransaction.groupBy({
+                by: ['date'],
+                where: { ...expenseWhereClause, date: { gte: sevenDaysAgo } },
+                _sum: { amount: true },
+            }),
+        ]);
+
+        const financialDataMap = new Map<string, { income: number, expenses: number }>();
+
+        // Initialize last 7 days
+        for (let i = 0; i < 7; i++) {
+            const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
+            financialDataMap.set(date, { income: 0, expenses: 0 });
+        }
         
-        // Recent Sales
-        const recentSalesData = await prisma.saleRecord.findMany({
-            where: salesWhereClause,
-            orderBy: { date: 'desc' },
-            take: 5,
-            select: { id: true, billNumber: true, customer: { select: { name: true } }, totalAmount: true }
-        });
-        const recentSales = recentSalesData.map(s => ({
-            id: s.id,
-            billNumber: s.billNumber,
-            customerName: s.customer?.name || 'Walk-in Customer',
-            totalAmount: s.totalAmount
-        }));
-        
-        // Popular Products (based on quantity sold in SaleRecordItem)
-        const popularProductsData = await prisma.saleRecord.findMany({
-            where: salesWhereClause,
-            select: { items: true }
+        // Populate with sales data (income)
+        dailySales.forEach(day => {
+            const dateStr = format(new Date(day.date), 'yyyy-MM-dd');
+            if (financialDataMap.has(dateStr)) {
+                financialDataMap.get(dateStr)!.income += day._sum.totalAmount || 0;
+            }
         });
 
-        const productSales = new Map<string, number>();
-        popularProductsData.forEach(sale => {
-            const items = sale.items as unknown as SaleRecordItem[];
-            if (Array.isArray(items)) {
-                items.forEach(item => {
-                    productSales.set(item.productId, (productSales.get(item.productId) || 0) + item.quantity);
-                });
+        // Populate with purchase data (expense)
+        dailyPurchases.forEach(day => {
+            const dateStr = format(new Date(day.purchaseDate), 'yyyy-MM-dd');
+            if (financialDataMap.has(dateStr)) {
+                financialDataMap.get(dateStr)!.expenses += day._sum.totalAmount || 0;
+            }
+        });
+
+        // Populate with other financial expenses
+        dailyExpenses.forEach(day => {
+            const dateStr = format(new Date(day.date), 'yyyy-MM-dd');
+             if (financialDataMap.has(dateStr)) {
+                financialDataMap.get(dateStr)!.expenses += day._sum.amount || 0;
             }
         });
         
-        const sortedProducts = Array.from(productSales.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
-        const popularProductIds = sortedProducts.map(p => p[0]);
-        const popularProductDetails = await prisma.product.findMany({
-            where: { id: { in: popularProductIds } },
-            select: { id: true, name: true, sellingPrice: true }
-        });
+        const chartData = Array.from(financialDataMap.entries())
+            .map(([date, values]) => ({ date: format(new Date(date), 'MMM d'), ...values }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-        const popularProducts = popularProductDetails.map(p => ({
-            id: p.id,
-            name: p.name,
-            sellingPrice: p.sellingPrice,
-            totalSold: productSales.get(p.id) || 0
-        })).sort((a,b) => b.totalSold - a.totalSold);
-
+        const totalIncome = chartData.reduce((sum, day) => sum + day.income, 0);
+        const totalExpenses = chartData.reduce((sum, day) => sum + day.expenses, 0);
 
         return {
             success: true,
@@ -122,10 +130,12 @@ export async function getDashboardSummaryAction(userId: string | null): Promise<
                 totalCustomers,
                 newCustomersToday,
                 totalSuppliers,
-                totalSalesLast7Days,
-                recentSales,
-                popularProducts,
                 recentParties,
+                last7DaysFinancials: {
+                    totalIncome,
+                    totalExpenses,
+                    chartData,
+                }
             }
         };
 
@@ -357,5 +367,3 @@ export async function getUsersForReportFilterAction(actorUserId: string | null):
   }
 }
       
-
-    

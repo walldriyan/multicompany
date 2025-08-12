@@ -5,20 +5,24 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, BarChart3, TrendingUp, ShoppingBag, DollarSign, Package } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
 
 interface DashboardData {
     totalCustomers: number;
     newCustomersToday: number;
     totalSuppliers: number;
-    totalSalesLast7Days: number;
-    recentSales: { id: string; billNumber: string; customerName: string | null; totalAmount: number; }[];
-    popularProducts: { id: string; name: string; totalSold: number; sellingPrice: number; }[];
     recentParties: { id: string; name: string; }[];
+    last7DaysFinancials: {
+        totalIncome: number;
+        totalExpenses: number;
+        chartData: { date: string; income: number; expenses: number }[];
+    }
 }
 
 
@@ -47,7 +51,6 @@ export default function WelcomePage() {
         <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
             <div className="flex justify-between items-center mb-4">
                 <CardTitle className="text-lg font-semibold">Overview</CardTitle>
-                <Button variant="outline" size="sm" className="text-xs h-7">Last 7 days</Button>
             </div>
             <div className="flex-1 grid grid-cols-2 gap-6">
                 <Card className="bg-background/40 p-4 flex flex-col justify-between">
@@ -65,7 +68,7 @@ export default function WelcomePage() {
             </div>
             <div className="mt-6">
                  {isLoading ? <Skeleton className="h-5 w-48" /> : <p className="font-semibold">{data?.newCustomersToday || 0} new customers today!</p>}
-                <p className="text-sm text-muted-foreground mb-3">Welcome to the new members of our community.</p>
+                <p className="text-sm text-muted-foreground mb-3">Recent activity in contacts.</p>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center -space-x-3">
                          {isLoading ? (
@@ -108,25 +111,35 @@ export default function WelcomePage() {
             </div>
         </Card>
         
-        {/* Product View Card */}
+        {/* Income & Expense Card */}
         <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
             <div className="flex justify-between items-center mb-4">
-                <CardTitle className="text-lg font-semibold">Product view</CardTitle>
-                <Button variant="outline" size="sm" className="text-xs h-7">Last 7 days</Button>
+                <CardTitle className="text-lg font-semibold">Income & Expenses (Last 7 Days)</CardTitle>
             </div>
             <div className="flex-1 flex flex-col justify-end">
-                <div className="mb-2">
-                    {isLoading ? <Skeleton className="h-10 w-32" /> : <p className="text-4xl font-bold">Rs. {(data?.totalSalesLast7Days || 0).toLocaleString()}</p>}
-                    <p className="text-sm text-green-400">Total Sales in Last 7 Days</p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                         <div className="flex items-center text-sm text-green-300 gap-2"><TrendingUp className="h-4 w-4"/> Total Income</div>
+                         {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-green-400">Rs. {(data?.last7DaysFinancials.totalIncome || 0).toLocaleString()}</p>}
+                    </div>
+                     <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                         <div className="flex items-center text-sm text-red-300 gap-2"><TrendingDown className="h-4 w-4"/> Total Expenses</div>
+                         {isLoading ? <Skeleton className="h-8 w-24 mt-1" /> : <p className="text-2xl font-bold text-red-400">Rs. {(data?.last7DaysFinancials.totalExpenses || 0).toLocaleString()}</p>}
+                    </div>
                 </div>
-                <div className="flex items-end justify-between h-40 gap-2">
-                    <div className="w-full h-[30%] bg-muted-foreground/20 rounded-t-md"></div>
-                    <div className="w-full h-[50%] bg-muted-foreground/20 rounded-t-md"></div>
-                    <div className="w-full h-[40%] bg-muted-foreground/20 rounded-t-md"></div>
-                    <div className="w-full h-[90%] bg-green-500 rounded-t-md"></div>
-                    <div className="w-full h-[60%] bg-muted-foreground/20 rounded-t-md"></div>
-                    <div className="w-full h-[35%] bg-muted-foreground/20 rounded-t-md"></div>
-                    <div className="w-full h-[70%] bg-muted-foreground/20 rounded-t-md"></div>
+                <div className="h-40">
+                   {isLoading ? <Skeleton className="w-full h-full" /> :
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data?.last7DaysFinancials.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+                            <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                            <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                            <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}/>
+                            <Legend wrapperStyle={{fontSize: "12px"}}/>
+                            <Bar dataKey="income" fill="hsl(var(--primary))" name="Income" radius={[4, 4, 0, 0]}/>
+                            <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>}
                 </div>
             </div>
         </Card>
@@ -135,30 +148,11 @@ export default function WelcomePage() {
         <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
             <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
             <div className="flex-1 space-y-4">
-                {isLoading ? (
-                     Array.from({ length: 4 }).map((_, i) => (
-                         <div key={i} className="flex items-center gap-4">
-                            <Skeleton className="w-10 h-10 rounded-md" />
-                            <div className="flex-1 space-y-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/4" /></div>
-                            <Skeleton className="h-5 w-16" />
-                        </div>
-                     ))
-                ) : (data?.popularProducts || []).map((product) => (
-                    <div key={product.id} className="flex items-center gap-4">
-                        <Avatar className="w-10 h-10 rounded-md bg-muted"><Package /></Avatar>
-                        <div className="flex-1">
-                            <p className="font-semibold text-sm truncate">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">Sold: {product.totalSold} units</p>
-                        </div>
-                        <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
-                    </div>
-                ))}
+                 <p className="text-muted-foreground text-sm text-center py-10">This section is under construction.</p>
             </div>
-             <Button variant="outline" className="w-full mt-4">All products</Button>
+             <Button variant="outline" className="w-full mt-4" disabled>All products</Button>
         </Card>
 
     </div>
   );
 }
-
-    
