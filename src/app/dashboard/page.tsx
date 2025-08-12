@@ -229,26 +229,16 @@ export default function WelcomePage() {
               </div>
             </div>
           </div>
-           <div className="mt-6 grid grid-cols-1 gap-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-green-900/40">
-                  <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-500/20 rounded-lg"><TrendingUp className="h-5 w-5 text-green-300" /></div>
-                      <div>
-                          <p className="text-sm text-green-200/80">Total Income</p>
-                          <p className="font-bold text-lg text-green-200">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p>
-                      </div>
-                  </div>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-red-900/40">
-                   <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-500/20 rounded-lg"><Users2 className="h-5 w-5 text-red-300" /></div>
-                      <div>
-                          <p className="text-sm text-red-200/80">Total Customers</p>
-                          <p className="font-bold text-lg text-red-200">{data?.totalCustomers.toLocaleString() || '0'}</p>
-                      </div>
-                  </div>
-              </div>
-          </div>
+            <div className="mt-6 grid grid-cols-2 gap-4">
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Income</p>
+                    <p className="font-bold text-lg">Rs. {data?.financials.totalIncome.toLocaleString() || '0'}</p>
+                </div>
+                <div>
+                    <p className="text-sm text-muted-foreground">Total Expenses</p>
+                    <p className="font-bold text-lg">Rs. {data?.financials.totalExpenses.toLocaleString() || '0'}</p>
+                </div>
+            </div>
         </Card>
 
         <Card className="bg-card border-border p-6 flex flex-col">
@@ -287,4 +277,3 @@ export default function WelcomePage() {
   );
 }
 
-    
