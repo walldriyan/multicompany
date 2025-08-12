@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowRight, Users, TrendingUp, ShoppingBag, DollarSign, Package, TrendingDown, ImageOff, CheckCircle, XCircle, Search, Bell, MessageSquare, ShoppingCart } from 'lucide-react';
 import { getDashboardSummaryAction } from '@/app/actions/reportActions';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -14,6 +14,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { Input } from '@/components/ui/input';
 
 
 interface DashboardData {
@@ -26,7 +28,7 @@ interface DashboardData {
         totalExpenses: number;
         chartData: { date: string; income: number; expenses: number }[];
     }
-    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; }[];
+    recentProducts: { id: string; name: string; category: string | null; sellingPrice: number; isActive: boolean; imageUrl: string | null; stock: number; }[];
 }
 
 
@@ -73,7 +75,7 @@ export default function WelcomePage() {
                     }
                      {expensePayload && 
                         <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                             <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#ef444490'}}></div>
                             <span className="font-bold text-muted-foreground">
                             Expenses:
                             </span>
@@ -90,7 +92,8 @@ export default function WelcomePage() {
     };
     
     const maxIncome = useMemo(() => {
-        return Math.max(...(data?.financials.chartData.map(d => d.income) || [0]));
+        if (!data?.financials.chartData) return 0;
+        return Math.max(...data.financials.chartData.map(d => d.income));
     }, [data]);
     
     const filterLabels = {
@@ -100,153 +103,175 @@ export default function WelcomePage() {
     };
 
   return (
-    <div className="grid grid-cols-3 grid-rows-2 gap-6 h-full">
+    <div className="flex flex-col h-full">
+        {/* Navigation Bar */}
+        <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg mb-6">
+            <div className="relative w-full max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input placeholder="Search anything..." className="bg-background rounded-full pl-12 h-11 border-transparent focus-visible:ring-primary" />
+            </div>
+            <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+                    <Bell className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="rounded-full bg-background text-muted-foreground w-11 h-11">
+                    <MessageSquare className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-11 w-11 border-2 border-primary/50">
+                    <AvatarFallback>{currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+                </Avatar>
+                <Button asChild className="rounded-full bg-primary-foreground text-background font-semibold h-11 px-6 hover:bg-white/90">
+                    <Link href="/">
+                        <ShoppingCart className="mr-2 h-4 w-4"/> POS
+                    </Link>
+                </Button>
+            </div>
+        </header>
 
-        {/* Overview Card */}
-        <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-                <CardTitle className="text-lg font-semibold">Overview</CardTitle>
-            </div>
-            <div className="flex-1 grid grid-cols-2 gap-6">
-                <Card className="bg-background/40 p-4 flex flex-col justify-between">
-                    <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4"/> Customers</div>
-                    <div>
-                        {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalCustomers || 0).toLocaleString()}</span>}
-                    </div>
-                </Card>
-                <Card className="bg-background/40 p-4 flex flex-col justify-between">
-                     <div className="flex items-center text-sm text-muted-foreground gap-2"><ShoppingBag className="h-4 w-4"/> Suppliers</div>
-                    <div>
-                         {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalSuppliers || 0).toLocaleString()}</span>}
-                    </div>
-                </Card>
-            </div>
-            <div className="mt-6">
-                 {isLoading ? <Skeleton className="h-5 w-48" /> : <p className="font-semibold">{data?.newCustomersToday || 0} new customers today!</p>}
-                <p className="text-sm text-muted-foreground mb-3">Recent activity in contacts.</p>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center -space-x-3">
-                         {isLoading ? (
-                             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-10 rounded-full" />)
-                         ) : (data?.recentParties || []).map((party) => (
-                             <Avatar key={party.id} className="border-2 border-card">
-                                <AvatarFallback>{party.name.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                        ))}
-                    </div>
-                    <Button variant="ghost" size="icon"><ArrowRight className="h-5 w-5"/></Button>
+        {/* Masonry-style Grid for Cards */}
+        <div className="grid grid-cols-3 gap-6 auto-rows-fr">
+            {/* Overview Card */}
+            <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                    <CardTitle className="text-lg font-semibold">Overview</CardTitle>
                 </div>
-            </div>
-        </Card>
-        
-        {/* Devices Card */}
-        <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
-            <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
-            <div className="flex-1 flex items-center justify-center">
-                 <div className="relative w-48 h-48">
-                    <svg className="w-full h-full" viewBox="0 0 36 36">
-                        <path className="stroke-current text-muted-foreground/20"
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none" strokeWidth="3"></path>
-                        <path className="stroke-current text-green-500"
-                            strokeDasharray="66, 100"
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none" strokeWidth="3" strokeLinecap="round"></path>
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-4xl font-bold">12.5%</span>
-                        <span className="text-muted-foreground">Mobile</span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex justify-around text-xs mt-4">
-                <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
-                <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
-                <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
-            </div>
-        </Card>
-        
-        {/* Income & Expense Card */}
-        <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
-              {isLoading ? <Skeleton className="h-10 w-48 mt-2" /> : 
-                <div className="flex items-center gap-4 mt-2">
-                   <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
-                      <TrendingUp className="h-4 w-4" />
-                      <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
-                      <TrendingDown className="h-4 w-4" />
-                      <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              }
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}>Last 7 days</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}>This month</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="flex-1 h-40">
-            {isLoading ? <Skeleton className="w-full h-full" /> :
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data?.financials.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.3)" />
-                  <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
-                  <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expenses" fill="#ef444490" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            }
-          </div>
-        </Card>
-        
-        {/* Popular Products Card */}
-        <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
-            <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
-            <div className="flex-1 space-y-3">
-                 {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
-                 ) : (data?.recentProducts || []).length > 0 ? (
-                    (data?.recentProducts || []).map((product) => (
-                        <div key={product.id} className="flex items-center gap-4">
-                            <div className="relative w-12 h-12 rounded-md bg-muted flex-shrink-0">
-                                {product.imageUrl ? (
-                                    <Image src={product.imageUrl} alt={product.name} layout="fill" className="object-cover rounded-md" data-ai-hint="product image"/>
-                                ) : (
-                                    <ImageOff className="h-6 w-6 text-muted-foreground m-auto"/>
-                                )}
-                            </div>
-                            <div className="flex-grow">
-                                <p className="font-semibold text-sm truncate">{product.name}</p>
-                                <p className="text-xs text-muted-foreground">{product.category || 'No Category'}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
-                                <Badge variant={product.isActive ? "default" : "destructive"} className={`text-xs mt-1 ${product.isActive ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
-                                    {product.isActive ? 'Active' : 'Offline'}
-                                </Badge>
-                            </div>
+                <div className="flex-1 grid grid-cols-2 gap-6">
+                    <Card className="bg-background/40 p-4 flex flex-col justify-between">
+                        <div className="flex items-center text-sm text-muted-foreground gap-2"><Users className="h-4 w-4"/> Customers</div>
+                        <div>
+                            {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalCustomers || 0).toLocaleString()}</span>}
                         </div>
-                    ))
-                 ) : (
-                    <p className="text-muted-foreground text-sm text-center py-10">No recent products to display.</p>
-                 )}
-            </div>
-             <Button variant="outline" className="w-full mt-4">All products</Button>
-        </Card>
+                    </Card>
+                    <Card className="bg-background/40 p-4 flex flex-col justify-between">
+                         <div className="flex items-center text-sm text-muted-foreground gap-2"><ShoppingBag className="h-4 w-4"/> Suppliers</div>
+                        <div>
+                             {isLoading ? <Skeleton className="h-10 w-24" /> : <span className="text-4xl font-bold">{(data?.totalSuppliers || 0).toLocaleString()}</span>}
+                        </div>
+                    </Card>
+                </div>
+                <div className="mt-6">
+                     {isLoading ? <Skeleton className="h-5 w-48" /> : <p className="font-semibold">{data?.newCustomersToday || 0} new customers today!</p>}
+                    <p className="text-sm text-muted-foreground mb-3">Recent activity in contacts.</p>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center -space-x-3">
+                             {isLoading ? (
+                                 Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-10 rounded-full" />)
+                             ) : (data?.recentParties || []).map((party) => (
+                                 <Avatar key={party.id} className="border-2 border-card">
+                                    <AvatarFallback>{party.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                            ))}
+                        </div>
+                        <Button variant="ghost" size="icon"><ArrowRight className="h-5 w-5"/></Button>
+                    </div>
+                </div>
+            </Card>
+            
+            {/* Devices Card */}
+            <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
+                <CardTitle className="text-lg font-semibold mb-4">Devices</CardTitle>
+                <div className="flex-1 flex items-center justify-center">
+                     <div className="relative w-48 h-48">
+                        <svg className="w-full h-full" viewBox="0 0 36 36">
+                            <path className="stroke-current text-muted-foreground/20"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none" strokeWidth="3"></path>
+                            <path className="stroke-current text-green-500"
+                                strokeDasharray="66, 100"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none" strokeWidth="3" strokeLinecap="round"></path>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-4xl font-bold">12.5%</span>
+                            <span className="text-muted-foreground">Mobile</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-around text-xs mt-4">
+                    <div className="text-center"><p>Mobile</p><p className="font-semibold">15.20%</p></div>
+                    <div className="text-center"><p>Tablet</p><p className="font-semibold">17.1%</p></div>
+                    <div className="text-center"><p>Desktop</p><p className="font-semibold">66.62%</p></div>
+                </div>
+            </Card>
+            
+            {/* Income & Expense Card */}
+            <Card className="col-span-2 row-span-1 bg-card border-border p-6 flex flex-col">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
+                  {isLoading ? <Skeleton className="h-10 w-48 mt-2" /> : 
+                    <div className="flex items-center gap-4 mt-2">
+                       <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
+                          <TrendingUp className="h-4 w-4" />
+                          <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
+                          <TrendingDown className="h-4 w-4" />
+                          <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="rounded-full border-border">{filterLabels[timeFilter]}</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setTimeFilter('today')}>Today</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setTimeFilter('last7days')}>Last 7 days</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setTimeFilter('thismonth')}>This month</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <div className="flex-1 h-40">
+                {isLoading ? <Skeleton className="w-full h-full" /> :
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data?.financials.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.3)" />
+                      <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} />
+                      <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="expenses" fill="#ef444490" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                }
+              </div>
+            </Card>
+            
+            {/* Popular Products Card */}
+            <Card className="col-span-1 row-span-1 bg-card border-border p-6 flex flex-col">
+                <CardTitle className="text-lg font-semibold mb-4">Popular products</CardTitle>
+                <div className="flex-1 space-y-3">
+                     {isLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
+                     ) : (data?.recentProducts || []).length > 0 ? (
+                        (data?.recentProducts || []).map((product) => (
+                            <div key={product.id} className="flex items-center gap-4">
+                                <div className="relative w-12 h-12 rounded-md bg-muted flex-shrink-0">
+                                    {product.imageUrl ? (
+                                        <Image src={product.imageUrl} alt={product.name} layout="fill" className="object-cover rounded-md" data-ai-hint="product image"/>
+                                    ) : (
+                                        <ImageOff className="h-6 w-6 text-muted-foreground m-auto"/>
+                                    )}
+                                </div>
+                                <div className="flex-grow">
+                                    <p className="font-semibold text-sm truncate">{product.name}</p>
+                                    <p className="text-xs text-muted-foreground">{product.category || 'No Category'}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-semibold text-sm">Rs. {product.sellingPrice.toFixed(2)}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Stock: {product.stock}</p>
+                                </div>
+                            </div>
+                        ))
+                     ) : (
+                        <p className="text-muted-foreground text-sm text-center py-10">No recent products to display.</p>
+                     )}
+                </div>
+                 <Button variant="outline" className="w-full mt-4">All products</Button>
+            </Card>
 
+        </div>
     </div>
   );
 }
-
-    
