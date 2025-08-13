@@ -108,7 +108,7 @@ export default function WelcomePage() {
   return (
     <div className="grid grid-cols-3 gap-6">
       <div className="col-span-2 flex flex-col gap-6">
-        <header className="flex items-center justify-between p-4 bg-card rounded-full shadow-lg">
+        <header className="flex items-center justify-between p-4 bg-card/50 rounded-full shadow-lg">
           <div className="flex items-center flex-1">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -183,16 +183,6 @@ export default function WelcomePage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <CardTitle className="text-lg font-semibold">Income &amp; Expense</CardTitle>
-               <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-2 rounded-full bg-green-900/50 text-green-300 px-4 py-2 border border-green-500/30">
-                    <TrendingUp className="h-4 w-4" />
-                     {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalIncome || 0).toLocaleString()}</span>}
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full bg-red-900/50 text-red-300 px-4 py-2 border border-red-500/30">
-                    <TrendingDown className="h-4 w-4" />
-                    {isLoading ? <Skeleton className="h-5 w-24" /> : <span className="font-semibold">Rs. {(data?.financials.totalExpenses || 0).toLocaleString()}</span>}
-                  </div>
-                </div>
             </div>
           </div>
           <div className="flex-1 min-h-[250px]">
