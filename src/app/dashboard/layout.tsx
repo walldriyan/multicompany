@@ -103,7 +103,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
     
     return (
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-            <Sidebar side="left" collapsible="icon" variant="sidebar" className="border-r border-border/30">
+            <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
               {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
               <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
                 <Link href="/" className="flex items-center gap-2">
@@ -134,7 +134,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
 
                         {inventoryViews.length > 0 && (
                             <AccordionItem value="inventory" className="border-none group-data-[collapsible=icon]:justify-center">
-                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&>svg.lucide-chevron-down]:hidden">
                                    <div className="flex items-center gap-2">
                                      <PackageIcon className="h-5 w-5" />
                                      <span className="group-data-[collapsible=icon]:hidden">Inventory</span>
@@ -159,7 +159,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                         )}
                         {customerViews.length > 0 && (
                             <AccordionItem value="customers" className="border-none group-data-[collapsible=icon]:justify-center">
-                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&>svg.lucide-chevron-down]:hidden">
                                    <div className="flex items-center gap-2">
                                      <UsersIcon className="h-5 w-5" />
                                      <span className="group-data-[collapsible=icon]:hidden">Customers & Sales</span>
@@ -184,7 +184,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                         )}
                          {adminViews.length > 0 && (
                             <AccordionItem value="admin" className="border-none group-data-[collapsible=icon]:justify-center">
-                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+                                <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:[&>svg.lucide-chevron-down]:hidden">
                                    <div className="flex items-center gap-2">
                                      <ShieldAlert className="h-5 w-5" />
                                      <span className="group-data-[collapsible=icon]:hidden">Administration</span>
