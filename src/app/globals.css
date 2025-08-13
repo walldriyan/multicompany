@@ -59,7 +59,7 @@ body {
   .dark {
     --background: 0 0% 23%;
     --foreground: 0 0% 95%;
-    --card: 0 0% 22%;
+    --card: 0 0% 20%;
     --card-foreground: 0 0% 95%;
     --popover: 0 0% 20%;
     --popover-foreground: 0 0% 95%;
