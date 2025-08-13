@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -120,7 +121,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                             const IconComponent = config.icon;
                             const isActive = pathname === config.path;
                              return (
-                                <SidebarMenuItem key={viewKey} className="px-2">
+                                <SidebarMenuItem key={viewKey} className="px-2 group-data-[collapsible=icon]:justify-center">
                                      <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: config.name, side: "right" }}>
                                          <Link href={config.path}>
                                              <IconComponent className="h-5 w-5" />
@@ -132,7 +133,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                         })}
 
                         {inventoryViews.length > 0 && (
-                            <AccordionItem value="inventory" className="border-none">
+                            <AccordionItem value="inventory" className="border-none group-data-[collapsible=icon]:justify-center">
                                 <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
                                    <div className="flex items-center gap-2">
                                      <PackageIcon className="h-5 w-5" />
@@ -157,7 +158,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                             </AccordionItem>
                         )}
                         {customerViews.length > 0 && (
-                            <AccordionItem value="customers" className="border-none">
+                            <AccordionItem value="customers" className="border-none group-data-[collapsible=icon]:justify-center">
                                 <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
                                    <div className="flex items-center gap-2">
                                      <UsersIcon className="h-5 w-5" />
@@ -182,7 +183,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                             </AccordionItem>
                         )}
                          {adminViews.length > 0 && (
-                            <AccordionItem value="admin" className="border-none">
+                            <AccordionItem value="admin" className="border-none group-data-[collapsible=icon]:justify-center">
                                 <AccordionTrigger className="px-4 py-2 text-sm font-medium hover:no-underline [&[data-state=open]>svg]:text-primary group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
                                    <div className="flex items-center gap-2">
                                      <ShieldAlert className="h-5 w-5" />
@@ -213,7 +214,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
               <SidebarFooter className="border-t border-border/30">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2">
+                        <div className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 group-data-[collapsible=icon]:justify-center">
                             <Avatar className="h-7 w-7 shrink-0">
                                 <AvatarFallback className="bg-primary/20 text-primary font-semibold">
                                     {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : 'G'}
@@ -226,7 +227,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                             </div>
                         </div>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
+                    <SidebarMenuItem className="group-data-[collapsible=icon]:justify-center">
                         <AlertDialogTrigger asChild>
                             <SidebarMenuButton onClick={(e) => { e.preventDefault(); setIsLogoutDialogOpen(true); }} tooltip={{ children: "Logout", side: "right" }} className="text-red-400 hover:bg-destructive/20 hover:text-red-300">
                                 <LogOut className="h-5 w-5" />
@@ -293,7 +294,7 @@ export default function DashboardClientLayout({ children }: { children: React.Re
           <MobileToggleButton />
           <SidebarNav currentUser={currentUser} />
           <SidebarInset>
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            <div className="flex-1 overflow-y-auto bg-gradient-to-br from-background to-secondary p-4 md:p-6 lg:p-8">
                 {children}
             </div>
           </SidebarInset>
