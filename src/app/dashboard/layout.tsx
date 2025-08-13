@@ -103,7 +103,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
     
     return (
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
-            <Sidebar side="left" collapsible="icon" variant="floating" className="border-r border-border/30">
+            <Sidebar side="left" collapsible="icon" variant="sidebar" className="border-r border-border/30">
               {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
               <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
                 <Link href="/" className="flex items-center gap-2">
