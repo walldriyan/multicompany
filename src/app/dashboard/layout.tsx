@@ -110,7 +110,7 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
                   <ShoppingBag className="h-6 w-6 text-primary" />
                   <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
                 </Link>
-                 <SidebarTrigger className="hidden md:flex text-foreground"/>
+                 <SidebarTrigger className="hidden md:flex text-foreground ml-auto"/>
                 {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
               </SidebarHeader>
               <SidebarContent>
