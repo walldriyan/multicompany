@@ -21,7 +21,7 @@ body {
     --primary: 217 100% 72%; /* #70a1ff Sky Blue - For interactive elements */
     --primary-foreground: 217 100% 15%; /* Darker blue for text on sky blue buttons */
 
-    --secondary: 0 0% 25%; /* Slightly lighter dark grey */
+    --secondary: 0 0% 20%; /* Slightly darker dark grey */
     --secondary-foreground: 0 0% 95%;
 
     --muted: 0 0% 25%;
@@ -57,7 +57,7 @@ body {
   }
 
   .dark {
-    --background: 0 0% 22%;
+    --background: 0 0% 23%;
     --foreground: 0 0% 95%;
     --card: 0 0% 20%;
     --card-foreground: 0 0% 95%;
@@ -65,7 +65,7 @@ body {
     --popover-foreground: 0 0% 95%;
     --primary: 217 100% 72%;
     --primary-foreground: 217 100% 15%;
-    --secondary: 0 0% 26%;
+    --secondary: 0 0% 20%;
     --secondary-foreground: 0 0% 95%;
     --muted: 0 0% 25%;
     --muted-foreground: 0 0% 60%;
@@ -83,7 +83,7 @@ body {
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 20%;
+    --sidebar-background: 0 0% 24%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 217 100% 72%;
     --sidebar-primary-foreground: 217 100% 15%;
