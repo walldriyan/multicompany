@@ -105,12 +105,12 @@ const SidebarNav = ({ currentUser }: { currentUser: AuthUser }) => {
         <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
             <Sidebar side="left" collapsible="icon" variant="sidebar" className="border-r border-border/30">
               {isMobile && (<SheetHeader className="sr-only"><SheetTitle>Navigation Menu</SheetTitle></SheetHeader>)}
-              <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-start gap-2">
+              <SidebarHeader className="border-b border-border/30 p-2 flex items-center justify-between gap-2">
                 <Link href="/" className="flex items-center gap-2">
                   <ShoppingBag className="h-6 w-6 text-primary" />
                   <span className="font-semibold text-lg text-foreground group-data-[collapsible=icon]:hidden">Go to POS</span>
                 </Link>
-                 <SidebarTrigger className="hidden md:flex text-foreground ml-auto"/>
+                 <SidebarTrigger className="hidden md:flex text-foreground"/>
                 {isMobile && (<Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-foreground"><MobileMenuIcon /></Button>)}
               </SidebarHeader>
               <SidebarContent>
