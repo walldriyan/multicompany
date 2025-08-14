@@ -11,9 +11,6 @@ import {
 } from '@/app/actions/productActions';
 import {
   initializeAllProducts,
-  _internalAddNewProduct,
-  _internalUpdateProduct,
-  _internalDeleteProduct,
   selectAllProducts,
 } from '@/store/slices/saleSlice';
 import { selectCurrentUser } from '@/store/slices/authSlice';
@@ -180,7 +177,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
         setIsSubmitting(false);
     };
 
-    const handleProductFormSubmit = async (data: ProductFormData, productId?: string): Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}> => {
+    const handleProductFormSubmit = async (data: ProductFormData, productId?: string, batchIdToUpdate?: string | null): Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}> => {
         if (!currentUser?.id) {
             const errorMsg = "User not authenticated. Cannot save product.";
             setProductFormError(errorMsg);
@@ -193,7 +190,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
 
         const isUpdating = !!productId;
         const result = isUpdating
-            ? await updateProductAction(productId!, data, currentUser.id)
+            ? await updateProductAction(productId!, data, currentUser.id, batchIdToUpdate)
             : await createProductAction(data, currentUser.id);
 
         setIsSubmitting(false);
