@@ -94,8 +94,6 @@ export function ProductList({ initialProducts }: ProductListProps) {
       }, [dispatch, toast, currentUser]);
 
     useEffect(() => {
-        // This effect runs once on mount to fetch the initial data from the server
-        // ensuring the list is up-to-date when the page loads.
         fetchProducts();
     }, [fetchProducts]);
 
@@ -204,24 +202,20 @@ export function ProductList({ initialProducts }: ProductListProps) {
             const toastTitle = isUpdating ? 'Product Updated' : 'Product Created';
             toast({ title: toastTitle, description: `"${result.data.name}" has been saved.` });
 
-            // Re-fetch the entire list to guarantee data consistency
             const freshProductsResult = await getAllProductsAction(currentUser.id);
             if (freshProductsResult.success && freshProductsResult.data) {
-                // Update the central store and local state
                 dispatch(initializeAllProducts(freshProductsResult.data));
                 setLocalProducts(freshProductsResult.data);
+                
+                if (isUpdating) {
+                    const refreshedProduct = freshProductsResult.data?.find(p => p.id === productId);
+                    setEditingProduct(refreshedProduct || result.data); 
+                } else {
+                    setEditingProduct(null);
+                }
             }
-
             setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
 
-            if (isUpdating) {
-                // Find the newly updated product from the complete, fresh list
-                const refreshedProduct = freshProductsResult.data?.find(p => p.id === productId);
-                // Set the form to edit this fresh product data, ensuring all batches are up-to-date
-                setEditingProduct(refreshedProduct || result.data); // Fallback to action result if not found
-            } else {
-                setEditingProduct(null);
-            }
         } else {
             setProductFormError(result.error || 'An unexpected error occurred.');
             setProductFormFieldErrors(result.fieldErrors);
