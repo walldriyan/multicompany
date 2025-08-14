@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  getAllProductsAction, // Import the action to fetch products
   deleteProductAction,
   createProductAction,
   updateProductAction
@@ -24,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ProductForm } from '@/components/dashboard/ProductForm';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Edit3, Trash2, PackageSearch, ImageOff, CheckCircle, XCircle, Sigma, Search } from 'lucide-react';
+import { PlusCircle, Edit3, Trash2, PackageSearch, ImageOff, CheckCircle, XCircle, Sigma, Search, RefreshCw } from 'lucide-react';
 import Image from 'next/image';
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,7 +57,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
     const canUpdate = can('update', 'Product');
     const canDelete = can('delete', 'Product');
 
-
+    const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductType | null>(null);
@@ -68,9 +69,30 @@ export function ProductList({ initialProducts }: ProductListProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [showOutOfStock, setShowOutOfStock] = useState(false);
     const [showServicesOnly, setShowServicesOnly] = useState(false);
+    
+    const fetchProducts = useCallback(async () => {
+        if (!currentUser?.id) {
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        const result = await getAllProductsAction(currentUser.id);
+        if (result.success && result.data) {
+          dispatch(initializeAllProducts(result.data));
+        } else {
+          toast({
+            title: 'Error Fetching Products',
+            description: `${result.error || 'Could not load products.'} ${result.detailedError ? `Details: ${result.detailedError}` : ''}`,
+            variant: 'destructive',
+          });
+          dispatch(initializeAllProducts([])); // Clear store on error
+        }
+        setIsLoading(false);
+      }, [dispatch, toast, currentUser]);
 
     useEffect(() => {
         dispatch(initializeAllProducts(initialProducts));
+        setIsLoading(false);
     }, [initialProducts, dispatch]);
 
     const handleServicesToggle = (checked: boolean) => {
@@ -147,10 +169,11 @@ export function ProductList({ initialProducts }: ProductListProps) {
         setIsSubmitting(true);
         const result = await deleteProductAction(productToDelete.id);
         if (result.success) {
-        dispatch(_internalDeleteProduct({ id: productToDelete.id }));
-        toast({ title: 'Product Deleted', description: `"${productToDelete.name}" has been deleted.` });
+            dispatch(_internalDeleteProduct({ id: productToDelete.id }));
+            toast({ title: 'Product Deleted', description: `"${productToDelete.name}" has been deleted.` });
+            fetchProducts();
         } else {
-        toast({ title: 'Error Deleting Product', description: result.error, variant: 'destructive' });
+            toast({ title: 'Error Deleting Product', description: result.error, variant: 'destructive' });
         }
         setProductToDelete(null);
         setIsSubmitting(false);
@@ -171,30 +194,28 @@ export function ProductList({ initialProducts }: ProductListProps) {
         const isUpdating = !!productId;
 
         if (isUpdating) {
-        result = await updateProductAction(productId!, data, currentUser.id);
-        if (result.success && result.data) {
-            dispatch(_internalUpdateProduct(result.data));
-            toast({ title: 'Product Updated', description: `"${result.data.name}" has been updated.` });
-            setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
-            setEditingProduct(result.data);
-            setProductFormError(null);
-            setProductFormFieldErrors(undefined);
-        }
+            result = await updateProductAction(productId!, data, currentUser.id);
         } else {
-        result = await createProductAction(data, currentUser.id);
-        if (result.success && result.data) {
-            dispatch(_internalAddNewProduct(result.data));
-            toast({ title: 'Product Created', description: `"${result.data.name}" has been added.` });
-            setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
-            setEditingProduct(null);
-            setProductFormError(null);
-            setProductFormFieldErrors(undefined);
+            result = await createProductAction(data, currentUser.id);
         }
-        }
-
+        
         setIsSubmitting(false);
 
-        if (!result.success) {
+        if (result.success && result.data) {
+            const toastTitle = isUpdating ? 'Product Updated' : 'Product Created';
+            toast({ title: toastTitle, description: `"${result.data.name}" has been saved.` });
+            
+            // ALWAYS REFRESH after a successful CUD operation
+            await fetchProducts();
+
+            setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
+            
+            if (isUpdating) {
+                setEditingProduct(result.data); // Keep editing with the fresh data
+            } else {
+                setEditingProduct(null); // Clear form for new entry
+            }
+        } else {
             setProductFormError(result.error || 'An unexpected error occurred.');
             setProductFormFieldErrors(result.fieldErrors);
             setLastSuccessfulSubmission(null);
@@ -213,7 +234,10 @@ export function ProductList({ initialProducts }: ProductListProps) {
 
     return (
         <>
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex justify-end space-x-2">
+                 <Button onClick={fetchProducts} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" disabled={isLoading}>
+                    <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh List
+                </Button>
                 <Button onClick={handleAddProduct} disabled={!canCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                 </Button>
@@ -247,7 +271,15 @@ export function ProductList({ initialProducts }: ProductListProps) {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {filteredProducts.length === 0 ? (
+                    {isLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                           <div key={`skel-prod-${i}`} className="flex items-center space-x-4 p-2 border-b border-border/30">
+                              <Skeleton className="h-12 w-12 rounded-md bg-muted/50" />
+                              <div className="space-y-2 flex-1"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div>
+                              <Skeleton className="h-8 w-24 rounded-md bg-muted/50" />
+                           </div>
+                        ))
+                    ) : filteredProducts.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground">
                         <PackageSearch className="mx-auto h-12 w-12 mb-4 text-primary" />
                         <p className="text-lg font-medium">No products found matching your criteria.</p>
@@ -294,7 +326,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
                                         />
                                     ) : null}
                                     <div className={`image-fallback-icon-container w-12 h-12 rounded-md bg-muted flex items-center justify-center text-muted-foreground text-xs ${product.imageUrl ? 'hidden' : ''}`}>
-                                        <ImageOff className="h-5 w-5" />
+                                        <ImageOff className="h-6 w-6" />
                                     </div>
                                     </div>
                                 </TableCell>
