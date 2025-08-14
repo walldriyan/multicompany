@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  getAllProductsAction, // Import the action to fetch products
+  getAllProductsAction,
   deleteProductAction,
   createProductAction,
   updateProductAction
@@ -57,6 +57,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
     const canUpdate = can('update', 'Product');
     const canDelete = can('delete', 'Product');
 
+    const [localProducts, setLocalProducts] = useState<ProductType[]>(initialProducts);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
@@ -79,6 +80,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
         const result = await getAllProductsAction(currentUser.id);
         if (result.success && result.data) {
           dispatch(initializeAllProducts(result.data));
+          setLocalProducts(result.data);
         } else {
           toast({
             title: 'Error Fetching Products',
@@ -86,12 +88,14 @@ export function ProductList({ initialProducts }: ProductListProps) {
             variant: 'destructive',
           });
           dispatch(initializeAllProducts([])); // Clear store on error
+          setLocalProducts([]);
         }
         setIsLoading(false);
       }, [dispatch, toast, currentUser]);
 
     useEffect(() => {
         dispatch(initializeAllProducts(initialProducts));
+        setLocalProducts(initialProducts);
         setIsLoading(false);
     }, [initialProducts, dispatch]);
 
@@ -108,17 +112,17 @@ export function ProductList({ initialProducts }: ProductListProps) {
     const filteredProducts = useMemo(() => {
         const lowerSearchTerm = searchTerm.toLowerCase();
 
-        const searchedProducts = productsFromStore.filter(p =>
-        p.name.toLowerCase().includes(lowerSearchTerm) ||
-        (p.code && p.code.toLowerCase().includes(lowerSearchTerm)) ||
-        (p.category && p.category.toLowerCase().includes(lowerSearchTerm))
+        const searchedProducts = localProducts.filter(p =>
+            p.name.toLowerCase().includes(lowerSearchTerm) ||
+            (p.code && p.code.toLowerCase().includes(lowerSearchTerm)) ||
+            (p.category && p.category.toLowerCase().includes(lowerSearchTerm))
         );
 
         if (showServicesOnly) return searchedProducts.filter(p => p.isService);
         if (showOutOfStock) return searchedProducts.filter(p => !p.isService && p.stock <= 0);
 
         return searchedProducts;
-    }, [productsFromStore, searchTerm, showOutOfStock, showServicesOnly]);
+    }, [localProducts, searchTerm, showOutOfStock, showServicesOnly]);
 
     const summary = useMemo(() => {
         const totalProducts = filteredProducts.length;
@@ -169,9 +173,8 @@ export function ProductList({ initialProducts }: ProductListProps) {
         setIsSubmitting(true);
         const result = await deleteProductAction(productToDelete.id);
         if (result.success) {
-            dispatch(_internalDeleteProduct({ id: productToDelete.id }));
             toast({ title: 'Product Deleted', description: `"${productToDelete.name}" has been deleted.` });
-            fetchProducts();
+            await fetchProducts(); // Refresh list from server
         } else {
             toast({ title: 'Error Deleting Product', description: result.error, variant: 'destructive' });
         }
@@ -181,46 +184,50 @@ export function ProductList({ initialProducts }: ProductListProps) {
 
     const handleProductFormSubmit = async (data: ProductFormData, productId?: string): Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}> => {
         if (!currentUser?.id) {
-        const errorMsg = "User not authenticated. Cannot save product.";
-        setProductFormError(errorMsg);
-        return { success: false, error: errorMsg };
+            const errorMsg = "User not authenticated. Cannot save product.";
+            setProductFormError(errorMsg);
+            return { success: false, error: errorMsg };
         }
 
         setIsSubmitting(true);
         setProductFormError(null);
         setProductFormFieldErrors(undefined);
 
-        let result;
         const isUpdating = !!productId;
+        const result = isUpdating
+            ? await updateProductAction(productId!, data, currentUser.id)
+            : await createProductAction(data, currentUser.id);
 
-        if (isUpdating) {
-            result = await updateProductAction(productId!, data, currentUser.id);
-        } else {
-            result = await createProductAction(data, currentUser.id);
-        }
-        
         setIsSubmitting(false);
 
         if (result.success && result.data) {
             const toastTitle = isUpdating ? 'Product Updated' : 'Product Created';
             toast({ title: toastTitle, description: `"${result.data.name}" has been saved.` });
-            
-            // ALWAYS REFRESH after a successful CUD operation
-            await fetchProducts();
+
+            // Re-fetch the entire list to guarantee data consistency
+            const freshProductsResult = await getAllProductsAction(currentUser.id);
+            if (freshProductsResult.success && freshProductsResult.data) {
+                // Update the central store and local state
+                dispatch(initializeAllProducts(freshProductsResult.data));
+                setLocalProducts(freshProductsResult.data);
+            }
 
             setLastSuccessfulSubmission({ id: result.data.id, name: result.data.name });
-            
+
             if (isUpdating) {
-                setEditingProduct(result.data); // Keep editing with the fresh data
+                // Find the newly updated product from the complete, fresh list
+                const refreshedProduct = freshProductsResult.data?.find(p => p.id === productId);
+                // Set the form to edit this fresh product data, ensuring all batches are up-to-date
+                setEditingProduct(refreshedProduct || result.data); // Fallback to action result if not found
             } else {
-                setEditingProduct(null); // Clear form for new entry
+                setEditingProduct(null);
             }
         } else {
             setProductFormError(result.error || 'An unexpected error occurred.');
             setProductFormFieldErrors(result.fieldErrors);
             setLastSuccessfulSubmission(null);
         }
-        return {success: result.success, error: result.error, fieldErrors: result.fieldErrors};
+        return { success: result.success, error: result.error, fieldErrors: result.fieldErrors };
     };
 
     const handleSheetOpenChange = (open: boolean) => {
