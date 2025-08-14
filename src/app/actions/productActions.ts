@@ -306,7 +306,8 @@ export async function getProductByIdAction(
 export async function updateProductAction(
   id: string,
   productData: ProductFormData,
-  userId: string | null
+  userId: string | null,
+  batchIdToUpdate?: string | null,
 ): Promise<{ success: boolean; data?: ProductType; error?: string, fieldErrors?: Record<string, string[]> }> {
   if (!prisma || !prisma.product) return { success: false, error: "Prisma client or Product model not initialized." };
   if (!id) return { success: false, error: "Product ID is required for update." };
@@ -335,11 +336,24 @@ export async function updateProductAction(
 
   try {
     const updatedProduct = await prisma.$transaction(async (tx) => {
+        // --- 1. Update the Main Product Details ---
         await tx.product.update({
             where: { id },
             data: dataToUpdateOnProduct,
         });
+
+        // --- 2. Update the specific Batch if an ID was passed ---
+        if (batchIdToUpdate && adjustmentCostPrice !== undefined && adjustmentCostPrice !== null) {
+            await tx.productBatch.update({
+                where: { id: batchIdToUpdate },
+                data: {
+                    sellingPrice: sellingPrice,
+                    costPrice: adjustmentCostPrice,
+                },
+            });
+        }
         
+        // --- 3. Handle Manual Stock Adjustment ---
         if (stockAdjustment && stockAdjustment > 0 && adjustmentCostPrice !== undefined && adjustmentCostPrice !== null) {
             await tx.productBatch.create({
                 data: {
@@ -352,6 +366,7 @@ export async function updateProductAction(
             });
         }
         
+        // --- 4. Refetch the final state of the product ---
         const finalProduct = await tx.product.findUniqueOrThrow({
             where: { id: id },
             include: {
@@ -386,7 +401,7 @@ export async function updateProductAction(
     if (error instanceof z.ZodError) errorMessage = `Product data is invalid.`;
     else if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') errorMessage = 'A product with this name or code already exists.';
-        else if (error.code === 'P2025') errorMessage = 'Product to update not found.';
+        else if (error.code === 'P2025') errorMessage = 'Product or Batch to update not found.';
     } else if (error instanceof Error) errorMessage = error.message;
     return { success: false, error: errorMessage };
   }

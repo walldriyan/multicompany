@@ -4,7 +4,7 @@
 import { useForm, Controller, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ProductFormDataSchema } from '@/lib/zodSchemas';
-import type { ProductFormData, UnitDefinition, Product as ProductType } from '@/types';
+import type { ProductFormData, UnitDefinition, Product as ProductType, ProductBatch } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +28,7 @@ import { selectAllProducts } from '@/store/slices/saleSlice';
 
 interface ProductFormProps {
   product?: ProductType | null;
-  onSubmit: (data: ProductFormData, productId?: string) => Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}>;
+  onSubmit: (data: ProductFormData, productId?: string, batchIdToUpdate?: string | null) => Promise<{success: boolean, error?: string, fieldErrors?: Record<string, string[]>}>;
   onCancel?: () => void;
   isLoading?: boolean;
   formError?: string | null;
@@ -93,6 +93,7 @@ export function ProductForm({
 }: ProductFormProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const allProductsFromStore = useSelector(selectAllProducts);
+  const [selectedBatchIdForUpdate, setSelectedBatchIdForUpdate] = useState<string | null>(null);
 
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
@@ -174,6 +175,7 @@ export function ProductForm({
           }
         : defaultFormValues;
     reset(initialValues);
+    setSelectedBatchIdForUpdate(null); // Reset selected batch on product change
 }, [product, reset]);
 
 
@@ -206,7 +208,7 @@ export function ProductForm({
     if (category && !allCategories.some(c => c.toUpperCase() === category)) {
       setAllCategories(prev => [...prev, category].sort());
     }
-    await onSubmit({ ...data, category: category || null }, product?.id);
+    await onSubmit({ ...data, category: category || null }, product?.id, selectedBatchIdForUpdate);
   };
 
   const handleClearAndPrepareForNew = () => {
@@ -294,6 +296,9 @@ export function ProductForm({
     if (selectedBatch) {
         setValue('sellingPrice', selectedBatch.sellingPrice, { shouldValidate: true, shouldDirty: true });
         setValue('costPrice', selectedBatch.costPrice, { shouldValidate: true, shouldDirty: true });
+        setSelectedBatchIdForUpdate(batchId); // Track the selected batch for update
+    } else {
+        setSelectedBatchIdForUpdate(null);
     }
   };
 
@@ -474,13 +479,13 @@ export function ProductForm({
                                     </ScrollArea>
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground mt-1">Select a batch to quickly set the cost and selling price fields below to that batch's values.</p>
+                            <p className="text-xs text-muted-foreground mt-1">Select a batch to quickly set the cost and selling price fields below to that batch's values. Saving will update the main product's default price AND the selected batch's price.</p>
                         </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="costPrice">
-                            {isEditingProduct ? 'Avg. Cost Price (Read-Only)' : 'Initial Cost Price (per base unit)'}
+                            {isEditingProduct ? 'Cost Price' : 'Initial Cost Price (per base unit)'}
                             </Label>
                             <Controller
                                 name="costPrice"
@@ -498,7 +503,7 @@ export function ProductForm({
                                         onBlur={field.onBlur}
                                         placeholder="0.00"
                                         className="bg-input border-border focus:ring-primary text-sm"
-                                        readOnly={isEditingProduct}
+                                        readOnly={isEditingProduct && !selectedBatchIdForUpdate}
                                     />
                                 )}
                             />
