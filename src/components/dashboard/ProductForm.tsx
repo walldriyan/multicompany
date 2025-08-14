@@ -289,6 +289,14 @@ export function ProductForm({
       }
   };
 
+  const handleBatchSelect = (batchId: string) => {
+    const selectedBatch = product?.batches?.find(b => b.id === batchId);
+    if (selectedBatch) {
+        setValue('sellingPrice', selectedBatch.sellingPrice, { shouldValidate: true, shouldDirty: true });
+        setValue('costPrice', selectedBatch.costPrice, { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
 
   const filteredUnitOptions = unitOptions.filter(option =>
       option.label.toLowerCase().includes(unitSearchTerm.toLowerCase())
@@ -449,6 +457,26 @@ export function ProductForm({
 
                 {/* Step 2: Pricing */}
                 <div className={cn("space-y-4", currentStep !== 1 && "hidden")}>
+                    {isEditingProduct && product?.batches && product.batches.length > 0 && (
+                        <div>
+                            <Label htmlFor="batch-selector" className="text-foreground text-xs">Load from Batch (Optional)</Label>
+                             <Select onValueChange={handleBatchSelect}>
+                                <SelectTrigger id="batch-selector" className="bg-input border-border focus:ring-primary text-sm">
+                                    <SelectValue placeholder="Select a batch to load its pricing..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <ScrollArea className="h-48">
+                                    {product.batches.map(batch => (
+                                        <SelectItem key={batch.id} value={batch.id}>
+                                            Batch: {batch.batchNumber || 'N/A'} (Qty: {batch.quantity}) - Cost: {batch.costPrice.toFixed(2)}, Sell: {batch.sellingPrice.toFixed(2)}
+                                        </SelectItem>
+                                    ))}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">Select a batch to quickly set the cost and selling price fields below to that batch's values.</p>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="costPrice">
