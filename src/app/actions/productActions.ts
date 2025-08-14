@@ -323,12 +323,11 @@ export async function updateProductAction(
     return { success: false, error: "No data provided for update." };
   }
   
-  // Separate form data into Product data and Batch data (for adjustments)
   const { stock: stockAdjustment, costPrice: adjustmentCostPrice, sellingPrice, ...restOfProductData } = validatedProductData;
 
   const dataToUpdateOnProduct: Prisma.ProductUpdateInput = {
       ...restOfProductData,
-      sellingPrice: sellingPrice, // Also update the main product's selling price
+      sellingPrice: sellingPrice,
       updatedByUserId: userId,
   };
   if (validatedProductData.units) dataToUpdateOnProduct.units = validatedProductData.units as Prisma.JsonValue;
@@ -336,13 +335,11 @@ export async function updateProductAction(
 
   try {
     const updatedProduct = await prisma.$transaction(async (tx) => {
-        // Step 1: Update the main product details
         await tx.product.update({
             where: { id },
             data: dataToUpdateOnProduct,
         });
         
-        // Step 2: If stock and cost price are provided, create a new batch as a "manual adjustment"
         if (stockAdjustment && stockAdjustment > 0 && adjustmentCostPrice !== undefined && adjustmentCostPrice !== null) {
             await tx.productBatch.create({
                 data: {
@@ -350,12 +347,11 @@ export async function updateProductAction(
                     batchNumber: `MANUAL_ADJUST_${Date.now()}`,
                     quantity: stockAdjustment,
                     costPrice: adjustmentCostPrice,
-                    sellingPrice: sellingPrice, // Use the new selling price for this adjustment batch
+                    sellingPrice: sellingPrice,
                 }
             });
         }
         
-        // Step 3: Fetch the final, updated product with all its relations to return to the client
         const finalProduct = await tx.product.findUniqueOrThrow({
             where: { id: id },
             include: {
@@ -402,8 +398,6 @@ export async function deleteProductAction(
   if (!prisma || !prisma.product) return { success: false, error: "Prisma client or Product model not initialized." };
   if (!id) return { success: false, error: "Product ID is required for deletion." };
   try {
-    // Prisma cascading delete should handle related records (defined in schema)
-    // This includes ProductDiscountConfiguration and now ProductBatch
     await prisma.product.delete({ where: { id } });
     return { success: true };
   } catch (error: any) {
@@ -419,7 +413,6 @@ export async function deleteProductAction(
   }
 }
 
-// THIS IS THE CORRECTED ACTION
 export async function updateProductStockAction(
   productId: string,
   changeInStock: number,
@@ -499,5 +492,3 @@ export async function updateProductStockAction(
      return { success: false, error: error.message || "Failed to update stock." };
   }
 }
-
-    

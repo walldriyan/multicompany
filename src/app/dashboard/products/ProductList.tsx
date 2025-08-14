@@ -204,12 +204,13 @@ export function ProductList({ initialProducts }: ProductListProps) {
 
             const freshProductsResult = await getAllProductsAction(currentUser.id);
             if (freshProductsResult.success && freshProductsResult.data) {
-                dispatch(initializeAllProducts(freshProductsResult.data));
-                setLocalProducts(freshProductsResult.data);
+                const refreshedProducts = freshProductsResult.data;
+                dispatch(initializeAllProducts(refreshedProducts));
+                setLocalProducts(refreshedProducts);
                 
                 if (isUpdating) {
-                    const refreshedProduct = freshProductsResult.data?.find(p => p.id === productId);
-                    setEditingProduct(refreshedProduct || result.data); 
+                    const refreshedProduct = refreshedProducts.find(p => p.id === productId);
+                    setEditingProduct(refreshedProduct || null); 
                 } else {
                     setEditingProduct(null);
                 }
