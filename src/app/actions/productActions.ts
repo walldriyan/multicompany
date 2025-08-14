@@ -209,7 +209,7 @@ export async function getAllProductsAction(userId: string): Promise<{
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     if (!user?.companyId) {
         // Super admin without a company can see all products, for setup purposes.
         if (user?.role?.name === 'Admin') {
@@ -324,11 +324,11 @@ export async function updateProductAction(
   }
   
   // Separate form data into Product data and Batch data (for adjustments)
-  const { stock: stockAdjustment, costPrice: adjustmentCostPrice, sellingPrice: adjustmentSellingPrice, ...restOfProductData } = validatedProductData;
+  const { stock: stockAdjustment, costPrice: adjustmentCostPrice, sellingPrice, ...restOfProductData } = validatedProductData;
 
   const dataToUpdateOnProduct: Prisma.ProductUpdateInput = {
       ...restOfProductData,
-      sellingPrice: adjustmentSellingPrice, // Also update the main product's selling price
+      sellingPrice: sellingPrice, // Also update the main product's selling price
       updatedByUserId: userId,
   };
   if (validatedProductData.units) dataToUpdateOnProduct.units = validatedProductData.units as Prisma.JsonValue;
@@ -350,7 +350,7 @@ export async function updateProductAction(
                     batchNumber: `MANUAL_ADJUST_${Date.now()}`,
                     quantity: stockAdjustment,
                     costPrice: adjustmentCostPrice,
-                    sellingPrice: adjustmentSellingPrice, // Use the new selling price for this adjustment batch
+                    sellingPrice: sellingPrice, // Use the new selling price for this adjustment batch
                 }
             });
         }
