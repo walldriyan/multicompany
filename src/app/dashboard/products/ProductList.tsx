@@ -94,10 +94,10 @@ export function ProductList({ initialProducts }: ProductListProps) {
       }, [dispatch, toast, currentUser]);
 
     useEffect(() => {
-        dispatch(initializeAllProducts(initialProducts));
-        setLocalProducts(initialProducts);
-        setIsLoading(false);
-    }, [initialProducts, dispatch]);
+        // This effect runs once on mount to fetch the initial data from the server
+        // ensuring the list is up-to-date when the page loads.
+        fetchProducts();
+    }, [fetchProducts]);
 
     const handleServicesToggle = (checked: boolean) => {
         setShowServicesOnly(checked);
