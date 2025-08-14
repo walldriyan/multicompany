@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import prisma from '@/lib/prisma';
@@ -324,6 +325,7 @@ export async function updateProductAction(
     return { success: false, error: "No data provided for update." };
   }
   
+  // FIX: Destructure stock and costPrice correctly from the validated data
   const { stock: stockAdjustment, costPrice: adjustmentCostPrice, sellingPrice, ...restOfProductData } = validatedProductData;
 
   const dataToUpdateOnProduct: Prisma.ProductUpdateInput = {
@@ -507,3 +509,4 @@ export async function updateProductStockAction(
      return { success: false, error: error.message || "Failed to update stock." };
   }
 }
+
