@@ -423,15 +423,13 @@ export default function CreditManagementPage() {
                             </CardHeader>
                             <CardContent className="p-0 space-y-4">
                                 <div className="space-y-2 p-3 rounded-md bg-red-950/20 border border-red-500/30">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
-                                            <div className="bg-green-900/80 text-green-200 text-xs font-medium px-3 py-1 rounded-full mt-1 self-start">
-                                              Total Paid So Far: Rs. {totalPaidForSelectedSale.toFixed(2)}
-                                            </div>
-                                        </div>
-                                        <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
-                                    </div>
+                                  <div className="flex flex-col">
+                                      <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                       <div className="bg-green-900/80 text-green-200 text-xs font-medium px-3 py-1 rounded-full mt-2 self-start">
+                                         Total Paid So Far: Rs. {totalPaidForSelectedSale.toFixed(2)}
+                                       </div>
+                                      <p className="font-bold text-3xl text-red-400 mt-1">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
+                                  </div>
                                 </div>
                                 <Card className="p-4 bg-green-950/30 border-green-500/40">
                                     <div className="space-y-4">
@@ -697,3 +695,4 @@ export default function CreditManagementPage() {
     </>
   );
 }
+
