@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -352,6 +353,140 @@ export default function CreditManagementPage() {
         )}
 
         <div className="flex flex-1 gap-4 overflow-hidden" >
+            <Card className="flex-1 flex flex-col bg-card border-border shadow-lg overflow-hidden">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle className="text-card-foreground">
+                        {selectedSale ? `Details for Bill: ${selectedSale.billNumber}` : 'Select a Bill'}
+                        </CardTitle>
+                        <CardDescription className="text-muted-foreground">
+                        {selectedSale ? `Customer: ${selectedSale.customerName || 'N/A'}` : 'Select a bill from the list to view details and record payments.'}
+                        </CardDescription>
+                    </div>
+                    {selectedSale && (
+                        <Button onClick={handlePrintFullBill} variant="outline" size="sm" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                            <Printer className="mr-2 h-4 w-4" /> Print Full Bill
+                        </Button>
+                    )}
+                </div>
+              </CardHeader>
+              <ScrollArea className="flex-1">
+                <CardContent className="p-4 space-y-4">
+                  {!selectedSale ? (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <Info className="mx-auto h-10 w-10 mb-3" />
+                      <p>No bill selected.</p>
+                    </div>
+                  ) : (
+                    <>
+                       <Card className="p-4 bg-muted/20 border-border/40">
+                            <CardHeader className="p-0 pb-3">
+                                <CardTitle className="text-lg font-medium text-foreground flex items-center">
+                                    <ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0 space-y-3">
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
+                                        <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
+                                        <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
+                                    </div>
+                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
+                                        <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
+                                        <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                <Separator className="bg-border/30 my-3"/>
+                                <div className="space-y-1 text-xs px-1">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center text-muted-foreground">Payment Status:</div>
+                                        <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center text-muted-foreground">Sale Date:</div>
+                                        <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
+                                    </div>
+                                    {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center">
+                                        <div className="flex items-center text-muted-foreground">Last Payment:</div>
+                                        <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
+                                    </div>}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+
+                      {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
+                        <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
+                            <CardHeader className="p-0 pb-3">
+                                <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0 space-y-4">
+                                <div className="space-y-1 p-3 rounded-md bg-red-950/20 border border-red-500/30">
+                                    <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                    <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)*</Label>
+                                        <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method*</Label>
+                                        <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
+                                            <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
+                                                <SelectValue placeholder="Select method" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                                <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
+                                                <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
+                                    <Textarea id="paymentNotes" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Paid by John Doe, Ref#123" className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px] mt-1" />
+                                </div>
+                                <Button onClick={handleRecordPayment} disabled={isProcessingPayment || !paymentAmount || parseFloat(paymentAmount) <=0 || !canUpdateSale} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                                    {isProcessingPayment ? 'Processing...' : 'Record Payment'}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                      )}
+
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="item-1">
+                            <AccordionTrigger>View Payment History</AccordionTrigger>
+                            <AccordionContent>
+                                <div className="p-3 bg-muted/20 border-border/40 rounded-md">
+                                  {isLoadingInstallments ? (
+                                    <p className="text-muted-foreground text-xs">Loading payment history...</p>
+                                  ) : installments.length === 0 ? (
+                                    <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
+                                  ) : (
+                                    <ScrollArea className="h-48">
+                                      <Table>
+                                        <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                          {installments.map((inst) => (
+                                            <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </ScrollArea>
+                                  )}
+                                </div>
+                              </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </>
+                  )}
+                </CardContent>
+              </ScrollArea>
+            </Card>
+
             <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
               <CardHeader>
                 <CardTitle className="text-card-foreground">Search &amp; Filter Bills</CardTitle>
@@ -541,139 +676,6 @@ export default function CreditManagementPage() {
                       </CardFooter>
             </Card>
 
-            <Card className="flex-1 flex flex-col bg-card border-border shadow-lg overflow-hidden">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                    <div>
-                        <CardTitle className="text-card-foreground">
-                        {selectedSale ? `Details for Bill: ${selectedSale.billNumber}` : 'Select a Bill'}
-                        </CardTitle>
-                        <CardDescription className="text-muted-foreground">
-                        {selectedSale ? `Customer: ${selectedSale.customerName || 'N/A'}` : 'Select a bill from the list to view details and record payments.'}
-                        </CardDescription>
-                    </div>
-                    {selectedSale && (
-                        <Button onClick={handlePrintFullBill} variant="outline" size="sm" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                            <Printer className="mr-2 h-4 w-4" /> Print Full Bill
-                        </Button>
-                    )}
-                </div>
-              </CardHeader>
-              <ScrollArea className="flex-1">
-                <CardContent className="p-4 space-y-4">
-                  {!selectedSale ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <Info className="mx-auto h-10 w-10 mb-3" />
-                      <p>No bill selected.</p>
-                    </div>
-                  ) : (
-                    <>
-                       <Card className="p-4 bg-muted/20 border-border/40">
-                            <CardHeader className="p-0 pb-3">
-                                <CardTitle className="text-lg font-medium text-foreground flex items-center">
-                                    <ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0 space-y-3">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                        <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
-                                        <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
-                                    </div>
-                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                        <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
-                                        <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
-                                    </div>
-                                </div>
-                                <Separator className="bg-border/30 my-3"/>
-                                <div className="space-y-1 text-xs px-1">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Payment Status:</div>
-                                        <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Sale Date:</div>
-                                        <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
-                                    </div>
-                                    {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Last Payment:</div>
-                                        <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
-                                    </div>}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-
-                      {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
-                        <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
-                            <CardHeader className="p-0 pb-3">
-                                <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0 space-y-4">
-                                <div className="space-y-1 p-3 rounded-md bg-red-950/20 border border-red-500/30">
-                                    <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
-                                    <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)*</Label>
-                                        <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method*</Label>
-                                        <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
-                                            <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
-                                                <SelectValue placeholder="Select method" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
-                                                <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
-                                                <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
-                                    <Textarea id="paymentNotes" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Paid by John Doe, Ref#123" className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px] mt-1" />
-                                </div>
-                                <Button onClick={handleRecordPayment} disabled={isProcessingPayment || !paymentAmount || parseFloat(paymentAmount) <=0 || !canUpdateSale} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-                                    {isProcessingPayment ? 'Processing...' : 'Record Payment'}
-                                </Button>
-                            </CardContent>
-                        </Card>
-                      )}
-
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1">
-                            <AccordionTrigger>View Payment History</AccordionTrigger>
-                            <AccordionContent>
-                                <div className="p-3 bg-muted/20 border-border/40 rounded-md">
-                                  {isLoadingInstallments ? (
-                                    <p className="text-muted-foreground text-xs">Loading payment history...</p>
-                                  ) : installments.length === 0 ? (
-                                    <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
-                                  ) : (
-                                    <ScrollArea className="h-48">
-                                      <Table>
-                                        <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                          {installments.map((inst) => (
-                                            <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
-                                          ))}
-                                        </TableBody>
-                                      </Table>
-                                    </ScrollArea>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </>
-                  )}
-                </CardContent>
-              </ScrollArea>
-            </Card>
         </div>
         {isPrintingBill && selectedSale && (
           <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
