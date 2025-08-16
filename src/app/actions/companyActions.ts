@@ -39,12 +39,16 @@ export async function getAllCompanyProfilesAction(userId: string | null): Promis
       return { success: false, error: "User not found." };
     }
 
-    const isSuperAdmin = user.role?.name === 'Admin';
+    const isSuperAdmin = user.role?.name === 'Admin' && !user.companyId;
     const whereClause: Prisma.CompanyProfileWhereInput = {};
-
-    if (!isSuperAdmin && user.companyId) {
+    
+    if (isSuperAdmin) {
+      // Super admin (Admin role NOT tied to a company) sees all companies.
+    } else if (user.companyId) {
+      // Any other user (including Admins tied to a company) only sees their own.
       whereClause.id = user.companyId;
-    } else if (!isSuperAdmin && !user.companyId) {
+    } else {
+      // Any user without a company who is NOT a super admin sees nothing.
       return { success: true, data: [] };
     }
 
