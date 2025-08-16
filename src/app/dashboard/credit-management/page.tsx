@@ -422,13 +422,13 @@ export default function CreditManagementPage() {
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0 space-y-4">
-                                <div className="flex justify-end">
-                                  <div className="bg-green-900/80 text-green-200 text-xs font-medium px-3 py-1 rounded-full">
-                                    Total Paid So Far: Rs. {totalPaidForSelectedSale.toFixed(2)}
-                                  </div>
-                                </div>
-                                <div className="space-y-1 p-3 rounded-md bg-red-950/20 border border-red-500/30">
-                                    <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                <div className="space-y-2 p-3 rounded-md bg-red-950/20 border border-red-500/30">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
+                                        <div className="bg-green-900/80 text-green-200 text-xs font-medium px-3 py-1 rounded-full">
+                                          Total Paid So Far: Rs. {totalPaidForSelectedSale.toFixed(2)}
+                                        </div>
+                                    </div>
                                     <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
                                 </div>
                                 <Card className="p-4 bg-green-950/30 border-green-500/40">
