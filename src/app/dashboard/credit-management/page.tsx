@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -426,25 +426,27 @@ export default function CreditManagementPage() {
                                     <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
                                     <p className="font-bold text-3xl text-red-400">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="paymentAmount" className="text-card-foreground text-xs">Amount to Pay (Rs.)*</Label>
-                                        <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                <Card className="p-4 bg-green-950/30 border-green-500/40">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <Label htmlFor="paymentAmount" className="text-card-foreground text-sm">Amount to Pay (Rs.)*</Label>
+                                            <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1 h-12 text-lg" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="paymentMethod" className="text-card-foreground text-sm">Payment Method*</Label>
+                                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
+                                                <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
+                                                    <SelectValue placeholder="Select method" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                                    <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
+                                                    <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <Label htmlFor="paymentMethod" className="text-card-foreground text-xs">Payment Method*</Label>
-                                        <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
-                                            <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
-                                                <SelectValue placeholder="Select method" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
-                                                <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
-                                                <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
+                                </Card>
                                 <div>
                                     <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
                                     <Textarea id="paymentNotes" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Paid by John Doe, Ref#123" className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px] mt-1" />
@@ -489,9 +491,9 @@ export default function CreditManagementPage() {
 
             <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
               <CardHeader>
-                <CardTitle className="text-card-foreground">Search &amp; Filter Bills</CardTitle>
+                <CardTitle className="text-card-foreground">Search & Filter Bills</CardTitle>
                 <Card className="p-3 bg-muted/30 mt-2 border-border/50">
-                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date &amp; Customer</CardDescription>
+                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Customer</CardDescription>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="grid gap-1">
                           <Label htmlFor="date-filter" className="text-xs">Date Range</Label>
