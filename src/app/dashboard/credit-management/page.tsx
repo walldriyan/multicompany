@@ -353,7 +353,7 @@ export default function CreditManagementPage() {
         )}
 
         <div className="flex flex-1 gap-4 overflow-hidden" >
-            <Card className="flex-1 flex flex-col bg-card border-border shadow-lg overflow-hidden">
+            <Card className="w-1/2 lg:w-3/5 flex flex-col bg-card border-border shadow-lg overflow-hidden">
               <CardHeader>
                 <div className="flex justify-between items-center">
                     <div>
@@ -612,8 +612,12 @@ export default function CreditManagementPage() {
                         </div>
                     </AccordionTrigger>
                   <AccordionContent>
+                      <div className="p-2 border-b border-border/50 bg-muted/20 flex justify-between items-center text-sm">
+                        <span className="font-semibold text-card-foreground">Total Outstanding (Filtered):</span>
+                        <span className="font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</span>
+                      </div>
                       <CardContent className="flex-1 overflow-hidden p-0 mt-2">
-                        <ScrollArea className="h-[40vh]">
+                        <ScrollArea className="h-[calc(40vh-40px)]">
                           {isLoadingSales ? (
                             <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
                           ) : filteredSales.length === 0 ? (
@@ -652,13 +656,6 @@ export default function CreditManagementPage() {
                                   </TableRow>
                                 ))}
                               </TableBody>
-                               <TableFooter>
-                                <TableRow>
-                                    <TableCell colSpan={4} className="text-right font-semibold">Total Outstanding (Filtered):</TableCell>
-                                    <TableCell className="text-right font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</TableCell>
-                                    <TableCell />
-                                </TableRow>
-                            </TableFooter>
                             </Table>
                           )}
                         </ScrollArea>
@@ -675,7 +672,6 @@ export default function CreditManagementPage() {
                         </div>)}
                       </CardFooter>
             </Card>
-
         </div>
         {isPrintingBill && selectedSale && (
           <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
