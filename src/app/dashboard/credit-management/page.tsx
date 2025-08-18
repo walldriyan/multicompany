@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { recordPurchasePaymentAction, getAllSuppliersAction } from '@/app/actions/purchaseActions';
 import { getCreditSalesAction, recordCreditPaymentAction, getInstallmentsForSaleAction } from '@/app/actions/saleActions';
 import { getAllCustomersAction } from '@/app/actions/partyActions';
-import type { SaleRecord, PaymentInstallment, CreditPaymentStatus, Party as CustomerType } from '@/types';
+import type { SaleRecord, PaymentInstallment, CreditPaymentStatus, Party as CustomerType, ReturnedItemDetail } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, TrendingUp, TrendingDown, Repeat } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -328,6 +328,31 @@ export default function CreditManagementPage() {
       (c.phone && c.phone.includes(customerSearchTerm))
     );
   }, [customers, customerSearchTerm]);
+  
+  const billFinancials = useMemo(() => {
+    if (!selectedSale) return null;
+    const originalBillTotal = selectedSale.originalSaleRecordId 
+      ? creditSales.find(b => b.id === selectedSale.originalSaleRecordId)?.totalAmount ?? selectedSale.totalAmount
+      : selectedSale.totalAmount;
+    
+    const totalReturnedValue = (selectedSale.returnedItemsLog as ReturnedItemDetail[] || []).reduce(
+        (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
+    );
+
+    const netBillAmount = selectedSale.totalAmount;
+    const totalPaidByCustomer = selectedSale.amountPaidByCustomer || 0;
+    
+    const finalBalance = netBillAmount - totalPaidByCustomer;
+
+    return {
+        originalBillTotal,
+        totalReturnedValue,
+        netBillAmount,
+        totalPaidByCustomer,
+        finalBalance
+    };
+  }, [selectedSale, creditSales]);
+
 
   return (
     <>
@@ -387,37 +412,57 @@ export default function CreditManagementPage() {
                        <Card className="p-4 bg-muted/20 border-border/40">
                             <CardHeader className="p-0 pb-3">
                                 <CardTitle className="text-lg font-medium text-foreground flex items-center">
-                                    <ListChecks className="mr-2 h-5 w-5 text-primary"/>Bill Summary
+                                    <ListChecks className="mr-2 h-5 w-5 text-primary"/>Payment History
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="p-0 space-y-3">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                        <div className="flex items-center text-muted-foreground"><ArrowUpCircle className="h-4 w-4 mr-2 text-primary/70"/> Original Total</div>
-                                        <p className="font-semibold text-xl text-card-foreground">Rs. {selectedSale.totalAmount.toFixed(2)}</p>
-                                    </div>
-                                    <div className="space-y-1 p-3 rounded-md bg-background/40">
-                                        <div className="flex items-center text-muted-foreground"><ArrowDownCircle className="h-4 w-4 mr-2 text-green-500"/> Total Paid</div>
-                                        <p className="font-semibold text-2xl text-green-400">Rs. {totalPaidForSelectedSale.toFixed(2)}</p>
-                                    </div>
-                                </div>
-                                <Separator className="bg-border/30 my-3"/>
-                                <div className="space-y-1 text-xs px-1">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Payment Status:</div>
-                                        <Badge variant={getStatusBadgeVariant(selectedSale.creditPaymentStatus)}>{selectedSale.creditPaymentStatus || 'N/A'}</Badge>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Sale Date:</div>
-                                        <span className="text-card-foreground">{new Date(selectedSale.date).toLocaleDateString()}</span>
-                                    </div>
-                                    {selectedSale.creditLastPaymentDate && <div className="flex justify-between items-center">
-                                        <div className="flex items-center text-muted-foreground">Last Payment:</div>
-                                        <span className="text-card-foreground">{new Date(selectedSale.creditLastPaymentDate).toLocaleDateString()}</span>
-                                    </div>}
-                                </div>
+                             <CardContent className="p-0">
+                                {isLoadingInstallments ? (
+                                    <p className="text-muted-foreground text-xs">Loading payment history...</p>
+                                ) : installments.length === 0 ? (
+                                    <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
+                                ) : (
+                                    <ScrollArea className="h-24">
+                                    <Table>
+                                        <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                        {installments.map((inst) => (
+                                            <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
+                                        ))}
+                                        </TableBody>
+                                    </Table>
+                                    </ScrollArea>
+                                )}
                             </CardContent>
                         </Card>
+                        
+                        {billFinancials && (
+                            <Card className="p-4 bg-muted/20 border-border/40">
+                                <CardHeader className="p-0 pb-3">
+                                <CardTitle className="text-lg font-medium text-foreground flex items-center">
+                                    <Sigma className="mr-2 h-5 w-5 text-primary"/>Financial Status
+                                </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0 space-y-2 text-sm">
+                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                    <Separator className="my-2 bg-border/50"/>
+                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                    <Separator className="my-2 bg-border/50"/>
+                                    {billFinancials.finalBalance >= 0 ? (
+                                      <div className="flex justify-between items-center p-2 rounded-md bg-red-950/80 border border-red-500/50">
+                                          <span className="font-bold text-lg text-red-300 flex items-center"><TrendingDown className="h-5 w-5 mr-2"/>Amount Due From Customer:</span>
+                                          <span className="font-bold text-2xl text-red-300">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex justify-between items-center p-2 rounded-md bg-green-950/80 border border-green-500/50">
+                                          <span className="font-bold text-lg text-green-300 flex items-center"><TrendingUp className="h-5 w-5 mr-2"/>Amount to REFUND to Customer:</span>
+                                          <span className="font-bold text-2xl text-green-300">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
 
 
                       {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
@@ -426,15 +471,6 @@ export default function CreditManagementPage() {
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0 space-y-4">
-                                <div className="space-y-2 p-3 rounded-md bg-red-950/20 border border-red-500/30">
-                                  <div className="flex flex-col">
-                                      <div className="flex items-center text-muted-foreground"><Hourglass className="h-4 w-4 mr-2 text-red-500"/> Currently Outstanding</div>
-                                       <div className="bg-green-900/80 text-green-200 text-xs font-medium px-3 py-1 rounded-full mt-2 self-start">
-                                         Total Paid So Far: Rs. {totalPaidForSelectedSale.toFixed(2)}
-                                       </div>
-                                      <p className="font-bold text-3xl text-red-400 mt-1">Rs. {(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)}</p>
-                                  </div>
-                                </div>
                                 <Card className="p-4 bg-green-950/30 border-green-500/40">
                                     <div className="space-y-4">
                                         <div>
@@ -466,32 +502,6 @@ export default function CreditManagementPage() {
                             </CardContent>
                         </Card>
                       )}
-
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1">
-                            <AccordionTrigger>View Payment History</AccordionTrigger>
-                            <AccordionContent>
-                                <div className="p-3 bg-muted/20 border-border/40 rounded-md">
-                                  {isLoadingInstallments ? (
-                                    <p className="text-muted-foreground text-xs">Loading payment history...</p>
-                                  ) : installments.length === 0 ? (
-                                    <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
-                                  ) : (
-                                    <ScrollArea className="h-48">
-                                      <Table>
-                                        <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                          {installments.map((inst) => (
-                                            <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
-                                          ))}
-                                        </TableBody>
-                                      </Table>
-                                    </ScrollArea>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
                     </>
                   )}
                 </CardContent>
@@ -502,7 +512,7 @@ export default function CreditManagementPage() {
               <CardHeader>
                 <CardTitle className="text-card-foreground">Search & Filter Bills</CardTitle>
                 <Card className="p-3 bg-muted/30 mt-2 border-border/50">
-                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Customer</CardDescription>
+                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Supplier</CardDescription>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="grid gap-1">
                           <Label htmlFor="date-filter" className="text-xs">Date Range</Label>
