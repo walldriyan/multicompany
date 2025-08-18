@@ -410,33 +410,29 @@ export default function CreditManagementPage() {
                     </div>
                   ) : (
                     <>
-                       {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
+                      {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
                         <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                             <CardHeader className="p-0 pb-3">
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0 space-y-4">
-                                <Card className="p-4 bg-green-950/30 border-green-500/40">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <Label htmlFor="paymentAmount" className="text-card-foreground text-sm">Amount to Pay (Rs.)*</Label>
-                                            <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1 h-12 text-lg" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="paymentMethod" className="text-card-foreground text-sm">Payment Method*</Label>
-                                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
-                                                <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
-                                                    <SelectValue placeholder="Select method" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
-                                                    <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
-                                                    <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                </Card>
+                                <div>
+                                    <Label htmlFor="paymentAmount" className="text-card-foreground text-sm">Amount to Pay (Rs.)*</Label>
+                                    <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1 h-12 text-lg" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="paymentMethod" className="text-card-foreground text-sm">Payment Method*</Label>
+                                    <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'CASH' | 'BANK_TRANSFER' | 'OTHER')}>
+                                        <SelectTrigger className="bg-input border-border focus:ring-primary text-card-foreground mt-1">
+                                            <SelectValue placeholder="Select method" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="CASH"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4"/>Cash</div></SelectItem>
+                                            <SelectItem value="BANK_TRANSFER"><div className="flex items-center gap-2"><Landmark className="h-4 w-4"/>Bank Transfer</div></SelectItem>
+                                            <SelectItem value="OTHER"><div className="flex items-center gap-2"><Banknote className="h-4 w-4"/>Other</div></SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div>
                                     <Label htmlFor="paymentNotes" className="text-card-foreground text-xs">Notes (Optional)</Label>
                                     <Textarea id="paymentNotes" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Paid by John Doe, Ref#123" className="bg-input border-border focus:ring-primary text-card-foreground min-h-[60px] mt-1" />
@@ -447,8 +443,8 @@ export default function CreditManagementPage() {
                             </CardContent>
                         </Card>
                       )}
-
-                        <div className="grid md:grid-cols-2 gap-4">
+                        
+                        <div className="grid md:grid-cols-2 gap-4 mt-4">
                            <Card className="p-4 bg-muted/20 border-border/40 h-full">
                                 <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Payment History</CardTitle></CardHeader>
                                 <CardContent className="p-0">
@@ -463,15 +459,13 @@ export default function CreditManagementPage() {
                                     <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><Sigma className="mr-2 h-5 w-5 text-primary"/>Financial Status</CardTitle></CardHeader>
                                     <CardContent className="p-0 space-y-2 text-sm">
                                         <div className="space-y-1">
-                                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
-                                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                            <Separator className="my-2 bg-border/50"/>
+                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                            <Separator className="my-2 bg-border/50"/>
                                         </div>
-                                        <Separator className="my-2 bg-border/50"/>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
-                                        </div>
-                                        <Separator className="my-2 bg-border/50"/>
                                         <Card className="bg-background/80 p-3">
                                             {billFinancials.finalBalance >= 0.01 ? (
                                             <div className="flex justify-between items-center">
@@ -513,7 +507,7 @@ export default function CreditManagementPage() {
                             <PopoverContent className="w-auto p-0"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent>
                           </Popover>
                       </div>
-                      <div className="grid gap-1">
+                       <div className="grid gap-1">
                         <Label htmlFor="customer-filter" className="text-xs">Customer</Label>
                         <Popover open={isCustomerPopoverOpen} onOpenChange={(open) => {
                             setIsCustomerPopoverOpen(open);
