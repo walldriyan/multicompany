@@ -409,7 +409,7 @@ export default function CreditManagementPage() {
                       <p>No bill selected.</p>
                     </div>
                   ) : (
-                    <>
+                    <div className="space-y-4">
                         <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                             <CardHeader className="p-0 pb-3">
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
@@ -441,7 +441,7 @@ export default function CreditManagementPage() {
                                 </Button>
                             </CardContent>
                         </Card>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-4">
                             <Card className="p-4 bg-muted/20 border-border/40">
                                 <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-4 w-4 text-primary"/>Payment History</CardTitle></CardHeader>
                                 <CardContent className="p-0">
@@ -479,7 +479,7 @@ export default function CreditManagementPage() {
                                 </Card>
                             )}
                         </div>
-                    </>
+                    </div>
                   )}
                 </CardContent>
               </ScrollArea>
@@ -671,13 +671,11 @@ export default function CreditManagementPage() {
                 </CardContent>
 
                 <CardFooter className="p-2 border-t border-border/50">
-                    {totalCount > ITEMS_PER_PAGE && (
-                        <div className="flex justify-between items-center w-full">
-                            <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                            <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                            <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
-                        </div>
-                    )}
+                    <div className="flex justify-between items-center w-full">
+                        <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                        <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                        <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                    </div>
                 </CardFooter>
             </Card>
         </div>
