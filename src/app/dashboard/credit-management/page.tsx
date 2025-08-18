@@ -437,29 +437,26 @@ export default function CreditManagementPage() {
                         
                         {billFinancials && (
                             <Card className="p-4 bg-muted/20 border-border/40">
-                                <CardHeader className="p-0 pb-3">
-                                <CardTitle className="text-lg font-medium text-foreground flex items-center">
-                                    <Sigma className="mr-2 h-5 w-5 text-primary"/>Financial Status
-                                </CardTitle>
-                                </CardHeader>
                                 <CardContent className="p-0 space-y-2 text-sm">
-                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
-                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
                                     <Separator className="my-2 bg-border/50"/>
-                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
                                     <Separator className="my-2 bg-border/50"/>
-                                    {billFinancials.finalBalance >= 0.01 ? (
-                                      <div className="flex justify-between items-center p-2 rounded-md bg-red-950/80 border border-red-500/50">
-                                          <span className="font-bold text-lg text-red-300 flex items-center"><TrendingDown className="h-5 w-5 mr-2"/>Amount Due From Customer:</span>
-                                          <span className="font-bold text-2xl text-red-300">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
-                                      </div>
-                                    ) : (
-                                      <div className="flex justify-between items-center p-2 rounded-md bg-green-950/80 border border-green-500/50">
-                                          <span className="font-bold text-lg text-green-300 flex items-center"><TrendingUp className="h-5 w-5 mr-2"/>Amount to REFUND to Customer:</span>
-                                          <span className="font-bold text-2xl text-green-300">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
-                                      </div>
-                                    )}
+                                    <Card className="bg-background p-3">
+                                        {billFinancials.finalBalance >= 0.01 ? (
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-lg text-red-400">Amount Due From Customer:</span>
+                                            <span className="font-bold text-2xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
+                                        </div>
+                                        ) : (
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-lg text-green-400">Amount to REFUND to Customer:</span>
+                                            <span className="font-bold text-2xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
+                                        </div>
+                                        )}
+                                    </Card>
                                 </CardContent>
                             </Card>
                         )}
