@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, TrendingUp, TrendingDown, Repeat } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, TrendingUp, TrendingDown, Repeat, FileText } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -449,7 +449,7 @@ export default function CreditManagementPage() {
                                     <Separator className="my-2 bg-border/50"/>
                                     <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
                                     <Separator className="my-2 bg-border/50"/>
-                                    {billFinancials.finalBalance >= 0 ? (
+                                    {billFinancials.finalBalance >= 0.01 ? (
                                       <div className="flex justify-between items-center p-2 rounded-md bg-red-950/80 border border-red-500/50">
                                           <span className="font-bold text-lg text-red-300 flex items-center"><TrendingDown className="h-5 w-5 mr-2"/>Amount Due From Customer:</span>
                                           <span className="font-bold text-2xl text-red-300">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
