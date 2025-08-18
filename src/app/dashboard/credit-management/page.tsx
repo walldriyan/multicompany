@@ -324,6 +324,10 @@ export default function CreditManagementPage() {
     const totalReturnedValue = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
         (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
     );
+    
+    const totalReturnedItems = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
+        (sum, item) => sum + item.returnedQuantity, 0
+    );
 
     const netBillAmount = sale.totalAmount;
     const totalPaidByCustomer = sale.amountPaidByCustomer || 0;
@@ -333,6 +337,7 @@ export default function CreditManagementPage() {
     return {
         originalBillTotal: sale.subtotalOriginal,
         totalReturnedValue,
+        totalReturnedItems,
         netBillAmount,
         totalPaidByCustomer,
         finalBalance
@@ -450,33 +455,46 @@ export default function CreditManagementPage() {
                                      : (<ScrollArea className="h-40"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader><TableBody>{installments.map((inst) => (<TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>))}</TableBody></Table></ScrollArea>)}
                                 </CardContent>
                             </Card>
-                             {billFinancials && (
-                                <Card className="p-4 bg-muted/20 border-border/40">
-                                    <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Financial Status</CardTitle></CardHeader>
-                                    <CardContent className="p-0 space-y-2 text-sm">
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
-                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
-                                            <Separator className="my-2 bg-border/50"/>
-                                            <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
-                                            <Separator className="my-2 bg-border/50"/>
-                                        </div>
-                                        <Card className="bg-background/80 p-3">
-                                            {billFinancials.finalBalance >= 0.01 ? (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-semibold text-base text-red-400">Amount Due:</span>
-                                                    <span className="font-bold text-xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-semibold text-base text-green-400">Amount to REFUND:</span>
-                                                    <span className="font-bold text-xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                        </Card>
-                                    </CardContent>
-                                </Card>
+                            {billFinancials && (
+                               <Card className="p-4 bg-muted/20 border-border/40">
+                                <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Financial Status</CardTitle></CardHeader>
+                                <CardContent className="p-0">
+                                    <Accordion type="single" collapsible className="w-full">
+                                        <AccordionItem value="item-1" className="border-none">
+                                            <AccordionTrigger className="p-0 hover:no-underline text-xs text-muted-foreground">View Calculation Breakdown</AccordionTrigger>
+                                            <AccordionContent className="pt-2 space-y-2 text-sm">
+                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                                <Separator className="my-2 bg-border/50"/>
+                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                     <Separator className="my-2 bg-border/50"/>
+                                    {billFinancials.totalReturnedItems > 0 &&
+                                        <div className="flex justify-between items-center text-sm mb-2"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Items Returned:</span> <span className="text-orange-400">{billFinancials.totalReturnedItems} units</span></div>
+                                    }
+                                    <Card className="bg-background/80 p-3">
+                                        {billFinancials.finalBalance > 0.009 ? (
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-semibold text-base text-red-400">Amount Due:</span>
+                                                <span className="font-bold text-xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
+                                            </div>
+                                        ) : billFinancials.finalBalance < -0.009 ? (
+                                             <div className="flex justify-between items-center">
+                                                <span className="font-semibold text-base text-green-400">Amount to REFUND:</span>
+                                                <span className="font-bold text-xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
+                                            </div>
+                                        ) : (
+                                             <div className="flex justify-between items-center">
+                                                <span className="font-semibold text-base text-green-400">Balance Cleared</span>
+                                                <CheckCircle className="h-6 w-6 text-green-400" />
+                                            </div>
+                                        )}
+                                    </Card>
+                                </CardContent>
+                               </Card>
                             )}
                         </div>
                     </div>
@@ -671,7 +689,7 @@ export default function CreditManagementPage() {
                 </CardContent>
 
                 <CardFooter className="p-2 border-t border-border/50">
-                    <div className="flex justify-between items-center w-full">
+                     <div className="flex justify-between items-center w-full">
                         <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
                         <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
                         <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
