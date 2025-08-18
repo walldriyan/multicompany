@@ -74,6 +74,9 @@ export default function CreditManagementPage() {
   const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const customerSearchInputRef = useRef<HTMLInputElement>(null);
+  
+  const [activeCard, setActiveCard] = useState<'history' | 'status'>('status');
+  const carouselContainerRef = useRef<HTMLDivElement>(null);
 
 
   const fetchCreditSales = useCallback(async () => {
@@ -162,6 +165,7 @@ export default function CreditManagementPage() {
 
   const handleSelectSale = (sale: SaleRecord) => {
     setSelectedSale(sale);
+    setActiveCard('status');
     setPaymentAmount('');
     setPaymentMethod('CASH');
     setPaymentNotes('');
@@ -331,9 +335,6 @@ export default function CreditManagementPage() {
   
   const billFinancials = useMemo(() => {
     if (!selectedSale) return null;
-    const originalBillTotal = selectedSale.originalSaleRecordId 
-      ? creditSales.find(b => b.id === selectedSale.originalSaleRecordId)?.totalAmount ?? selectedSale.totalAmount
-      : selectedSale.totalAmount;
     
     const totalReturnedValue = (selectedSale.returnedItemsLog as ReturnedItemDetail[] || []).reduce(
         (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
@@ -345,13 +346,23 @@ export default function CreditManagementPage() {
     const finalBalance = netBillAmount - totalPaidByCustomer;
 
     return {
-        originalBillTotal,
+        originalBillTotal: selectedSale.subtotalOriginal,
         totalReturnedValue,
         netBillAmount,
         totalPaidByCustomer,
         finalBalance
     };
   }, [selectedSale, creditSales]);
+
+  const scrollToIndex = (index: number) => {
+    if (carouselContainerRef.current) {
+        const targetElement = carouselContainerRef.current.children[index] as HTMLElement;
+        if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            setActiveCard(index === 0 ? 'history' : 'status');
+        }
+    }
+  };
 
 
   return (
@@ -409,60 +420,7 @@ export default function CreditManagementPage() {
                     </div>
                   ) : (
                     <>
-                       <Card className="p-4 bg-muted/20 border-border/40">
-                            <CardHeader className="p-0 pb-3">
-                                <CardTitle className="text-lg font-medium text-foreground flex items-center">
-                                    <ListChecks className="mr-2 h-5 w-5 text-primary"/>Payment History
-                                </CardTitle>
-                            </CardHeader>
-                             <CardContent className="p-0">
-                                {isLoadingInstallments ? (
-                                    <p className="text-muted-foreground text-xs">Loading payment history...</p>
-                                ) : installments.length === 0 ? (
-                                    <p className="text-muted-foreground text-xs">No payment installments recorded for this bill yet.</p>
-                                ) : (
-                                    <ScrollArea className="h-24">
-                                    <Table>
-                                        <TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                        {installments.map((inst) => (
-                                            <TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>
-                                        ))}
-                                        </TableBody>
-                                    </Table>
-                                    </ScrollArea>
-                                )}
-                            </CardContent>
-                        </Card>
-                        
-                        {billFinancials && (
-                            <Card className="p-4 bg-muted/20 border-border/40">
-                                <CardContent className="p-0 space-y-2 text-sm">
-                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
-                                    <Separator className="my-2 bg-border/50"/>
-                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
-                                    <Separator className="my-2 bg-border/50"/>
-                                    <Card className="bg-background p-3">
-                                        {billFinancials.finalBalance >= 0.01 ? (
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-bold text-lg text-red-400">Amount Due From Customer:</span>
-                                            <span className="font-bold text-2xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
-                                        </div>
-                                        ) : (
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-bold text-lg text-green-400">Amount to REFUND to Customer:</span>
-                                            <span className="font-bold text-2xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
-                                        </div>
-                                        )}
-                                    </Card>
-                                </CardContent>
-                            </Card>
-                        )}
-
-
-                      {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
+                       {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
                         <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                             <CardHeader className="p-0 pb-3">
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
@@ -499,6 +457,54 @@ export default function CreditManagementPage() {
                             </CardContent>
                         </Card>
                       )}
+
+                        <div className="relative w-full">
+                            <div ref={carouselContainerRef} className="flex gap-4 overflow-x-auto snap-x snap-mandatory py-2 scroll-smooth" style={{ scrollbarWidth: 'none' }}>
+                                <div id="history-card" className="w-[90%] md:w-[48%] flex-shrink-0 snap-center cursor-pointer" onClick={() => scrollToIndex(0)}>
+                                    <Card className={cn("p-4 bg-muted/20 border-border/40 h-full transition-all duration-300", activeCard === 'history' ? 'border-primary/60 scale-100' : 'scale-95 opacity-70')}>
+                                        <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Payment History</CardTitle></CardHeader>
+                                        <CardContent className="p-0">
+                                            {isLoadingInstallments ? (<p className="text-muted-foreground text-xs">Loading payment history...</p>)
+                                             : installments.length === 0 ? (<p className="text-muted-foreground text-xs">No payment installments recorded.</p>)
+                                             : (<ScrollArea className="h-40"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader><TableBody>{installments.map((inst) => (<TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>))}</TableBody></Table></ScrollArea>)}
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                                
+                                {billFinancials && (
+                                    <div id="status-card" className="w-[90%] md:w-[48%] flex-shrink-0 snap-center cursor-pointer" onClick={() => scrollToIndex(1)}>
+                                        <Card className={cn("p-4 bg-muted/20 border-border/40 h-full transition-all duration-300", activeCard === 'status' ? 'border-primary/60 scale-100' : 'scale-95 opacity-70')}>
+                                            <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><Sigma className="mr-2 h-5 w-5 text-primary"/>Financial Status</CardTitle></CardHeader>
+                                            <CardContent className="p-0 space-y-2 text-sm">
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                                </div>
+                                                <Separator className="my-2 bg-border/50"/>
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                                </div>
+                                                <Separator className="my-2 bg-border/50"/>
+                                                <Card className="bg-background/80 p-3">
+                                                    {billFinancials.finalBalance >= 0.01 ? (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-bold text-lg text-red-400">Amount Due:</span>
+                                                        <span className="font-bold text-2xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
+                                                    </div>
+                                                    ) : (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-bold text-lg text-green-400">Amount to REFUND:</span>
+                                                        <span className="font-bold text-2xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
+                                                    </div>
+                                                    )}
+                                                </Card>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </>
                   )}
                 </CardContent>
@@ -714,3 +720,4 @@ export default function CreditManagementPage() {
     </>
   );
 }
+
