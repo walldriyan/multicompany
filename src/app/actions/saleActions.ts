@@ -482,8 +482,7 @@ export async function getAllSaleRecordsAction(
 }
 
 
-
-export async function getOpenCreditSalesAction(
+export async function getCreditSalesAction(
   userId: string,
   page: number = 1,
   limit: number = 10,
@@ -491,6 +490,7 @@ export async function getOpenCreditSalesAction(
     customerId?: string | null;
     startDate?: Date | null;
     endDate?: Date | null;
+    status: 'OPEN' | 'PAID';
   }
 ): Promise<{ success: boolean; data?: { sales: SaleRecordType[]; totalCount: number }; error?: string }> {
   try {
@@ -498,57 +498,64 @@ export async function getOpenCreditSalesAction(
     if (!companyId) {
       return { success: true, data: { sales: [], totalCount: 0 } };
     }
-    
+
+    const statusFilter = filters?.status === 'PAID'
+      ? { in: [CreditPaymentStatusEnumSchema.Enum.FULLY_PAID] }
+      : { in: [CreditPaymentStatusEnumSchema.Enum.PENDING, CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID] };
+
     const whereClause: Prisma.SaleRecordWhereInput = {
       companyId: companyId,
       isCreditSale: true,
-      creditPaymentStatus: {
-        in: [CreditPaymentStatusEnumSchema.Enum.PENDING, CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID],
-      },
+      creditPaymentStatus: statusFilter,
       recordType: 'SALE',
     };
 
     if (filters?.customerId && filters.customerId !== 'all') {
       whereClause.customerId = filters.customerId;
     }
-
     const dateFilter: Prisma.DateTimeFilter = {};
-    if (filters?.startDate) {
-      dateFilter.gte = filters.startDate;
-    }
-    if (filters?.endDate) {
-      dateFilter.lte = filters.endDate;
-    }
-    if (Object.keys(dateFilter).length > 0) {
-      whereClause.date = dateFilter;
-    }
+    if (filters?.startDate) dateFilter.gte = filters.startDate;
+    if (filters?.endDate) dateFilter.lte = filters.endDate;
+    if (Object.keys(dateFilter).length > 0) whereClause.date = dateFilter;
 
-
-     const [sales, totalCount] = await prisma.$transaction([
-      prisma.saleRecord.findMany({
+    const allCreditRecords = await prisma.saleRecord.findMany({
         where: whereClause,
-        include: { 
-            paymentInstallments: true, 
-            customer: true,
-            createdBy: { select: { username: true } }
-        },
+        include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } },
         orderBy: { date: 'desc' },
-        take: limit,
-        skip: (page - 1) * limit,
-      }),
-      prisma.saleRecord.count({ where: whereClause })
-    ]);
+    });
+
+    const activeRecordsMap = new Map<string, SaleRecordType>();
+
+    allCreditRecords.forEach(record => {
+      const mappedRecord = mapPrismaSaleToRecordType(record);
+      if (!mappedRecord) return;
+
+      const key = mappedRecord.originalSaleRecordId || mappedRecord.id;
+
+      if (!activeRecordsMap.has(key)) {
+        activeRecordsMap.set(key, mappedRecord);
+      } else {
+        const existingRecord = activeRecordsMap.get(key)!;
+        if (new Date(mappedRecord.date) > new Date(existingRecord.date)) {
+          activeRecordsMap.set(key, mappedRecord);
+        }
+      }
+    });
+
+    const finalActiveRecords = Array.from(activeRecordsMap.values());
+    const totalCount = finalActiveRecords.length;
+    const paginatedRecords = finalActiveRecords.slice((page - 1) * limit, page * limit);
     
     return { 
         success: true, 
         data: { 
-            sales: sales.map(record => mapPrismaSaleToRecordType(record)).filter(Boolean) as SaleRecordType[],
+            sales: paginatedRecords,
             totalCount
         } 
     };
   } catch (error: any) {
-    console.error('Error fetching open credit sales:', error);
-    return { success: false, error: error.message || 'Failed to fetch open credit sales.' };
+    console.error('Error fetching credit sales:', error);
+    return { success: false, error: error.message || 'Failed to fetch credit sales.' };
   }
 }
 
@@ -585,7 +592,7 @@ export async function recordCreditPaymentAction(
                 throw new Error(`Payment amount (Rs. ${amountBeingPaid.toFixed(2)}) exceeds outstanding amount (Rs. ${currentOutstanding.toFixed(2)}).`);
             }
 
-            await tx.paymentInstallment.create({
+            const newInstallment = await tx.paymentInstallment.create({
                 data: {
                     saleRecordId: saleRecordId,
                     amountPaid: amountBeingPaid,
@@ -596,7 +603,10 @@ export async function recordCreditPaymentAction(
                 }
             });
 
-            const newOutstandingAmount = currentOutstanding - amountBeingPaid;
+            const allInstallments = [...saleRecord.paymentInstallments, newInstallment];
+            const totalAmountPaid = allInstallments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+            
+            const newOutstandingAmount = saleRecord.totalAmount - totalAmountPaid;
 
             const newPaymentStatus = newOutstandingAmount <= 0.009 ?
                                      CreditPaymentStatusEnumSchema.enum.FULLY_PAID :
@@ -608,7 +618,7 @@ export async function recordCreditPaymentAction(
                     creditOutstandingAmount: newOutstandingAmount,
                     creditPaymentStatus: newPaymentStatus,
                     creditLastPaymentDate: new Date(),
-                    amountPaidByCustomer: (saleRecord.amountPaidByCustomer || 0) + amountBeingPaid,
+                    amountPaidByCustomer: totalAmountPaid,
                 },
                 include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
             });
@@ -875,5 +885,3 @@ export async function undoReturnItemAction(
     return { success: false, error: errorMessage };
   }
 }
-
-    

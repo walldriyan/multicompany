@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getUnpaidOrPartiallyPaidPurchaseBillsAction, recordPurchasePaymentAction, getPaymentsForPurchaseBillAction, getAllSuppliersAction } from '@/app/actions/purchaseActions';
-import { getOpenCreditSalesAction, recordCreditPaymentAction, getInstallmentsForSaleAction } from '@/app/actions/saleActions';
+import { recordPurchasePaymentAction, getAllSuppliersAction } from '@/app/actions/purchaseActions';
+import { getCreditSalesAction, recordCreditPaymentAction, getInstallmentsForSaleAction } from '@/app/actions/saleActions';
 import { getAllCustomersAction } from '@/app/actions/partyActions';
 import type { SaleRecord, PaymentInstallment, CreditPaymentStatus, Party as CustomerType } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { addDays, format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Switch } from '@/components/ui/switch';
 
 
 const ITEMS_PER_PAGE = 10;
@@ -43,7 +44,7 @@ export default function CreditManagementPage() {
 
   const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
-  const [openCreditSales, setOpenCreditSales] = useState<SaleRecord[]>([]);
+  const [creditSales, setCreditSales] = useState<SaleRecord[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
   const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
   
@@ -67,17 +68,18 @@ export default function CreditManagementPage() {
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
-  const [activeFilters, setActiveFilters] = useState<{ customerId: string; dateRange?: DateRange }>({ customerId: 'all' });
+  const [showPaidBills, setShowPaidBills] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<{ customerId: string; dateRange?: DateRange, status: 'OPEN' | 'PAID' }>({ customerId: 'all', status: 'OPEN' });
   
   const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const customerSearchInputRef = useRef<HTMLInputElement>(null);
 
 
-  const fetchOpenSales = useCallback(async () => {
+  const fetchCreditSales = useCallback(async () => {
     if (!currentUser?.id || isSuperAdminWithoutCompany) {
         setIsLoadingSales(false);
-        setOpenCreditSales([]);
+        setCreditSales([]);
         setTotalCount(0);
         return;
     }
@@ -86,14 +88,15 @@ export default function CreditManagementPage() {
         customerId: activeFilters.customerId === 'all' ? null : activeFilters.customerId,
         startDate: activeFilters.dateRange?.from ? startOfDay(activeFilters.dateRange.from) : null,
         endDate: activeFilters.dateRange?.to ? endOfDay(activeFilters.dateRange.to) : activeFilters.dateRange?.from ? endOfDay(activeFilters.dateRange.from) : null,
+        status: activeFilters.status,
     };
-    const result = await getOpenCreditSalesAction(currentUser.id, currentPage, ITEMS_PER_PAGE, filterParams);
+    const result = await getCreditSalesAction(currentUser.id, currentPage, ITEMS_PER_PAGE, filterParams);
     if (result.success && result.data) {
-      setOpenCreditSales(result.data.sales);
+      setCreditSales(result.data.sales);
       setTotalCount(result.data.totalCount);
     } else {
-      toast({ title: 'Error', description: result.error || 'Could not fetch open credit sales.', variant: 'destructive' });
-      setOpenCreditSales([]);
+      toast({ title: 'Error', description: result.error || 'Could not fetch credit sales.', variant: 'destructive' });
+      setCreditSales([]);
       setTotalCount(0);
     }
     setIsLoadingSales(false);
@@ -119,19 +122,20 @@ export default function CreditManagementPage() {
   }, [toast, currentUser?.id, isSuperAdminWithoutCompany]);
 
   useEffect(() => {
-    fetchOpenSales();
-  }, [fetchOpenSales]);
+    fetchCreditSales();
+  }, [fetchCreditSales]);
   
   const handleApplyFilters = () => {
     setCurrentPage(1); // Reset to first page on new filter
-    setActiveFilters({ customerId: selectedCustomerId, dateRange });
+    setActiveFilters({ customerId: selectedCustomerId, dateRange, status: showPaidBills ? 'PAID' : 'OPEN' });
   };
   
   const handleClearFilters = () => {
     setSelectedCustomerId('all');
     setDateRange(undefined);
+    setShowPaidBills(false);
     setCurrentPage(1);
-    setActiveFilters({ customerId: 'all' });
+    setActiveFilters({ customerId: 'all', status: 'OPEN' });
   };
 
 
@@ -191,7 +195,7 @@ export default function CreditManagementPage() {
     const result = await recordCreditPaymentAction(selectedSale.id, amount, paymentMethod, currentUser.id, paymentNotes);
     if (result.success && result.data) {
       toast({ title: 'Payment Recorded', description: `Payment of Rs. ${amount.toFixed(2)} for bill ${selectedSale.billNumber} recorded.` });
-      fetchOpenSales();
+      fetchCreditSales();
       setSelectedSale(result.data); 
       setPaymentAmount('');
       setPaymentNotes('');
@@ -290,7 +294,7 @@ export default function CreditManagementPage() {
     }, 200);
   };
 
-  const filteredSales = openCreditSales.filter(sale =>
+  const filteredSales = creditSales.filter(sale =>
     sale.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -309,8 +313,8 @@ export default function CreditManagementPage() {
   
   const totalPaidForSelectedSale = useMemo(() => {
       if (!selectedSale) return 0;
-      return installments.reduce((sum, inst) => sum + inst.amountPaid, 0);
-  }, [installments, selectedSale]);
+      return selectedSale.amountPaidByCustomer || 0;
+  }, [selectedSale]);
 
   const maxPage = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
@@ -333,7 +337,7 @@ export default function CreditManagementPage() {
             <ReceiptText className="mr-3 h-7 w-7" />
             Credit Management
           </h1>
-          <Button onClick={() => fetchOpenSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+          <Button onClick={() => fetchCreditSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
             <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSales ? 'animate-spin' : ''}`} /> Refresh List
           </Button>
         </header>
@@ -551,7 +555,7 @@ export default function CreditManagementPage() {
                                                     setSelectedCustomerId(customerToFilterBy);
                                                 }
                                                 setCurrentPage(1);
-                                                setActiveFilters({ customerId: customerToFilterBy, dateRange });
+                                                setActiveFilters({ customerId: customerToFilterBy, dateRange, status: showPaidBills ? 'PAID' : 'OPEN' });
                                                 setIsCustomerPopoverOpen(false);
                                             }
                                         }}
@@ -611,73 +615,81 @@ export default function CreditManagementPage() {
                   />
                 </div>
               </CardHeader>
-               <Accordion type="single" collapsible defaultValue="item-1" className="w-full px-4 pb-2">
-                <AccordionItem value="item-1">
-                    <AccordionTrigger className="hover:no-underline text-base">
-                        <div className="flex items-center">
-                            <ListFilter className="mr-2 h-4 w-4" /> Open Credit Bills
-                        </div>
-                    </AccordionTrigger>
-                  <AccordionContent>
-                      <div className="p-2 border-b border-border/50 bg-muted/20 flex justify-between items-center text-sm">
-                        <span className="font-semibold text-card-foreground">Total Outstanding (Filtered):</span>
-                        <span className="font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</span>
-                      </div>
-                      <CardContent className="flex-1 overflow-hidden p-0 mt-2">
-                        <ScrollArea className="h-[calc(40vh-40px)]">
-                          {isLoadingSales ? (
-                            <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
-                          ) : filteredSales.length === 0 ? (
-                            <div className="p-4 text-center text-muted-foreground">No open credit sales matching criteria.</div>
-                          ) : (
-                            <Table>
-                              <TableHeader className="sticky top-0 bg-card z-10">
-                                <TableRow>
-                                  <TableHead className="text-muted-foreground">Date</TableHead>
-                                  <TableHead className="text-muted-foreground">Bill ID</TableHead>
-                                  <TableHead className="text-muted-foreground">Customer</TableHead>
-                                  <TableHead className="text-muted-foreground">User</TableHead>
-                                  <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
-                                  <TableHead className="text-center text-muted-foreground">Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {filteredSales.map((sale) => (
-                                  <TableRow
-                                    key={sale.id}
-                                    onClick={() => handleSelectSale(sale)}
-                                    className={`cursor-pointer hover:bg-muted/50 ${selectedSale?.id === sale.id ? 'bg-primary/10' : ''}`}
-                                  >
-                                    <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
-                                    <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
-                                    <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
-                                    <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
-                                    <TableCell className="text-right text-card-foreground text-xs py-2">
-                                      Rs. {(sale.creditOutstandingAmount ?? sale.totalAmount).toFixed(2)}
-                                    </TableCell>
-                                    <TableCell className="text-center py-2">
-                                      <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
-                                        {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </ScrollArea>
-                      </CardContent>
-                   </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+               <div className="flex justify-between items-center p-4 border-b border-border/50">
+                    <span className="font-semibold text-card-foreground">
+                        {showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})
+                    </span>
+                    <div className="flex items-center space-x-2">
+                        <Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid Bills</Label>
+                        <Switch 
+                            id="bill-status-toggle"
+                            checked={showPaidBills}
+                            onCheckedChange={(checked) => {
+                                setShowPaidBills(checked);
+                                setCurrentPage(1);
+                                setActiveFilters(prev => ({...prev, status: checked ? 'PAID' : 'OPEN'}));
+                            }}
+                            className="border border-border/50 data-[state=checked]:bg-green-600"
+                        />
+                    </div>
+                </div>
 
-                      <CardFooter className="p-2 border-t border-border/50">
-                        {totalCount > 0 && (<div className="flex justify-between items-center w-full">
-                            <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                            <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                            <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
-                        </div>)}
-                      </CardFooter>
+                <div className="p-2 border-b border-border/50 bg-muted/20 flex justify-between items-center text-sm">
+                    <span className="font-semibold text-card-foreground">Total Outstanding (Filtered):</span>
+                    <span className="font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</span>
+                </div>
+                <CardContent className="flex-1 overflow-hidden p-0 mt-2">
+                    <ScrollArea className="h-full">
+                        {isLoadingSales ? (
+                        <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
+                        ) : filteredSales.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">No credit sales matching criteria.</div>
+                        ) : (
+                        <Table>
+                            <TableHeader className="sticky top-0 bg-card z-10">
+                            <TableRow>
+                                <TableHead className="text-muted-foreground">Date</TableHead>
+                                <TableHead className="text-muted-foreground">Bill ID</TableHead>
+                                <TableHead className="text-muted-foreground">Customer</TableHead>
+                                <TableHead className="text-muted-foreground">User</TableHead>
+                                <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
+                                <TableHead className="text-center text-muted-foreground">Status</TableHead>
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {filteredSales.map((sale) => (
+                                <TableRow
+                                key={sale.id}
+                                onClick={() => handleSelectSale(sale)}
+                                className={`cursor-pointer hover:bg-muted/50 ${selectedSale?.id === sale.id ? 'bg-primary/10' : ''}`}
+                                >
+                                <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
+                                <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
+                                <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
+                                <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
+                                <TableCell className="text-right text-card-foreground text-xs py-2">
+                                    Rs. {(sale.creditOutstandingAmount ?? sale.totalAmount).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-center py-2">
+                                    <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
+                                    {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
+                                    </Badge>
+                                </TableCell>
+                                </TableRow>
+                            ))}
+                            </TableBody>
+                        </Table>
+                        )}
+                    </ScrollArea>
+                </CardContent>
+
+                <CardFooter className="p-2 border-t border-border/50">
+                    {totalCount > ITEMS_PER_PAGE && (<div className="flex justify-between items-center w-full">
+                        <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                        <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                        <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                    </div>)}
+                </CardFooter>
             </Card>
         </div>
         {isPrintingBill && selectedSale && (
@@ -695,4 +707,3 @@ export default function CreditManagementPage() {
     </>
   );
 }
-
