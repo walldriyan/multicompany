@@ -136,7 +136,7 @@ export function SaleSummary({
                 </Accordion>
             )}
             
-            <div className="p-4 rounded-lg">
+            <div className="p-4 rounded-lg bg-background">
                 <div className="flex justify-between items-center font-bold text-lg text-primary">
                 <span>GRAND TOTAL</span>
                 <span className="text-2xl">Rs. {total.toFixed(2)}</span>
