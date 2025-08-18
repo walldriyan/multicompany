@@ -689,7 +689,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
               )}
             </div>
 
-            <div className="p-4 border-t border-border space-y-3 sticky bottom-0 bg-card">
+            <div className="p-4 space-y-3 sticky bottom-0 bg-card">
               {saleItems.length > 0 && <Separator className="bg-border mb-3" />}
               <div className="grid grid-cols-1 gap-2">
                 <Button onClick={handleNewSale} variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" disabled={saleItems.length === 0}>
