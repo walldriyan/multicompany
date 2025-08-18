@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp, TrendingDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -321,6 +321,8 @@ export default function CreditManagementPage() {
   const calculateBillFinancials = useCallback((sale: SaleRecord | null) => {
     if (!sale) return null;
     
+    const totalDiscount = (sale.totalItemDiscountAmount || 0) + (sale.totalCartDiscountAmount || 0);
+
     const totalReturnedValue = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
         (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
     );
@@ -340,7 +342,8 @@ export default function CreditManagementPage() {
         totalReturnedItems,
         netBillAmount,
         totalPaidByCustomer,
-        finalBalance
+        finalBalance,
+        totalDiscount,
     };
   }, []);
   
@@ -447,7 +450,7 @@ export default function CreditManagementPage() {
                             </CardContent>
                         </Card>
                         <div className="space-y-4">
-                            <Card className="p-4 bg-muted/20 border-border/40">
+                             <Card className="p-4 bg-muted/20 border-border/40">
                                 <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-4 w-4 text-primary"/>Payment History</CardTitle></CardHeader>
                                 <CardContent className="p-0">
                                     {isLoadingInstallments ? (<p className="text-muted-foreground text-xs">Loading payment history...</p>)
@@ -456,44 +459,52 @@ export default function CreditManagementPage() {
                                 </CardContent>
                             </Card>
                             {billFinancials && (
-                               <Card className="p-4 bg-muted/20 border-border/40">
-                                <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Financial Status</CardTitle></CardHeader>
-                                <CardContent className="p-0">
-                                    <Accordion type="single" collapsible className="w-full">
-                                        <AccordionItem value="item-1" className="border-none">
-                                            <AccordionTrigger className="p-0 hover:no-underline text-xs text-muted-foreground">View Calculation Breakdown</AccordionTrigger>
-                                            <AccordionContent className="pt-2 space-y-2 text-sm">
-                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
-                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
-                                                <Separator className="my-2 bg-border/50"/>
-                                                <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    </Accordion>
-                                     <Separator className="my-2 bg-border/50"/>
-                                    {billFinancials.totalReturnedItems > 0 &&
-                                        <div className="flex justify-between items-center text-sm mb-2"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Items Returned:</span> <span className="text-orange-400">{billFinancials.totalReturnedItems} units</span></div>
-                                    }
-                                    <Card className="bg-background/80 p-3">
-                                        {billFinancials.finalBalance > 0.009 ? (
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-semibold text-base text-red-400">Amount Due:</span>
-                                                <span className="font-bold text-xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
-                                            </div>
-                                        ) : billFinancials.finalBalance < -0.009 ? (
-                                             <div className="flex justify-between items-center">
-                                                <span className="font-semibold text-base text-green-400">Amount to REFUND:</span>
-                                                <span className="font-bold text-xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
-                                            </div>
-                                        ) : (
-                                             <div className="flex justify-between items-center">
-                                                <span className="font-semibold text-base text-green-400">Balance Cleared</span>
-                                                <CheckCircle className="h-6 w-6 text-green-400" />
-                                            </div>
-                                        )}
-                                    </Card>
-                                </CardContent>
+                                <Card className="p-4 bg-muted/20 border-border/40">
+                                    <CardHeader className="p-0 pb-3">
+                                        <CardTitle className="text-base font-medium text-foreground flex items-center">
+                                            <Sigma className="mr-2 h-4 w-4 text-primary"/>
+                                            Advanced Financial Status
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <Accordion type="single" collapsible defaultValue="summary" className="w-full">
+                                            <AccordionItem value="summary" className="border-b-0">
+                                                <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <span>Final Balance:</span>
+                                                        {billFinancials.finalBalance > 0.009 ? (
+                                                            <span className="font-bold text-lg text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)} Due</span>
+                                                        ) : billFinancials.finalBalance < -0.009 ? (
+                                                            <span className="font-bold text-lg text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)} to Refund</span>
+                                                        ) : (
+                                                            <span className="font-bold text-lg text-green-400 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/>Cleared</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs font-normal text-muted-foreground">Click to view calculation breakdown and details</span>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="pt-3 mt-2 border-t border-border/50">
+                                                    <div className="space-y-2 text-sm">
+                                                        <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
+                                                         {billFinancials.totalDiscount > 0 && <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingDown className="h-4 w-4 mr-2 text-orange-400"/>Total Discounts:</span> <span className="text-orange-400">- Rs. {billFinancials.totalDiscount.toFixed(2)}</span></div>}
+                                                        <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                                        <Separator className="my-1 bg-border/50"/>
+                                                        <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
+                                                        <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
+                                                        <Separator className="my-1 bg-border/50"/>
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                            <AccordionItem value="details">
+                                                 <AccordionTrigger className="text-xs text-muted-foreground hover:no-underline pt-2">Transaction Details</AccordionTrigger>
+                                                 <AccordionContent className="pt-2 text-xs space-y-1">
+                                                     <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedSale?.paymentMethod}</span></div>
+                                                     <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedSale?.date).toLocaleDateString()}</span></div>
+                                                      <div className="flex justify-between"><span>Customer:</span> <span>{selectedSale?.customerName || 'N/A'}</span></div>
+                                                      <div className="flex justify-between"><span>Items Returned:</span> <span>{billFinancials.totalReturnedItems}</span></div>
+                                                 </AccordionContent>
+                                            </AccordionItem>
+                                        </Accordion>
+                                    </CardContent>
                                </Card>
                             )}
                         </div>
