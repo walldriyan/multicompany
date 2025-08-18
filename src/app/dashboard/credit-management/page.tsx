@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -164,7 +164,7 @@ export default function CreditManagementPage() {
 
   const handleSelectSale = (sale: SaleRecord) => {
     setSelectedSale(sale);
-    setActiveCard('status');
+    setActiveCard('history');
     setPaymentAmount('');
     setPaymentMethod('CASH');
     setPaymentNotes('');
@@ -383,7 +383,7 @@ export default function CreditManagementPage() {
         )}
 
         <div className="flex flex-1 gap-4 overflow-hidden" >
-             <Card className="w-1/2 lg:w-3/5 flex flex-col bg-card border-border shadow-lg overflow-hidden">
+            <Card className="w-1/2 lg:w-3/5 flex flex-col bg-card border-border shadow-lg overflow-hidden">
               <CardHeader>
                 <div className="flex justify-between items-center">
                     <div>
@@ -410,7 +410,6 @@ export default function CreditManagementPage() {
                     </div>
                   ) : (
                     <>
-                      {selectedSale.creditPaymentStatus !== 'FULLY_PAID' && (
                         <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                             <CardHeader className="p-0 pb-3">
                                 <CardTitle className="text-base text-primary flex items-center"><DollarSign className="mr-2 h-4 w-4"/>Record New Payment Installment</CardTitle>
@@ -442,21 +441,18 @@ export default function CreditManagementPage() {
                                 </Button>
                             </CardContent>
                         </Card>
-                      )}
-                        
-                        <div className="grid md:grid-cols-2 gap-4 mt-4">
-                           <Card className="p-4 bg-muted/20 border-border/40 h-full">
-                                <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Payment History</CardTitle></CardHeader>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <Card className="p-4 bg-muted/20 border-border/40">
+                                <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-4 w-4 text-primary"/>Payment History</CardTitle></CardHeader>
                                 <CardContent className="p-0">
                                     {isLoadingInstallments ? (<p className="text-muted-foreground text-xs">Loading payment history...</p>)
                                      : installments.length === 0 ? (<p className="text-muted-foreground text-xs">No payment installments recorded.</p>)
                                      : (<ScrollArea className="h-40"><Table><TableHeader className="sticky top-0 bg-muted/50 z-10"><TableRow><TableHead className="text-muted-foreground h-8 text-xs">Date</TableHead><TableHead className="text-right text-muted-foreground h-8 text-xs">Amount Paid</TableHead><TableHead className="text-muted-foreground h-8 text-xs">Method</TableHead></TableRow></TableHeader><TableBody>{installments.map((inst) => (<TableRow key={inst.id} className="hover:bg-muted/30"><TableCell className="text-card-foreground text-xs py-1.5">{new Date(inst.paymentDate).toLocaleString()}</TableCell><TableCell className="text-right text-card-foreground text-xs py-1.5">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell className="text-card-foreground text-xs py-1.5">{inst.method}</TableCell></TableRow>))}</TableBody></Table></ScrollArea>)}
                                 </CardContent>
                             </Card>
-                            
-                            {billFinancials && (
+                             {billFinancials && (
                                 <Card className="p-4 bg-muted/20 border-border/40">
-                                    <CardHeader className="p-0 pb-3"><CardTitle className="text-lg font-medium text-foreground flex items-center"><Sigma className="mr-2 h-5 w-5 text-primary"/>Financial Status</CardTitle></CardHeader>
+                                    <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Financial Status</CardTitle></CardHeader>
                                     <CardContent className="p-0 space-y-2 text-sm">
                                         <div className="space-y-1">
                                             <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
@@ -468,15 +464,15 @@ export default function CreditManagementPage() {
                                         </div>
                                         <Card className="bg-background/80 p-3">
                                             {billFinancials.finalBalance >= 0.01 ? (
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-bold text-lg text-red-400">Amount Due:</span>
-                                                <span className="font-bold text-2xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
-                                            </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-semibold text-base text-red-400">Amount Due:</span>
+                                                    <span className="font-bold text-xl text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)}</span>
+                                                </div>
                                             ) : (
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-bold text-lg text-green-400">Amount to REFUND:</span>
-                                                <span className="font-bold text-2xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
-                                            </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-semibold text-base text-green-400">Amount to REFUND:</span>
+                                                    <span className="font-bold text-xl text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</span>
+                                                </div>
                                             )}
                                         </Card>
                                     </CardContent>
@@ -488,12 +484,12 @@ export default function CreditManagementPage() {
                 </CardContent>
               </ScrollArea>
             </Card>
-
+            
             <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
               <CardHeader>
-                <CardTitle className="text-card-foreground">Search & Filter Bills</CardTitle>
+                <CardTitle className="text-card-foreground">Search &amp; Filter Bills</CardTitle>
                 <Card className="p-3 bg-muted/30 mt-2 border-border/50">
-                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Supplier</CardDescription>
+                    <CardDescription className="mb-2 text-muted-foreground">Filter by Date &amp; Supplier</CardDescription>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="grid gap-1">
                           <Label htmlFor="date-filter" className="text-xs">Date Range</Label>
@@ -620,7 +616,7 @@ export default function CreditManagementPage() {
                                 setCurrentPage(1);
                                 setActiveFilters(prev => ({...prev, status: checked ? 'PAID' : 'OPEN'}));
                             }}
-                            className="border border-border/50 data-[state=checked]:bg-green-600"
+                            className="data-[state=checked]:bg-green-600"
                         />
                     </div>
                 </div>
@@ -675,11 +671,13 @@ export default function CreditManagementPage() {
                 </CardContent>
 
                 <CardFooter className="p-2 border-t border-border/50">
-                    {totalCount > ITEMS_PER_PAGE && (<div className="flex justify-between items-center w-full">
-                        <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                        <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                        <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
-                    </div>)}
+                    {totalCount > ITEMS_PER_PAGE && (
+                        <div className="flex justify-between items-center w-full">
+                            <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                            <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                            <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                        </div>
+                    )}
                 </CardFooter>
             </Card>
         </div>
@@ -698,7 +696,3 @@ export default function CreditManagementPage() {
     </>
   );
 }
-
-
-
-    
