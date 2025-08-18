@@ -135,10 +135,8 @@ export function SaleSummary({
                 </AccordionItem>
                 </Accordion>
             )}
-
-            <Separator className="my-2 bg-border/50" />
             
-            <div className="p-4 rounded-lg bg-primary/10 border border-primary/40">
+            <div className="p-4 rounded-lg">
                 <div className="flex justify-between items-center font-bold text-lg text-primary">
                 <span>GRAND TOTAL</span>
                 <span className="text-2xl">Rs. {total.toFixed(2)}</span>
