@@ -407,8 +407,8 @@ export default function CreditManagementPage() {
                                   {/* Balance Amount */}
                                   <div className="flex items-end gap-2">
                                     <h2 className="text-4xl text-red-400 font-bold">
-                                      Rs{billFinancials.finalBalance.toFixed(2)}</h2> 
-                                      {/* <span className="ext-gray-400 text-sm ">
+                                      Rs{billFinancials.finalBalance.toFixed(2)}</h2>
+                                    {/* <span className="ext-gray-400 text-sm ">
                                       Due
                                     </span> */}
                                     <div className="flex items-center text-green-400 text-sm font-medium">
@@ -417,7 +417,7 @@ export default function CreditManagementPage() {
                                     </div>
                                   </div>
 
-                                 
+
                                 </div>
 
                                 {/* <span className="text-xs font-normal text-muted-foreground pt-1 w-full text-left">Click to view transaction details</span> */}
@@ -482,6 +482,8 @@ export default function CreditManagementPage() {
           </Card>
 
           <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
+
+
             <CardHeader>
               <CardTitle className="text-card-foreground">Search &amp; Filter Bills</CardTitle>
               <Card className="p-3 bg-muted/30 mt-2 border-border/50">
@@ -597,78 +599,89 @@ export default function CreditManagementPage() {
                   className="pl-9 bg-input border-border focus:ring-primary text-card-foreground"
                 />
               </div>
-            </CardHeader>
-            <div className="flex justify-between items-center p-4 border-b border-border/50">
-              <span className="font-semibold text-card-foreground">
-                {showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})
-              </span>
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid Bills</Label>
-                <Switch
-                  id="bill-status-toggle"
-                  checked={showPaidBills}
-                  onCheckedChange={(checked) => {
-                    setShowPaidBills(checked);
-                    setCurrentPage(1);
-                    setActiveFilters(prev => ({ ...prev, status: checked ? 'PAID' : 'OPEN' }));
-                  }}
-                  className="data-[state=checked]:bg-green-600"
-                />
+
+              <div className="flex justify-between items-center p-4 border-b border-border/50">
+                <span className="font-semibold text-card-foreground">
+                  {showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})
+                </span>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid Bills</Label>
+                  <Switch
+                    id="bill-status-toggle"
+                    checked={showPaidBills}
+                    onCheckedChange={(checked) => {
+                      setShowPaidBills(checked);
+                      setCurrentPage(1);
+                      setActiveFilters(prev => ({ ...prev, status: checked ? 'PAID' : 'OPEN' }));
+                    }}
+                    className="data-[state=checked]:bg-green-600"
+                  />
+                </div>
               </div>
-            </div>
-            <CardContent className="flex-1 overflow-hidden p-0 mt-2">
-              <ScrollArea className="h-full">
-                {isLoadingSales ? (
-                  <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
-                ) : creditSales.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground">No credit sales matching criteria.</div>
-                ) : (
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-card z-10">
-                      <TableRow>
-                        <TableHead className="text-muted-foreground">Date</TableHead>
-                        <TableHead className="text-muted-foreground">Bill ID</TableHead>
-                        <TableHead className="text-muted-foreground">Customer</TableHead>
-                        <TableHead className="text-muted-foreground">User</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
-                        <TableHead className="text-center text-muted-foreground">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {creditSales.map((sale) => (
-                        <TableRow
-                          key={sale.id}
-                          onClick={() => handleSelectGroup(sale)}
-                          className={`cursor-pointer hover:bg-muted/50 ${selectedGroup?.activeBillForDisplay.id === sale.id ? 'bg-primary/10' : ''}`}
-                        >
-                          <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
-                          <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
-                          <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
-                          <TableCell className="text-right text-card-foreground text-xs py-2">
-                            Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-center py-2">
-                            <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
-                              {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
-                            </Badge>
-                          </TableCell>
+
+
+
+              <CardContent className="flex-1 overflow-hidden p-0 mt-2  ">
+                <ScrollArea className="h-full">
+                  {isLoadingSales ? (
+                    <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
+                  ) : creditSales.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground">No credit sales matching criteria.</div>
+                  ) : (
+                    <Table >
+                      <TableHeader className="sticky top-0 bg-card z-10">
+                        <TableRow>
+                          <TableHead className="text-muted-foreground">Date</TableHead>
+                          <TableHead className="text-muted-foreground">Bill ID</TableHead>
+                          <TableHead className="text-muted-foreground">Customer</TableHead>
+                          <TableHead className="text-muted-foreground">User</TableHead>
+                          <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
+                          <TableHead className="text-center text-muted-foreground">Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </ScrollArea>
-            </CardContent>
-            <CardFooter className="p-2 border-t border-border/50">
-              <div className="flex justify-between items-center w-full">
-                <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
-              </div>
-            </CardFooter>
+                      </TableHeader>
+                      <TableBody>
+                        {creditSales.map((sale) => (
+                          <TableRow
+                            key={sale.id}
+                            onClick={() => handleSelectGroup(sale)}
+                            className={`cursor-pointer hover:bg-muted/50 ${selectedGroup?.activeBillForDisplay.id === sale.id ? 'bg-primary/10' : ''}`}
+                          >
+                            <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
+                            <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
+                            <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
+                            <TableCell className="text-right text-card-foreground text-xs py-2">
+                              Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center py-2">
+                              <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
+                                {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </ScrollArea>
+              </CardContent>
+
+              <CardFooter className="p-2 border-t border-border/50">
+                <div className="flex justify-between items-center w-full">
+                  <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                  <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                  <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                </div>
+              </CardFooter>
+
+
+            </CardHeader>
+
           </Card>
         </div>
+
+
+
         {isPrintingBill && selectedGroup?.activeBillForDisplay && (
           <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
             <CreditBillPrintContent
