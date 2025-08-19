@@ -508,6 +508,8 @@ export async function getCreditSalesAction(
       isCreditSale: true,
       creditPaymentStatus: statusFilter,
       recordType: 'SALE',
+      // We only want to see the active state of a bill, so we filter out superseded original bills.
+      status: { in: ['COMPLETED_ORIGINAL', 'ADJUSTED_ACTIVE'] },
     };
 
     if (filters?.customerId && filters.customerId !== 'all') {

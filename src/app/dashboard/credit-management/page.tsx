@@ -321,19 +321,11 @@ export default function CreditManagementPage() {
   const calculateBillFinancials = useCallback((sale: SaleRecord | null) => {
     if (!sale) return null;
     
-    // Total discounts applied on the original bill
-    const totalDiscount = (sale.totalItemDiscountAmount || 0) + (sale.totalCartDiscountAmount || 0);
-
     // Total value of items that have been returned and not undone
     const totalReturnedValue = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
         (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
     );
     
-    // Total number of units returned
-    const totalReturnedItems = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
-        (sum, item) => sum + item.returnedQuantity, 0
-    );
-
     // The current net value of the bill after returns are subtracted
     const netBillAmount = sale.totalAmount;
     
@@ -344,14 +336,11 @@ export default function CreditManagementPage() {
     const finalBalance = netBillAmount - totalPaidByCustomer;
 
     return {
-        originalBillTotal: sale.subtotalOriginal + totalDiscount, // Reconstruct original total before discounts
+        originalBillTotal: sale.totalAmount + totalReturnedValue, // Reconstruct original total
         totalReturnedValue,
-        totalReturnedItems,
         netBillAmount,
         totalPaidByCustomer,
         finalBalance,
-        totalDiscount,
-        originalPaymentMethod: sale.paymentMethod,
     };
   }, []);
 
@@ -469,7 +458,7 @@ export default function CreditManagementPage() {
                             </Card>
                             {billFinancials && (
                                 <Card className="p-4 bg-muted/20 border-border/40">
-                                <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Advanced Financial Status</CardTitle></CardHeader>
+                                <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary"/>Financial Status</CardTitle></CardHeader>
                                 <CardContent className="p-0">
                                     <Accordion type="multiple" defaultValue={['summary']} className="w-full">
                                         <AccordionItem value="summary" className="border-b-0">
@@ -489,7 +478,6 @@ export default function CreditManagementPage() {
                                             <AccordionContent className="pt-3 mt-2 border-t border-border/50">
                                                 <div className="space-y-2 text-sm">
                                                     <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                                     {billFinancials.totalDiscount > 0 && <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingDown className="h-4 w-4 mr-2 text-orange-400"/>Total Discounts:</span> <span className="text-orange-400">- Rs. {billFinancials.totalDiscount.toFixed(2)}</span></div>}
                                                     <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
                                                     <Separator className="my-1 bg-border/50"/>
                                                     <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
@@ -504,7 +492,6 @@ export default function CreditManagementPage() {
                                                  <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedSale?.paymentMethod}</span></div>
                                                  <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedSale?.date).toLocaleDateString()}</span></div>
                                                   <div className="flex justify-between"><span>Customer:</span> <span>{selectedSale?.customerName || 'N/A'}</span></div>
-                                                  <div className="flex justify-between"><span>Items Returned:</span> <span>{billFinancials.totalReturnedItems}</span></div>
                                              </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
