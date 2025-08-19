@@ -1,3 +1,4 @@
+
 'use server';
 
 import prisma from '@/lib/prisma';
@@ -79,6 +80,8 @@ export async function processFullReturnWithRecalculationAction(
       if (!companyId || companyId !== actorCompanyId) {
         throw new Error("Could not determine the company for this transaction or permission denied. Original sale is missing a company ID or does not belong to your company.");
       }
+      
+      const originalSaleItems = pristineOriginalSale.items as unknown as SaleRecordItem[];
 
       const activeDiscountSetForOriginalSale = pristineOriginalSale.activeDiscountSetId
             ? allDiscountSetsForCalc.find(ds => ds.id === pristineOriginalSale.activeDiscountSetId)
@@ -87,8 +90,16 @@ export async function processFullReturnWithRecalculationAction(
       // 2. Create the Return Transaction Record
       let totalRefundFromThisTransaction = 0;
       const itemsBeingReturnedInThisTransaction: SaleRecordItem[] = itemsToReturn.map(item => {
-        const refundForThisItemLine = item.effectivePricePaidPerUnit * item.returnQuantity;
+        // Find the corresponding item in the *original* sale to get the price the customer *actually* paid.
+        const originalItemFromPristineSale = originalSaleItems.find(
+            origItem => origItem.productId === item.productId && origItem.batchId === item.originalBatchId
+        );
+        // The refund amount should be based on what was ACTUALLY paid per unit, not the original selling price.
+        const refundAmountPerUnit = originalItemFromPristineSale?.effectivePricePaidPerUnit ?? 0;
+        
+        const refundForThisItemLine = refundAmountPerUnit * item.returnQuantity;
         totalRefundFromThisTransaction += refundForThisItemLine;
+        
         const originalProduct = allProductsForCalc.find(p => p.id === item.productId);
         const originalBatch = originalProduct?.batches?.find(b => b.id === item.originalBatchId);
 
@@ -97,9 +108,9 @@ export async function processFullReturnWithRecalculationAction(
           name: item.name,
           quantity: item.returnQuantity,
           priceAtSale: item.priceAtSale,
-          effectivePricePaidPerUnit: item.effectivePricePaidPerUnit,
-          totalDiscountOnLine: 0,
-          price: item.priceAtSale,
+          effectivePricePaidPerUnit: refundAmountPerUnit, // This is the refund amount per unit
+          totalDiscountOnLine: 0, // Not relevant for the return receipt itself
+          price: item.priceAtSale, // Original price for record keeping
           units: item.units,
           batchId: item.originalBatchId, 
           batchNumber: originalBatch?.batchNumber,
@@ -171,20 +182,26 @@ export async function processFullReturnWithRecalculationAction(
       }
 
       // 4. Prepare and Recalculate the new ADJUSTED_ACTIVE sale state
-      const newReturnLogEntries: ReturnedItemDetailType[] = itemsToReturn.map(item => ({
-        id: `log-${newReturnTransactionId}-${item.productId}-${item.originalBatchId || 'nobatch'}`,
-        itemId: item.productId,
-        name: item.name,
-        returnedQuantity: item.returnQuantity,
-        units: item.units,
-        refundAmountPerUnit: item.effectivePricePaidPerUnit,
-        totalRefundForThisReturnEntry: item.effectivePricePaidPerUnit * item.returnQuantity,
-        returnDate: new Date().toISOString(),
-        returnTransactionId: newReturnTransactionId,
-        processedByUserId: userId,
-        isUndone: false,
-        originalBatchId: item.originalBatchId,
-      }));
+      const newReturnLogEntries: ReturnedItemDetailType[] = itemsToReturn.map(item => {
+         const originalItemFromPristineSale = originalSaleItems.find(
+            origItem => origItem.productId === item.productId && origItem.batchId === item.originalBatchId
+        );
+        const refundAmountPerUnit = originalItemFromPristineSale?.effectivePricePaidPerUnit ?? 0;
+        
+        return {
+            id: `log-${newReturnTransactionId}-${item.productId}-${item.originalBatchId || 'nobatch'}`,
+            itemId: item.productId, name: item.name,
+            returnedQuantity: item.returnQuantity,
+            units: item.units,
+            refundAmountPerUnit: refundAmountPerUnit, // What was actually paid
+            totalRefundForThisReturnEntry: refundAmountPerUnit * item.returnQuantity,
+            returnDate: new Date().toISOString(),
+            returnTransactionId: newReturnTransactionId,
+            processedByUserId: userId,
+            isUndone: false,
+            originalBatchId: item.originalBatchId,
+        };
+      });
       
       const existingValidLogs = ((currentActiveSaleState.returnedItemsLog as Prisma.JsonArray) || []).filter((log: any) => log && !log.isUndone) as ReturnedItemDetailType[];
       
@@ -252,7 +269,7 @@ export async function processFullReturnWithRecalculationAction(
       });
       
       const adjSubtotalOriginal = updatedItemsKeptItems.reduce((sum, item) => sum + (item.priceAtSale * item.quantity), 0);
-      const adjTotalItemDiscount = updatedItemsKeptItems.reduce((sum, item) => sum + (item.totalDiscountOnLine || 0), 0);
+      const adjTotalItemDiscount = discountResultsForKeptItems.totalItemDiscountAmount;
       
       const subtotalNetOfItemDiscounts = adjSubtotalOriginal - adjTotalItemDiscount;
       
@@ -360,16 +377,4 @@ export async function processFullReturnWithRecalculationAction(
     return { success: false, error: errorMessage };
   }
 }
-    
-
-
-
-
-
-
-
-
-
-    
-
     

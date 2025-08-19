@@ -284,15 +284,10 @@ export async function saveSaleRecordAction(
             };
         });
 
-        const paymentInstallmentsToCreateForPrisma = (paymentInstallmentsFromInput || []).map(inst => {
-            const {id, saleRecordId, createdAt, updatedAt, paymentDate, ...rest } = inst;
-            return { ...rest, paymentDate: new Date(paymentDate), recordedByUserId: userId };
-        });
-
+        // The logic for installments was incorrect. It should be handled after the main record is created.
         const createDataPayload: Prisma.SaleRecordCreateInput = {
           ...commonDataPayload, items: itemsToStoreInJson as Prisma.JsonValue,
           returnedItemsLog: (returnedLogsToStoreAsJson.length === 0) ? Prisma.JsonNull : returnedLogsToStoreAsJson as Prisma.JsonValue,
-          paymentInstallments: paymentInstallmentsToCreateForPrisma.length > 0 ? { create: paymentInstallmentsToCreateForPrisma } : undefined,
         };
         
         console.log('[saveSaleRecordAction] [TX] Executing Prisma create for SaleRecord...');
@@ -300,8 +295,29 @@ export async function saveSaleRecordAction(
           data: createDataPayload,
           include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
         });
+        
+        // NEW: If it's a credit sale with an initial payment, create a payment installment record.
+        if (savedSaleRecord.isCreditSale && savedSaleRecord.amountPaidByCustomer && savedSaleRecord.amountPaidByCustomer > 0) {
+            await tx.paymentInstallment.create({
+                data: {
+                    saleRecordId: savedSaleRecord.id,
+                    paymentDate: new Date(savedSaleRecord.date),
+                    amountPaid: savedSaleRecord.amountPaidByCustomer,
+                    method: 'CREDIT', // Denotes it was part of the initial credit transaction
+                    notes: 'Initial payment made during credit sale.',
+                    recordedByUserId: userId,
+                }
+            });
+        }
+        
         console.log(`[saveSaleRecordAction] [TX] SaleRecord created successfully. ID: ${savedSaleRecord.id}`);
-        return savedSaleRecord;
+        // Refetch to include the potentially new installment
+        const finalRecord = await tx.saleRecord.findUniqueOrThrow({
+            where: { id: savedSaleRecord.id },
+            include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
+        });
+        return finalRecord;
+
       } else {
         console.log('[saveSaleRecordAction] [TX] This is an update action. Skipping stock deduction and creation logic.');
         // This part is for potential future updates, not currently used by POS
@@ -482,8 +498,7 @@ export async function getAllSaleRecordsAction(
 }
 
 
-
-export async function getOpenCreditSalesAction(
+export async function getCreditSalesAction(
   userId: string,
   page: number = 1,
   limit: number = 10,
@@ -491,6 +506,7 @@ export async function getOpenCreditSalesAction(
     customerId?: string | null;
     startDate?: Date | null;
     endDate?: Date | null;
+    status: 'OPEN' | 'PAID';
   }
 ): Promise<{ success: boolean; data?: { sales: SaleRecordType[]; totalCount: number }; error?: string }> {
   try {
@@ -498,57 +514,71 @@ export async function getOpenCreditSalesAction(
     if (!companyId) {
       return { success: true, data: { sales: [], totalCount: 0 } };
     }
-    
+
+    const statusFilter = filters?.status === 'PAID'
+      ? { in: [CreditPaymentStatusEnumSchema.Enum.FULLY_PAID] }
+      : { in: [CreditPaymentStatusEnumSchema.Enum.PENDING, CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID] };
+
     const whereClause: Prisma.SaleRecordWhereInput = {
       companyId: companyId,
       isCreditSale: true,
-      creditPaymentStatus: {
-        in: [CreditPaymentStatusEnumSchema.Enum.PENDING, CreditPaymentStatusEnumSchema.Enum.PARTIALLY_PAID],
-      },
-      recordType: 'SALE',
+      creditPaymentStatus: statusFilter,
     };
 
     if (filters?.customerId && filters.customerId !== 'all') {
       whereClause.customerId = filters.customerId;
     }
-
     const dateFilter: Prisma.DateTimeFilter = {};
-    if (filters?.startDate) {
-      dateFilter.gte = filters.startDate;
-    }
-    if (filters?.endDate) {
-      dateFilter.lte = filters.endDate;
-    }
-    if (Object.keys(dateFilter).length > 0) {
-      whereClause.date = dateFilter;
-    }
+    if (filters?.startDate) dateFilter.gte = filters.startDate;
+    if (filters?.endDate) dateFilter.lte = filters.endDate;
+    if (Object.keys(dateFilter).length > 0) whereClause.date = dateFilter;
 
+    // First, find the IDs of the original bills that match the criteria
+    const originalSales = await prisma.saleRecord.findMany({
+        where: {...whereClause, status: 'COMPLETED_ORIGINAL' },
+        select: { id: true }
+    });
+    const originalSaleIds = originalSales.map(s => s.id);
 
-     const [sales, totalCount] = await prisma.$transaction([
-      prisma.saleRecord.findMany({
-        where: whereClause,
-        include: { 
-            paymentInstallments: true, 
-            customer: true,
-            createdBy: { select: { username: true } }
-        },
-        orderBy: { date: 'desc' },
-        take: limit,
-        skip: (page - 1) * limit,
-      }),
-      prisma.saleRecord.count({ where: whereClause })
-    ]);
+    // Find the latest adjusted state for these original bills
+    const adjustedStates = await prisma.saleRecord.findMany({
+        where: { originalSaleRecordId: { in: originalSaleIds }, status: 'ADJUSTED_ACTIVE' },
+        select: { id: true, originalSaleRecordId: true, date: true }
+    });
+
+    const latestAdjustedMap = new Map<string, string>();
+    adjustedStates.forEach(adj => {
+        if (!latestAdjustedMap.has(adj.originalSaleRecordId!) || new Date(adj.date) > new Date(adjustedStates.find(a=>a.id === latestAdjustedMap.get(adj.originalSaleRecordId!))!.date)) {
+            latestAdjustedMap.set(adj.originalSaleRecordId!, adj.id);
+        }
+    });
+
+    const idsToFetch = originalSaleIds.map(origId => latestAdjustedMap.get(origId) || origId);
     
+    // Now, fetch the full records for only the active bills (latest adjusted or original)
+    const activeRecords = await prisma.saleRecord.findMany({
+        where: { id: { in: idsToFetch } },
+        include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } },
+        orderBy: { date: 'desc' },
+    });
+    
+    const totalCount = activeRecords.length;
+    const paginatedRecords = activeRecords.slice((page - 1) * limit, page * limit);
+    const mappedResults = paginatedRecords.map(r => mapPrismaSaleToRecordType(r)).filter(Boolean) as SaleRecordType[];
+
     return { 
         success: true, 
         data: { 
-            sales: sales.map(record => mapPrismaSaleToRecordType(record)).filter(Boolean) as SaleRecordType[],
+            sales: mappedResults,
             totalCount
         } 
     };
   } catch (error: any) {
-    console.error('Error fetching open credit sales:', error);
-    return { success: false, error: error.message || 'Failed to fetch open credit sales.' };
+    console.error('Error fetching credit sales:', error);
+    if(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+       return { success: false, error: 'A record was not found during the credit sale fetch. This may be a temporary issue. Please try again.' };
+    }
+    return { success: false, error: error.message || 'Failed to fetch credit sales.' };
   }
 }
 
@@ -585,7 +615,7 @@ export async function recordCreditPaymentAction(
                 throw new Error(`Payment amount (Rs. ${amountBeingPaid.toFixed(2)}) exceeds outstanding amount (Rs. ${currentOutstanding.toFixed(2)}).`);
             }
 
-            await tx.paymentInstallment.create({
+            const newInstallment = await tx.paymentInstallment.create({
                 data: {
                     saleRecordId: saleRecordId,
                     amountPaid: amountBeingPaid,
@@ -596,7 +626,10 @@ export async function recordCreditPaymentAction(
                 }
             });
 
-            const newOutstandingAmount = currentOutstanding - amountBeingPaid;
+            const allInstallments = [...saleRecord.paymentInstallments, newInstallment];
+            const totalAmountPaid = allInstallments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+            
+            const newOutstandingAmount = saleRecord.totalAmount - totalAmountPaid;
 
             const newPaymentStatus = newOutstandingAmount <= 0.009 ?
                                      CreditPaymentStatusEnumSchema.enum.FULLY_PAID :
@@ -608,7 +641,7 @@ export async function recordCreditPaymentAction(
                     creditOutstandingAmount: newOutstandingAmount,
                     creditPaymentStatus: newPaymentStatus,
                     creditLastPaymentDate: new Date(),
-                    amountPaidByCustomer: (saleRecord.amountPaidByCustomer || 0) + amountBeingPaid,
+                    amountPaidByCustomer: totalAmountPaid,
                 },
                 include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
             });
@@ -875,5 +908,3 @@ export async function undoReturnItemAction(
     return { success: false, error: errorMessage };
   }
 }
-
-    
