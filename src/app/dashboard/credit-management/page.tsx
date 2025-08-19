@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp, TrendingDown, ShoppingBag, ArrowUpRight } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp, TrendingDown, ShoppingBag, ArrowUpRight, CurrencyIcon, CopySlash, CopySlashIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -404,93 +404,23 @@ export default function CreditManagementPage() {
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="text-gray-400 text-sm">Balance</span>
                                   </div>
-
                                   {/* Balance Amount */}
                                   <div className="flex items-end gap-2">
-                                    <h2 className="text-4xl font-bold">Rs{billFinancials.finalBalance.toFixed(2)}</h2>
+                                    <h2 className="text-4xl text-red-400 font-bold">
+                                      Rs{billFinancials.finalBalance.toFixed(2)}</h2> 
+                                      {/* <span className="ext-gray-400 text-sm ">
+                                      Due
+                                    </span> */}
                                     <div className="flex items-center text-green-400 text-sm font-medium">
-                                      <ArrowUpRight className="w-4 h-4 mr-1" />
-                                      +36.8%
+                                      <CopySlashIcon className="w-4 h-4 mr-1" />
+                                      {billFinancials.totalPaidByCustomer.toFixed(2)} PAID
                                     </div>
                                   </div>
 
-                                  <p className="text-gray-500 text-xs mt-1">vs last month</p>
-
-                                  {/* Bill Details Section */}
-                                  <div className="mt-6 flex flex-col gap-2">
-                                    <div className="w-fit p-2 px-3 text-xs rounded-lg border border-green-300">
-                                      <span className="text-green-300">
-                                        Bill: Rs. {billFinancials.netBillAmount.toFixed(2)}
-                                      </span>
-                                    </div>
-
-                                    <div className="w-fit p-2 px-3 text-xs rounded-lg border border-purple-400">
-                                      <span className="text-purple-400">
-                                        Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}
-                                      </span>
-                                    </div>
-
-                                    <div>
-                                      {billFinancials.finalBalance > 0.009 ? (
-                                        <span className="font-bold text-lg text-red-400">
-                                          Rs. {billFinancials.finalBalance.toFixed(2)} Due
-                                        </span>
-                                      ) : billFinancials.finalBalance < -0.009 ? (
-                                        <span className="font-bold text-lg text-green-400">
-                                          Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)} to Refund
-                                        </span>
-                                      ) : (
-                                        <span className="font-bold text-lg text-green-400 flex items-center">
-                                          <CheckCircle className="mr-2 h-5 w-5" /> Cleared
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {/* <div> */}
-                                  {/* <div className="flex justify-between items-center w-full">
-                                                        <span>Final Balance:</span>
-                                                    </div> */}
-
-                                  {/* {billFinancials.finalBalance > 0.009 ? (
-                                                        <span className="font-bold text-lg text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)} Due</span>
-
-                                                    ) : billFinancials.finalBalance < -0.009 ? (
-                                                        <span className="font-bold text-lg text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)} to Refund</span>
-                                                    ) : (
-                                                        <span className="font-bold text-lg text-green-400 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/>Cleared</span>
-                                                    )} */}
-                                  {/* </div> */}
-                                  {/* <div className="w-fit p-2 text-xs rounded-full px-3  border border-green-300">
-                                                    <div className="flex justify-between items-center gap-2">
-                                                    <div className="w-fit p-2 px-3 text-xs rounded-lg  border border-green-300 ">
-                                                        <span className="text-green-300"> Bill: Rs. {billFinancials.netBillAmount.toFixed(2)}</span>
-                                                       
-                                                        </div>
-                                                        <div className="w-fit p-2 px-3 text-xs rounded-lg  border border-accent ">
-                                                        <span className="text-accent  ">Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span>
-                                                       </div>
-                                                     
-                                                       <div>
-                                                       {billFinancials.finalBalance > 0.009 ? (
-                                                        <span className="font-bold text-lg text-red-400">Rs. {billFinancials.finalBalance.toFixed(2)} Due</span>
-
-                                                    ) : billFinancials.finalBalance < -0.009 ? (
-                                                        <span className="font-bold text-lg text-green-400">Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)} to Refund</span>
-                                                    ) : (
-                                                        <span className="font-bold text-lg text-green-400 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/>Cleared</span>
-                                                    )}
-                                                        
-                                                         </div>
-                                                    </div>
-                                                </div> */}
-
-
-                                  {/* <div className="w-full text-white rounded-2xl shadow-md p-6 ">
-     
-    </div> */}
+                                 
                                 </div>
 
-                                <span className="text-xs font-normal text-muted-foreground pt-1 w-full text-left">Click to view transaction details</span>
+                                {/* <span className="text-xs font-normal text-muted-foreground pt-1 w-full text-left">Click to view transaction details</span> */}
                               </AccordionTrigger>
                               <AccordionContent className="pt-3 mt-2 border-t border-border/50">
                                 <div className="space-y-2 text-sm">
