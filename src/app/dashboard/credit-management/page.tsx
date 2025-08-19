@@ -45,7 +45,7 @@ export default function CreditManagementPage() {
   const isSuperAdminWithoutCompany = currentUser?.role?.name === 'Admin' && !currentUser?.companyId;
 
   const [creditSales, setCreditSales] = useState<SaleRecord[]>([]);
-  const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<{ activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null } | null>(null);
   const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
   
   const [isLoadingSales, setIsLoadingSales] = useState(true);
@@ -59,11 +59,9 @@ export default function CreditManagementPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Advanced Filter State
   const [customers, setCustomers] = useState<CustomerType[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -128,7 +126,7 @@ export default function CreditManagementPage() {
   }, [fetchCreditSales]);
   
   const handleApplyFilters = () => {
-    setCurrentPage(1); // Reset to first page on new filter
+    setCurrentPage(1); 
     setActiveFilters({ customerId: selectedCustomerId, dateRange, status: showPaidBills ? 'PAID' : 'OPEN' });
   };
   
@@ -141,33 +139,54 @@ export default function CreditManagementPage() {
   };
 
 
-  const fetchInstallments = useCallback(async (saleId: string) => {
-    if (!saleId) return;
+  const fetchInstallments = useCallback(async (sale: SaleRecord) => {
+    if (!sale) return;
     setIsLoadingInstallments(true);
-    const result = await getInstallmentsForSaleAction(saleId);
+
+    const initialPaymentAmount = sale.amountPaidByCustomer || 0;
+    let combinedInstallments: PaymentInstallment[] = [];
+
+    // If there was an initial payment on a credit sale, create a pseudo-installment for it.
+    if (sale.isCreditSale && initialPaymentAmount > 0 && sale.recordType === 'SALE') {
+        const initialPaymentAsInstallment: PaymentInstallment = {
+            id: `initial-${sale.id}`,
+            saleRecordId: sale.id,
+            paymentDate: sale.date,
+            amountPaid: initialPaymentAmount,
+            method: sale.paymentMethod === 'credit' ? 'CARD' : sale.paymentMethod.toUpperCase(),
+            notes: 'Initial payment made during sale.',
+            recordedByUserId: sale.createdByUserId,
+            createdAt: sale.date
+        };
+        combinedInstallments.push(initialPaymentAsInstallment);
+    }
+
+    const result = await getInstallmentsForSaleAction(sale.id);
     if (result.success && result.data) {
-      setInstallments(result.data);
+      // Add fetched installments, avoiding duplicates if any logic overlaps (unlikely here)
+      result.data.forEach(fetchedInst => {
+          if (!combinedInstallments.some(inst => inst.id === fetchedInst.id)) {
+              combinedInstallments.push(fetchedInst);
+          }
+      });
     } else {
-      setInstallments([]);
       toast({ title: 'Error', description: result.error || 'Could not fetch payment history.', variant: 'destructive' });
     }
+
+    setInstallments(combinedInstallments.sort((a,b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()));
     setIsLoadingInstallments(false);
   }, [toast]);
 
-  useEffect(() => {
-    if (selectedSale) {
-      fetchInstallments(selectedSale.id);
-    } else {
-      setInstallments([]);
-    }
-  }, [selectedSale, fetchInstallments]);
 
-  const handleSelectSale = (sale: SaleRecord) => {
-    setSelectedSale(sale);
+  const handleSelectGroup = async (group: { activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null }) => {
+    setSelectedGroup(group);
     setActiveCard('history');
     setPaymentAmount('');
     setPaymentMethod('CASH');
     setPaymentNotes('');
+    
+    // Pass the active bill (latest state) to fetch its installments
+    await fetchInstallments(group.activeBillForDisplay);
   };
 
   const handleRecordPayment = async () => {
@@ -180,6 +199,7 @@ export default function CreditManagementPage() {
         toast({ title: 'Authentication Error', description: 'You must be logged in to record a payment.', variant: 'destructive' });
         return;
     }
+    const selectedSale = selectedGroup?.activeBillForDisplay;
     if (!selectedSale || !paymentAmount) {
       toast({ title: 'Validation Error', description: 'Please select a sale and enter payment amount.', variant: 'destructive' });
       return;
@@ -190,10 +210,10 @@ export default function CreditManagementPage() {
       return;
     }
     
-    const billFinancials = calculateBillFinancials(selectedSale);
+    const billFinancials = calculateBillFinancials(selectedGroup);
     if (!billFinancials) return;
     
-    if (amount > billFinancials.finalBalance + 0.01) { // Add a small tolerance
+    if (amount > billFinancials.finalBalance + 0.01) { 
       toast({ title: 'Validation Error', description: `Payment cannot exceed outstanding Rs. ${(billFinancials.finalBalance).toFixed(2)}.`, variant: 'destructive' });
       return;
     }
@@ -202,8 +222,9 @@ export default function CreditManagementPage() {
     const result = await recordCreditPaymentAction(selectedSale.id, amount, paymentMethod, currentUser.id, paymentNotes);
     if (result.success && result.data) {
       toast({ title: 'Payment Recorded', description: `Payment of Rs. ${amount.toFixed(2)} for bill ${selectedSale.billNumber} recorded.` });
-      fetchCreditSales();
-      setSelectedSale(result.data); 
+      await fetchCreditSales();
+      setSelectedGroup(prev => prev ? { ...prev, activeBillForDisplay: result.data! } : null);
+      await fetchInstallments(result.data); // Refetch installments
       setPaymentAmount('');
       setPaymentNotes('');
     } else {
@@ -211,8 +232,9 @@ export default function CreditManagementPage() {
     }
     setIsProcessingPayment(false);
   };
-
+  
   const handlePrintFullBill = () => {
+    const selectedSale = selectedGroup?.activeBillForDisplay;
     if (!selectedSale) {
       toast({ title: "Error", description: "No sale selected to print.", variant: "destructive" });
       return;
@@ -301,15 +323,6 @@ export default function CreditManagementPage() {
     }, 200);
   };
 
-  const filteredSales = creditSales.filter(sale =>
-    sale.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (sale.customerName && sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  const totalFilteredOutstanding = useMemo(() => {
-    return filteredSales.reduce((sum, sale) => sum + (sale.creditOutstandingAmount ?? 0), 0);
-  }, [filteredSales]);
-
 
   const getStatusBadgeVariant = (status?: CreditPaymentStatus | null) => {
     if (status === 'PENDING') return 'destructive';
@@ -318,41 +331,31 @@ export default function CreditManagementPage() {
     return 'outline';
   };
   
-  const calculateBillFinancials = useCallback((sale: SaleRecord | null) => {
-    if (!sale) return null;
+  const calculateBillFinancials = useCallback((group: { activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null } | null) => {
+    if (!group || !group.activeBillForDisplay || !group.pristineOriginalSale) return null;
     
-    // Total value of items that have been returned and not undone
-    const totalReturnedValue = (sale.returnedItemsLog as ReturnedItemDetail[] || []).filter(log => !log.isUndone).reduce(
-        (sum, item) => sum + item.totalRefundForThisReturnEntry, 0
-    );
+    const { activeBillForDisplay, pristineOriginalSale } = group;
     
-    // The current net value of the bill after returns are subtracted
-    const netBillAmount = sale.totalAmount;
+    const netBillAmount = activeBillForDisplay.totalAmount;
     
-    // Total cash/card payments made by the customer towards this bill
-    const totalPaidByCustomer = sale.amountPaidByCustomer || 0;
-    
-    // The final balance. If negative, it means a refund is due.
+    // totalPaidByCustomer should include the initial payment AND all subsequent installments.
+    const totalPaidByCustomer = (pristineOriginalSale.amountPaidByCustomer || 0) + installments.filter(inst => inst.id !== `initial-${pristineOriginalSale.id}`).reduce((sum, inst) => sum + inst.amountPaid, 0);
+
     const finalBalance = netBillAmount - totalPaidByCustomer;
 
     return {
-        originalBillTotal: sale.totalAmount + totalReturnedValue, // Reconstruct original total
-        totalReturnedValue,
         netBillAmount,
         totalPaidByCustomer,
         finalBalance,
     };
-  }, []);
-
+  }, [installments]);
   
-  const billFinancials = useMemo(() => calculateBillFinancials(selectedSale), [selectedSale, calculateBillFinancials]);
+  const billFinancials = useMemo(() => calculateBillFinancials(selectedGroup), [selectedGroup, calculateBillFinancials]);
   
   const maxPage = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const filteredCustomersForDropdown = useMemo(() => {
-    if (!customerSearchTerm) {
-      return customers;
-    }
+    if (!customerSearchTerm) return customers;
     const lowerCaseSearch = customerSearchTerm.toLowerCase();
     return customers.filter(c =>
       c.name.toLowerCase().includes(lowerCaseSearch) ||
@@ -394,13 +397,13 @@ export default function CreditManagementPage() {
                 <div className="flex justify-between items-center">
                     <div>
                         <CardTitle className="text-card-foreground">
-                        {selectedSale ? `Details for Bill: ${selectedSale.billNumber}` : 'Select a Bill'}
+                        {selectedGroup ? `Details for Bill: ${selectedGroup.activeBillForDisplay.billNumber}` : 'Select a Bill'}
                         </CardTitle>
                         <CardDescription className="text-muted-foreground">
-                        {selectedSale ? `Customer: ${selectedSale.customerName || 'N/A'}` : 'Select a bill from the list to view details and record payments.'}
+                        {selectedGroup ? `Customer: ${selectedGroup.activeBillForDisplay.customerName || 'N/A'}` : 'Select a bill from the list to view details and record payments.'}
                         </CardDescription>
                     </div>
-                    {selectedSale && (
+                    {selectedGroup && (
                         <Button onClick={handlePrintFullBill} variant="outline" size="sm" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
                             <Printer className="mr-2 h-4 w-4" /> Print Full Bill
                         </Button>
@@ -409,7 +412,7 @@ export default function CreditManagementPage() {
               </CardHeader>
               <ScrollArea className="flex-1">
                 <CardContent className="p-4 space-y-4">
-                  {!selectedSale ? (
+                  {!selectedGroup ? (
                     <div className="text-center py-10 text-muted-foreground">
                       <Info className="mx-auto h-10 w-10 mb-3" />
                       <p>No bill selected.</p>
@@ -423,7 +426,7 @@ export default function CreditManagementPage() {
                             <CardContent className="p-0 space-y-4">
                                 <div>
                                     <Label htmlFor="paymentAmount" className="text-card-foreground text-sm">Amount to Pay (Rs.)*</Label>
-                                    <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1 h-12 text-lg" min="0.01" step="0.01" max={(selectedSale.creditOutstandingAmount ?? 0).toFixed(2)} />
+                                    <Input id="paymentAmount" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Enter amount" className="bg-input border-border focus:ring-primary text-card-foreground mt-1 h-12 text-lg" min="0.01" step="0.01" max={(selectedGroup.activeBillForDisplay.creditOutstandingAmount ?? 0).toFixed(2)} />
                                 </div>
                                 <div>
                                     <Label htmlFor="paymentMethod" className="text-card-foreground text-sm">Payment Method*</Label>
@@ -463,6 +466,13 @@ export default function CreditManagementPage() {
                                     <Accordion type="multiple" defaultValue={['summary']} className="w-full">
                                         <AccordionItem value="summary" className="border-b-0">
                                             <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
+                                                <div className="w-full p-2 text-sm rounded-md bg-green-900/50 border border-green-500/60 mb-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-green-300">Net Bill: Rs. {billFinancials.netBillAmount.toFixed(2)}</span>
+                                                        <span className="text-green-200">/</span>
+                                                        <span className="text-green-300">Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
                                                 <div className="flex justify-between items-center w-full">
                                                     <span>Final Balance:</span>
                                                     {billFinancials.finalBalance > 0.009 ? (
@@ -473,14 +483,12 @@ export default function CreditManagementPage() {
                                                         <span className="font-bold text-lg text-green-400 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/>Cleared</span>
                                                     )}
                                                 </div>
-                                                <span className="text-xs font-normal text-muted-foreground">Click to view calculation breakdown and details</span>
+                                                <span className="text-xs font-normal text-muted-foreground">Click to view transaction details</span>
                                             </AccordionTrigger>
                                             <AccordionContent className="pt-3 mt-2 border-t border-border/50">
                                                 <div className="space-y-2 text-sm">
-                                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {billFinancials.originalBillTotal.toFixed(2)}</span></div>
-                                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><Repeat className="h-4 w-4 mr-2 text-orange-400"/>Total Returned Value:</span> <span className="text-orange-400">- Rs. {billFinancials.totalReturnedValue.toFixed(2)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileArchive className="h-4 w-4 mr-2"/>Original Bill Total:</span> <span className="text-card-foreground">Rs. {selectedGroup?.pristineOriginalSale?.totalAmount.toFixed(2)}</span></div>
                                                     <Separator className="my-1 bg-border/50"/>
-                                                    <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><FileText className="h-4 w-4 mr-2"/>Net Bill Amount:</span> <span className="font-semibold text-card-foreground">Rs. {billFinancials.netBillAmount.toFixed(2)}</span></div>
                                                     <div className="flex justify-between items-center"><span className="flex items-center text-muted-foreground"><TrendingUp className="h-4 w-4 mr-2 text-green-400"/>Total Paid By Customer:</span> <span className="font-semibold text-green-400">Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</span></div>
                                                     <Separator className="my-1 bg-border/50"/>
                                                 </div>
@@ -489,9 +497,9 @@ export default function CreditManagementPage() {
                                         <AccordionItem value="details">
                                              <AccordionTrigger className="text-xs text-muted-foreground hover:no-underline pt-2">Transaction Details</AccordionTrigger>
                                              <AccordionContent className="pt-2 text-xs space-y-1">
-                                                 <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedSale?.paymentMethod}</span></div>
-                                                 <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedSale?.date).toLocaleDateString()}</span></div>
-                                                  <div className="flex justify-between"><span>Customer:</span> <span>{selectedSale?.customerName || 'N/A'}</span></div>
+                                                 <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedGroup?.activeBillForDisplay?.paymentMethod}</span></div>
+                                                 <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedGroup?.activeBillForDisplay?.date).toLocaleDateString()}</span></div>
+                                                  <div className="flex justify-between"><span>Customer:</span> <span>{selectedGroup?.activeBillForDisplay?.customerName || 'N/A'}</span></div>
                                              </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
@@ -640,16 +648,11 @@ export default function CreditManagementPage() {
                         />
                     </div>
                 </div>
-
-                <div className="p-2 border-b border-border/50 bg-muted/20 flex justify-between items-center text-sm">
-                    <span className="font-semibold text-card-foreground">Total Outstanding (Filtered):</span>
-                    <span className="font-bold text-red-400">Rs. {totalFilteredOutstanding.toFixed(2)}</span>
-                </div>
                 <CardContent className="flex-1 overflow-hidden p-0 mt-2">
                     <ScrollArea className="h-full">
                         {isLoadingSales ? (
                         <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
-                        ) : filteredSales.length === 0 ? (
+                        ) : creditSales.length === 0 ? (
                         <div className="p-4 text-center text-muted-foreground">No credit sales matching criteria.</div>
                         ) : (
                         <Table>
@@ -664,18 +667,18 @@ export default function CreditManagementPage() {
                             </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {filteredSales.map((sale) => (
+                            {creditSales.map((sale) => (
                                 <TableRow
                                 key={sale.id}
-                                onClick={() => handleSelectSale(sale)}
-                                className={`cursor-pointer hover:bg-muted/50 ${selectedSale?.id === sale.id ? 'bg-primary/10' : ''}`}
+                                onClick={() => handleSelectGroup({ activeBillForDisplay: sale, pristineOriginalSale: sale })}
+                                className={`cursor-pointer hover:bg-muted/50 ${selectedGroup?.activeBillForDisplay.id === sale.id ? 'bg-primary/10' : ''}`}
                                 >
                                 <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
                                 <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
                                 <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
                                 <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
                                 <TableCell className="text-right text-card-foreground text-xs py-2">
-                                    Rs. {(calculateBillFinancials(sale)?.finalBalance ?? 0).toFixed(2)}
+                                    Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell className="text-center py-2">
                                     <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
@@ -689,7 +692,6 @@ export default function CreditManagementPage() {
                         )}
                     </ScrollArea>
                 </CardContent>
-
                 <CardFooter className="p-2 border-t border-border/50">
                      <div className="flex justify-between items-center w-full">
                         <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
@@ -699,10 +701,10 @@ export default function CreditManagementPage() {
                 </CardFooter>
             </Card>
         </div>
-        {isPrintingBill && selectedSale && (
+        {isPrintingBill && selectedGroup?.activeBillForDisplay && (
           <div id="printable-credit-bill-holder" style={{ display: 'none' }}>
             <CreditBillPrintContent
-              saleRecord={selectedSale}
+              saleRecord={selectedGroup.activeBillForDisplay}
               installments={installments}
               companyName={currentUser?.company?.name}
               companyAddress={currentUser?.company?.address}
@@ -714,3 +716,4 @@ export default function CreditManagementPage() {
     </>
   );
 }
+
