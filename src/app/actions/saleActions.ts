@@ -284,15 +284,10 @@ export async function saveSaleRecordAction(
             };
         });
 
-        const paymentInstallmentsToCreateForPrisma = (paymentInstallmentsFromInput || []).map(inst => {
-            const {id, saleRecordId, createdAt, updatedAt, paymentDate, ...rest } = inst;
-            return { ...rest, paymentDate: new Date(paymentDate), recordedByUserId: userId };
-        });
-
+        // The logic for installments was incorrect. It should be handled after the main record is created.
         const createDataPayload: Prisma.SaleRecordCreateInput = {
           ...commonDataPayload, items: itemsToStoreInJson as Prisma.JsonValue,
           returnedItemsLog: (returnedLogsToStoreAsJson.length === 0) ? Prisma.JsonNull : returnedLogsToStoreAsJson as Prisma.JsonValue,
-          paymentInstallments: paymentInstallmentsToCreateForPrisma.length > 0 ? { create: paymentInstallmentsToCreateForPrisma } : undefined,
         };
         
         console.log('[saveSaleRecordAction] [TX] Executing Prisma create for SaleRecord...');
@@ -300,8 +295,29 @@ export async function saveSaleRecordAction(
           data: createDataPayload,
           include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
         });
+        
+        // NEW: If it's a credit sale with an initial payment, create a payment installment record.
+        if (savedSaleRecord.isCreditSale && savedSaleRecord.amountPaidByCustomer && savedSaleRecord.amountPaidByCustomer > 0) {
+            await tx.paymentInstallment.create({
+                data: {
+                    saleRecordId: savedSaleRecord.id,
+                    paymentDate: new Date(savedSaleRecord.date),
+                    amountPaid: savedSaleRecord.amountPaidByCustomer,
+                    method: 'CREDIT', // Denotes it was part of the initial credit transaction
+                    notes: 'Initial payment made during credit sale.',
+                    recordedByUserId: userId,
+                }
+            });
+        }
+        
         console.log(`[saveSaleRecordAction] [TX] SaleRecord created successfully. ID: ${savedSaleRecord.id}`);
-        return savedSaleRecord;
+        // Refetch to include the potentially new installment
+        const finalRecord = await tx.saleRecord.findUniqueOrThrow({
+            where: { id: savedSaleRecord.id },
+            include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
+        });
+        return finalRecord;
+
       } else {
         console.log('[saveSaleRecordAction] [TX] This is an update action. Skipping stock deduction and creation logic.');
         // This part is for potential future updates, not currently used by POS
@@ -507,9 +523,6 @@ export async function getCreditSalesAction(
       companyId: companyId,
       isCreditSale: true,
       creditPaymentStatus: statusFilter,
-      recordType: 'SALE',
-      // We only want to see the active state of a bill, so we filter out superseded original bills.
-      status: { in: ['COMPLETED_ORIGINAL', 'ADJUSTED_ACTIVE'] },
     };
 
     if (filters?.customerId && filters.customerId !== 'all') {
@@ -520,43 +533,51 @@ export async function getCreditSalesAction(
     if (filters?.endDate) dateFilter.lte = filters.endDate;
     if (Object.keys(dateFilter).length > 0) whereClause.date = dateFilter;
 
-    const allCreditRecords = await prisma.saleRecord.findMany({
-        where: whereClause,
+    // First, find the IDs of the original bills that match the criteria
+    const originalSales = await prisma.saleRecord.findMany({
+        where: {...whereClause, status: 'COMPLETED_ORIGINAL' },
+        select: { id: true }
+    });
+    const originalSaleIds = originalSales.map(s => s.id);
+
+    // Find the latest adjusted state for these original bills
+    const adjustedStates = await prisma.saleRecord.findMany({
+        where: { originalSaleRecordId: { in: originalSaleIds }, status: 'ADJUSTED_ACTIVE' },
+        select: { id: true, originalSaleRecordId: true, date: true }
+    });
+
+    const latestAdjustedMap = new Map<string, string>();
+    adjustedStates.forEach(adj => {
+        if (!latestAdjustedMap.has(adj.originalSaleRecordId!) || new Date(adj.date) > new Date(adjustedStates.find(a=>a.id === latestAdjustedMap.get(adj.originalSaleRecordId!))!.date)) {
+            latestAdjustedMap.set(adj.originalSaleRecordId!, adj.id);
+        }
+    });
+
+    const idsToFetch = originalSaleIds.map(origId => latestAdjustedMap.get(origId) || origId);
+    
+    // Now, fetch the full records for only the active bills (latest adjusted or original)
+    const activeRecords = await prisma.saleRecord.findMany({
+        where: { id: { in: idsToFetch } },
         include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } },
         orderBy: { date: 'desc' },
     });
-
-    const activeRecordsMap = new Map<string, SaleRecordType>();
-
-    allCreditRecords.forEach(record => {
-      const mappedRecord = mapPrismaSaleToRecordType(record);
-      if (!mappedRecord) return;
-
-      const key = mappedRecord.originalSaleRecordId || mappedRecord.id;
-
-      if (!activeRecordsMap.has(key)) {
-        activeRecordsMap.set(key, mappedRecord);
-      } else {
-        const existingRecord = activeRecordsMap.get(key)!;
-        if (new Date(mappedRecord.date) > new Date(existingRecord.date)) {
-          activeRecordsMap.set(key, mappedRecord);
-        }
-      }
-    });
-
-    const finalActiveRecords = Array.from(activeRecordsMap.values());
-    const totalCount = finalActiveRecords.length;
-    const paginatedRecords = finalActiveRecords.slice((page - 1) * limit, page * limit);
     
+    const totalCount = activeRecords.length;
+    const paginatedRecords = activeRecords.slice((page - 1) * limit, page * limit);
+    const mappedResults = paginatedRecords.map(r => mapPrismaSaleToRecordType(r)).filter(Boolean) as SaleRecordType[];
+
     return { 
         success: true, 
         data: { 
-            sales: paginatedRecords,
+            sales: mappedResults,
             totalCount
         } 
     };
   } catch (error: any) {
     console.error('Error fetching credit sales:', error);
+    if(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+       return { success: false, error: 'A record was not found during the credit sale fetch. This may be a temporary issue. Please try again.' };
+    }
     return { success: false, error: error.message || 'Failed to fetch credit sales.' };
   }
 }

@@ -447,7 +447,7 @@ export default function CreditManagementPage() {
                                 </Button>
                             </CardContent>
                         </Card>
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
                             <Card className="p-4 bg-muted/20 border-border/40">
                                 <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-4 w-4 text-primary"/>Payment History</CardTitle></CardHeader>
                                 <CardContent className="p-0">
