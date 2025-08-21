@@ -685,6 +685,77 @@ export async function getInstallmentsForSaleAction(
     }
 }
 
+export async function deletePaymentInstallmentAction(
+    installmentId: string,
+    userId: string
+): Promise<{ success: boolean; data?: SaleRecordType; error?: string }> {
+    if (!installmentId || !userId) {
+        return { success: false, error: "Installment ID and User ID are required." };
+    }
+
+    try {
+        const { companyId } = await getCurrentUserAndCompanyId(userId);
+        if (!companyId) {
+            return { success: false, error: "User is not associated with a company." };
+        }
+
+        const updatedSaleRecord = await prisma.$transaction(async (tx) => {
+            const installmentToDelete = await tx.paymentInstallment.findUnique({
+                where: { id: installmentId },
+                include: { saleRecord: true }
+            });
+            
+            if (!installmentToDelete) {
+                throw new Error("Payment installment not found.");
+            }
+            if (installmentToDelete.saleRecord.companyId !== companyId) {
+                throw new Error("Permission denied. You can only delete payments for your own company.");
+            }
+            
+            const saleRecordId = installmentToDelete.saleRecordId;
+
+            // Delete the installment
+            await tx.paymentInstallment.delete({ where: { id: installmentId } });
+
+            // Refetch all remaining installments for the sale to recalculate totals
+            const remainingInstallments = await tx.paymentInstallment.findMany({
+                where: { saleRecordId: saleRecordId }
+            });
+            
+            const newTotalPaid = remainingInstallments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+            const saleTotalAmount = installmentToDelete.saleRecord.totalAmount;
+            const newOutstandingAmount = saleTotalAmount - newTotalPaid;
+            
+            const newPaymentStatus = newOutstandingAmount <= 0.009 
+                ? 'FULLY_PAID' 
+                : newTotalPaid > 0 ? 'PARTIALLY_PAID' 
+                : 'PENDING';
+
+            // Update the parent SaleRecord
+            return tx.saleRecord.update({
+                where: { id: saleRecordId },
+                data: {
+                    amountPaidByCustomer: newTotalPaid,
+                    creditOutstandingAmount: newOutstandingAmount,
+                    creditPaymentStatus: newPaymentStatus,
+                    // Optionally update last payment date if needed, for simplicity we leave it for now
+                },
+                include: { paymentInstallments: true, customer: true, createdBy: { select: { username: true } } }
+            });
+        });
+
+        const mappedData = mapPrismaSaleToRecordType(updatedSaleRecord);
+        if (!mappedData) {
+            throw new Error("Failed to map the updated sale record after deleting an installment.");
+        }
+        return { success: true, data: mappedData };
+
+    } catch (error: any) {
+        console.error('Error deleting payment installment:', error);
+        return { success: false, error: error.message || "Failed to delete payment installment." };
+    }
+}
+
 export async function undoReturnItemAction(
   input: { masterSaleRecordId: string; returnedItemDetailId: string; },
   userId: string,
