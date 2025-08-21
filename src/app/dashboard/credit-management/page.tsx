@@ -419,7 +419,7 @@ export default function CreditManagementPage() {
                           {/* Balance Amount */}
                           <div className="flex items-end gap-2">
 
-                            <div className="flex items-center text-green-400 text-sm font-medium">
+                            <div className="flex items-center text-orange-400 text-sm font-medium">
                               <ArrowUpRight className="w-4 h-4 mr-1" />
                               Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}                         
                             </div>
