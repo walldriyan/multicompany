@@ -638,7 +638,7 @@ export default function CreditManagementPage() {
                             key={sale.id}
                             onClick={() => handleSelectGroup(sale)}
                             className={cn('cursor-pointer hover:bg-muted/50',
-                                selectedGroup?.activeBillForDisplay.id === sale.id && 'border-l-4 border-primary bg-primary/5'
+                                selectedGroup?.activeBillForDisplay.id === sale.id && 'border-l-4 border-l-primary bg-primary/5'
                             )}
                         >
                             <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
