@@ -411,21 +411,21 @@ export default function CreditManagementPage() {
                           <div className="text-left">
                             <span className="text-gray-400 text-sm">Final Balance</span>
                             <h2 className="text-4xl text-red-400 font-bold">
-                              {/* Rs. {billFinancials.finalBalance.toFixed(2)} <span className="text-lg font-medium">Due</span> */}
-                              Rs. {billFinancials.finalBalance.toFixed(2)} 
+
+                              Rs. {billFinancials.finalBalance.toFixed(2)}
                             </h2>
                           </div>
 
                           {/* Balance Amount */}
                           <div className="flex items-end gap-2">
 
-                            <div className="flex items-center text-orange-400 text-xl font-medium">
-                              <ArrowUpRight className="w-4 h-4 mr-1" />
-                              Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}                         
-                            </div>
                             <div className="flex items-center text-green-400 text-sm font-medium">
                               <ArrowUpRight className="w-4 h-4 mr-1" />
-                               OF  Rs. {billFinancials.netBillAmount.toFixed(2)}                          
+                              Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}
+                            </div>
+                            <div className="flex items-center text-primary text-xl font-medium">
+                              <ArrowUpRight className="w-4 h-4 mr-1" />
+                              OF  Rs. {billFinancials.netBillAmount.toFixed(2)}
                             </div>
                           </div>
 
@@ -452,12 +452,18 @@ export default function CreditManagementPage() {
                 <Button onClick={handleRecordPayment} disabled={isProcessingPayment || !paymentAmount || parseFloat(paymentAmount) <= 0 || !canUpdateSale || !selectedGroup} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">{isProcessingPayment ? 'Processing...' : 'Record Payment'}</Button>
               </CardContent>
             </Card>
-            <div className="grid grid-cols-1 gap-4">
+
+
+
+
+            <div className="grid grid-cols-1 gap-4 ">
               <Card className="p-4 bg-muted/20 border-border/40">
                 <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><ListChecks className="mr-2 h-4 w-4 text-primary" />Payment History</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   {isLoadingInstallments ? (<p className="text-muted-foreground text-xs">Loading payment history...</p>) : installments.length === 0 ? (<p className="text-muted-foreground text-xs">No payment installments recorded.</p>) : (
                     <ScrollArea className="h-40">
+
+
                       <Table>
                         <TableHeader className="sticky top-0 bg-muted/50 z-10">
                           <TableRow>
@@ -487,6 +493,10 @@ export default function CreditManagementPage() {
                 </CardContent>
               </Card>
             </div>
+
+
+
+
           </div>
 
           <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
@@ -504,7 +514,40 @@ export default function CreditManagementPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
               <div className="flex justify-between items-center p-4 border-b border-border/50"><span className="font-semibold text-card-foreground">{showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})</span><div className="flex items-center space-x-2"><Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid</Label><Switch id="bill-status-toggle" checked={showPaidBills} onCheckedChange={(checked) => { setShowPaidBills(checked); setCurrentPage(1); setActiveFilters(prev => ({ ...prev, status: checked ? 'PAID' : 'OPEN' })); }} className="data-[state=checked]:bg-green-600" /></div></div>
-              <ScrollArea className="h-full"><Table><TableHeader className="sticky top-0 bg-card z-10"><TableRow><TableHead className="text-muted-foreground">Date</TableHead><TableHead className="text-muted-foreground">Bill ID</TableHead><TableHead className="text-muted-foreground">Customer</TableHead><TableHead className="text-muted-foreground">User</TableHead><TableHead className="text-right text-muted-foreground">Outstanding</TableHead><TableHead className="text-center text-muted-foreground">Status</TableHead></TableRow></TableHeader><TableBody>{isLoadingSales ? (<TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading credit sales...</TableCell></TableRow>) : filteredCreditSales.length === 0 ? (<TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No credit sales matching criteria.</TableCell></TableRow>) : (filteredCreditSales.map((sale) => (<TableRow key={sale.id} onClick={() => handleSelectGroup(sale)} className={cn('cursor-pointer hover:bg-muted/50', selectedGroup?.activeBillForDisplay.id === sale.id && 'border-l-4 border-l-primary bg-primary/5')}><TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell><TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell><TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell><TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell><TableCell className="text-right text-card-foreground text-xs py-2">Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}</TableCell><TableCell className="text-center py-2"><Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">{sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}</Badge></TableCell></TableRow>)))}</TableBody></Table></ScrollArea>
+              <ScrollArea className="h-full p-3">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-card z-10"><TableRow>
+                  <TableHead className="text-muted-foreground">Bill</TableHead>
+                  {/* <TableHead className="text-muted-foreground">Bill ID</TableHead> */}
+                  {/* <TableHead className="text-muted-foreground">Customer</TableHead> */}
+                  {/* <TableHead className="text-muted-foreground">User</TableHead> */}
+                  <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
+                  <TableHead className="text-center text-muted-foreground">Status</TableHead>
+                  </TableRow></TableHeader>
+                 
+                  <TableBody>{isLoadingSales ? (<TableRow><TableCell colSpan={6} 
+                  className="text-center text-muted-foreground">Loading credit sales...</TableCell>
+                  </TableRow>) : filteredCreditSales.length === 0 ? (<TableRow><TableCell colSpan={6} 
+                  className="text-center text-muted-foreground">No credit sales matching criteria.</TableCell>
+                  </TableRow>) : 
+                  (filteredCreditSales.map((sale) => (<TableRow key={sale.id} onClick={() => handleSelectGroup(sale)} 
+                  className={cn('cursor-pointer hover:bg-muted/50', selectedGroup?.activeBillForDisplay.id === sale.id && 'border-l-4 border-l-primary bg-primary/5')}>
+                    <TableCell className="text-card-foreground text-xs py-2">
+<div className="flex  gap-2 flex-col ">
+                    <span className="text-muted-foreground rounderded-full text-xs font-bold ">  {sale.customerName || 'N/A'} </span>
+                    <span className="text-muted-foreground">  {sale.billNumber} </span>
+                    <span className="text-muted-foreground/70">   {new Date(sale.date).toLocaleDateString()} </span>
+</div>
+                    </TableCell>
+                    {/* <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell> */}
+                    {/* <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell> */}
+                    {/* <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell> */}
+                    <TableCell className="text-right text-card-foreground text-xs py-2">Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-center py-2"><Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} 
+                    className="text-xs">{sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}</Badge>
+                    </TableCell></TableRow>)))}</TableBody>
+                    </Table>
+                    </ScrollArea>
             </CardContent>
             <CardFooter className="p-2 border-t border-border/50"><div className="flex justify-between items-center w-full"><Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button><span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span><Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button></div></CardFooter>
           </Card>
