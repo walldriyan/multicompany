@@ -412,7 +412,7 @@ export default function CreditManagementPage() {
                             <span className="text-gray-400 text-sm">Final Balance</span>
                             <h2 className="text-4xl text-red-400 font-bold">
                               {/* Rs. {billFinancials.finalBalance.toFixed(2)} <span className="text-lg font-medium">Due</span> */}
-                              <h2 className="text-4xl font-bold">Rs. {billFinancials.finalBalance.toFixed(2)} <span className="text-sm font-medium">Due</span></h2>
+                              Rs. {billFinancials.finalBalance.toFixed(2)} 
                             </h2>
                           </div>
 
