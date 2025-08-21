@@ -326,6 +326,15 @@ export default function CreditManagementPage() {
 
   const maxPage = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
+  const filteredCreditSales = useMemo(() => {
+    if (!searchTerm) return creditSales;
+    const lowerCaseSearch = searchTerm.toLowerCase();
+    return creditSales.filter(bill =>
+        (bill.billNumber && bill.billNumber.toLowerCase().includes(lowerCaseSearch)) ||
+        (bill.customerName && bill.customerName.toLowerCase().includes(lowerCaseSearch))
+    );
+  }, [creditSales, searchTerm]);
+
   const filteredCustomersForDropdown = useMemo(() => {
     if (!customerSearchTerm) return customers;
     const lowerCaseSearch = customerSearchTerm.toLowerCase();
@@ -391,48 +400,37 @@ export default function CreditManagementPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {billFinancials && (
-                      <Card className="p-4 bg-muted/20 border-border/40">
-                        <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary" />Financial Status</CardTitle></CardHeader>
-                        <CardContent className="p-0">
-                          <Accordion type="single" collapsible defaultValue="summary" className="w-full">
-                            <AccordionItem value="summary" className="border-b-0">
-                              <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
-                                <div className="flex justify-between items-start w-full">
-
-                                  {/* Title */}
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-gray-400 text-sm">Balance</span>
-                                  </div>
-                                  {/* Balance Amount */}
-                                  <div className="flex items-end gap-2">
-                                    <h2 className="text-4xl text-red-400 font-bold">
-                                      Rs{billFinancials.finalBalance.toFixed(2)}</h2>
-                                    {/* <span className="ext-gray-400 text-sm ">
-                                      Due
-                                    </span> */}
-                                    <div className="flex items-center text-green-400 text-sm font-medium">
-                                      <CopySlashIcon className="w-4 h-4 mr-1" />
-                                      {billFinancials.totalPaidByCustomer.toFixed(2)} PAID
+                     {billFinancials && (
+                        <Card className="p-4 bg-muted/20 border-border/40">
+                            <CardHeader className="p-0 pb-3"><CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary" />Financial Status</CardTitle></CardHeader>
+                            <CardContent className="p-0">
+                            <Accordion type="single" collapsible defaultValue="summary" className="w-full">
+                                <AccordionItem value="summary" className="border-b-0">
+                                <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
+                                     <div className="flex justify-between items-start w-full">
+                                        <div className="text-left">
+                                            <span className="text-gray-400 text-sm">Final Balance</span>
+                                            <h2 className="text-4xl text-red-400 font-bold">
+                                            Rs. {billFinancials.finalBalance.toFixed(2)} <span className="text-lg font-medium">Due</span>
+                                            </h2>
+                                        </div>
+                                        <div className="text-right p-2 rounded-md bg-green-500/10 border border-green-500/20 text-xs w-fit">
+                                            <p className="font-medium text-green-400">Net Bill: Rs. {billFinancials.netBillAmount.toFixed(2)}</p>
+                                            <p className="text-muted-foreground">Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</p>
+                                        </div>
                                     </div>
-                                  </div>
-
-
-                                </div>
-
-                                {/* <span className="text-xs font-normal text-muted-foreground pt-1 w-full text-left">Click to view transaction details</span> */}
-                              </AccordionTrigger>
-                              <AccordionContent className="pt-3 mt-2 border-t border-border/50">
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedGroup?.activeBillForDisplay?.paymentMethod}</span></div>
-                                  <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedGroup?.activeBillForDisplay?.date).toLocaleDateString()}</span></div>
-                                  <div className="flex justify-between"><span>Customer:</span> <span>{selectedGroup?.activeBillForDisplay?.customerName || 'N/A'}</span></div>
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </CardContent>
-                      </Card>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-3 mt-2 border-t border-border/50">
+                                    <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between"><span>Payment Method:</span> <span>{selectedGroup?.activeBillForDisplay?.paymentMethod}</span></div>
+                                    <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(selectedGroup?.activeBillForDisplay?.date).toLocaleDateString()}</span></div>
+                                    <div className="flex justify-between"><span>Customer:</span> <span>{selectedGroup?.activeBillForDisplay?.customerName || 'N/A'}</span></div>
+                                    </div>
+                                </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                            </CardContent>
+                        </Card>
                     )}
                     <Card className="p-4 bg-primary/5 border-primary/40 border-dashed">
                       <CardHeader className="p-0 pb-3">
@@ -482,201 +480,194 @@ export default function CreditManagementPage() {
           </Card>
 
           <Card className="w-1/2 lg:w-2/5 flex flex-col bg-card border-border shadow-lg">
-
-
             <CardHeader>
-              <CardTitle className="text-card-foreground">Search &amp; Filter Bills</CardTitle>
-              <Card className="p-3 bg-muted/30 mt-2 border-border/50">
+                <CardTitle className="text-card-foreground">Search & Filter Bills</CardTitle>
+                <Card className="p-3 bg-muted/30 mt-2 border-border/50">
                 <CardDescription className="mb-2 text-muted-foreground">Filter by Date & Supplier</CardDescription>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="grid gap-1">
+                    <div className="grid gap-1">
                     <Label htmlFor="date-filter" className="text-xs">Date Range</Label>
                     <Popover>
-                      <PopoverTrigger asChild>
+                        <PopoverTrigger asChild>
                         <Button id="date-filter" variant="outline" className={cn("w-full justify-start text-left font-normal bg-input border-border", !dateRange && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange?.from ? dateRange.to ? `${format(dateRange.from, "LLL dd, y")} - ${format(dateRange.to, "LLL dd, y")}` : format(dateRange.from, "LLL dd, y") : <span>Pick a date</span>}
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {dateRange?.from ? dateRange.to ? `${format(dateRange.from, "LLL dd, y")} - ${format(dateRange.to, "LLL dd, y")}` : format(dateRange.from, "LLL dd, y") : <span>Pick a date</span>}
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} /></PopoverContent>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} /></PopoverContent>
                     </Popover>
-                  </div>
-                  <div className="grid gap-1">
+                    </div>
+                    <div className="grid gap-1">
                     <Label htmlFor="customer-filter" className="text-xs">Customer</Label>
                     <Popover open={isCustomerPopoverOpen} onOpenChange={(open) => {
-                      setIsCustomerPopoverOpen(open);
-                      if (open) setTimeout(() => customerSearchInputRef.current?.focus(), 100);
+                        setIsCustomerPopoverOpen(open);
+                        if (open) setTimeout(() => customerSearchInputRef.current?.focus(), 100);
                     }}>
-                      <PopoverTrigger asChild>
+                        <PopoverTrigger asChild>
                         <Button
-                          id="customer-filter"
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between bg-input border-border font-normal"
-                          disabled={isLoadingCustomers}
+                            id="customer-filter"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between bg-input border-border font-normal"
+                            disabled={isLoadingCustomers}
                         >
-                          <span className="truncate">
+                            <span className="truncate">
                             {selectedCustomerId === 'all'
-                              ? 'All Customers'
-                              : customers.find(c => c.id === selectedCustomerId)?.name || 'Select customer...'}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                ? 'All Customers'
+                                : customers.find(c => c.id === selectedCustomerId)?.name || 'Select customer...'}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <div className="p-2">
-                          <Input
+                            <Input
                             ref={customerSearchInputRef}
                             placeholder="Search customer..."
                             value={customerSearchTerm}
                             onChange={(e) => setCustomerSearchTerm(e.target.value)}
                             className="h-9"
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                                if (e.key === 'Enter') {
                                 e.preventDefault();
                                 let customerToFilterBy = selectedCustomerId;
                                 if (filteredCustomersForDropdown.length === 1) {
-                                  customerToFilterBy = filteredCustomersForDropdown[0].id;
-                                  setSelectedCustomerId(customerToFilterBy);
+                                    customerToFilterBy = filteredCustomersForDropdown[0].id;
+                                    setSelectedCustomerId(customerToFilterBy);
                                 }
                                 setCurrentPage(1);
                                 setActiveFilters({ customerId: customerToFilterBy, dateRange, status: showPaidBills ? 'PAID' : 'OPEN' });
                                 setIsCustomerPopoverOpen(false);
-                              }
+                                }
                             }}
-                          />
+                            />
                         </div>
                         <ScrollArea className="max-h-60">
-                          <div className="p-1">
+                            <div className="p-1">
                             <Button
-                              variant="ghost"
-                              className="w-full justify-start"
-                              onClick={() => {
+                                variant="ghost"
+                                className="w-full justify-start"
+                                onClick={() => {
                                 setSelectedCustomerId('all');
                                 setIsCustomerPopoverOpen(false);
                                 setCustomerSearchTerm('');
-                              }}
+                                }}
                             >
-                              All Customers
+                                All Customers
                             </Button>
                             {filteredCustomersForDropdown.map(c => (
-                              <Button
+                                <Button
                                 key={c.id}
                                 variant="ghost"
                                 className="w-full justify-start text-left h-auto py-1.5"
                                 onClick={() => {
-                                  setSelectedCustomerId(c.id);
-                                  setIsCustomerPopoverOpen(false);
-                                  setCustomerSearchTerm('');
+                                    setSelectedCustomerId(c.id);
+                                    setIsCustomerPopoverOpen(false);
+                                    setCustomerSearchTerm('');
                                 }}
-                              >
+                                >
                                 <div className="flex flex-col">
-                                  <span>{c.name}</span>
-                                  {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
+                                    <span>{c.name}</span>
+                                    {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
                                 </div>
-                              </Button>
+                                </Button>
                             ))}
-                          </div>
-                          {filteredCustomersForDropdown.length === 0 && customerSearchTerm && (
+                            </div>
+                            {filteredCustomersForDropdown.length === 0 && customerSearchTerm && (
                             <p className="p-2 text-center text-sm text-muted-foreground">No customer found.</p>
-                          )}
+                            )}
                         </ScrollArea>
-                      </PopoverContent>
+                        </PopoverContent>
                     </Popover>
-                  </div>
+                    </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-3">
-                  <Button onClick={handleClearFilters} variant="ghost" size="sm" className="text-xs"><X className="mr-1 h-3 w-3" />Clear</Button>
-                  <Button onClick={handleApplyFilters} size="sm" className="text-xs"><Filter className="mr-1 h-3 w-3" />Apply Filters</Button>
+                    <Button onClick={handleClearFilters} variant="ghost" size="sm" className="text-xs"><X className="mr-1 h-3 w-3" />Clear</Button>
+                    <Button onClick={handleApplyFilters} size="sm" className="text-xs"><Filter className="mr-1 h-3 w-3" />Apply Filters</Button>
                 </div>
-              </Card>
-              <div className="relative mt-4">
+                </Card>
+                <div className="relative mt-4">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Quick-search by Bill ID or Customer..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-input border-border focus:ring-primary text-card-foreground"
+                    placeholder="Quick-search by Bill ID or Customer..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 bg-input border-border focus:ring-primary text-card-foreground"
                 />
-              </div>
-
-              <div className="flex justify-between items-center p-4 border-b border-border/50">
-                <span className="font-semibold text-card-foreground">
-                  {showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})
-                </span>
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid Bills</Label>
-                  <Switch
-                    id="bill-status-toggle"
-                    checked={showPaidBills}
-                    onCheckedChange={(checked) => {
-                      setShowPaidBills(checked);
-                      setCurrentPage(1);
-                      setActiveFilters(prev => ({ ...prev, status: checked ? 'PAID' : 'OPEN' }));
-                    }}
-                    className="data-[state=checked]:bg-green-600"
-                  />
                 </div>
-              </div>
-
-
-
-              <CardContent className="flex-1 overflow-hidden p-0 mt-2  ">
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-0">
+                <div className="flex justify-between items-center p-4 border-b border-border/50">
+                    <span className="font-semibold text-card-foreground">
+                    {showPaidBills ? 'Fully Paid Bills' : 'Open Credit Bills'} ({totalCount})
+                    </span>
+                    <div className="flex items-center space-x-2">
+                    <Label htmlFor="bill-status-toggle" className="text-sm text-muted-foreground">Show Paid</Label>
+                    <Switch
+                        id="bill-status-toggle"
+                        checked={showPaidBills}
+                        onCheckedChange={(checked) => {
+                        setShowPaidBills(checked);
+                        setCurrentPage(1);
+                        setActiveFilters(prev => ({ ...prev, status: checked ? 'PAID' : 'OPEN' }));
+                        }}
+                        className="data-[state=checked]:bg-green-600"
+                    />
+                    </div>
+                </div>
                 <ScrollArea className="h-full">
-                  {isLoadingSales ? (
+                {isLoadingSales ? (
                     <div className="p-4 text-center text-muted-foreground">Loading credit sales...</div>
-                  ) : creditSales.length === 0 ? (
+                ) : filteredCreditSales.length === 0 ? (
                     <div className="p-4 text-center text-muted-foreground">No credit sales matching criteria.</div>
-                  ) : (
+                ) : (
                     <Table >
-                      <TableHeader className="sticky top-0 bg-card z-10">
+                    <TableHeader className="sticky top-0 bg-card z-10">
                         <TableRow>
-                          <TableHead className="text-muted-foreground">Date</TableHead>
-                          <TableHead className="text-muted-foreground">Bill ID</TableHead>
-                          <TableHead className="text-muted-foreground">Customer</TableHead>
-                          <TableHead className="text-muted-foreground">User</TableHead>
-                          <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
-                          <TableHead className="text-center text-muted-foreground">Status</TableHead>
+                        <TableHead className="text-muted-foreground">Date</TableHead>
+                        <TableHead className="text-muted-foreground">Bill ID</TableHead>
+                        <TableHead className="text-muted-foreground">Customer</TableHead>
+                        <TableHead className="text-muted-foreground">User</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Outstanding</TableHead>
+                        <TableHead className="text-center text-muted-foreground">Status</TableHead>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {creditSales.map((sale) => (
-                          <TableRow
+                    </TableHeader>
+                    <TableBody>
+                        {filteredCreditSales.map((sale) => (
+                        <TableRow
                             key={sale.id}
                             onClick={() => handleSelectGroup(sale)}
-                            className={`cursor-pointer hover:bg-muted/50 ${selectedGroup?.activeBillForDisplay.id === sale.id ? 'bg-primary/10' : ''}`}
-                          >
+                            className={cn('cursor-pointer hover:bg-muted/50',
+                                selectedGroup?.activeBillForDisplay.id === sale.id && 'border-l-4 border-primary bg-primary/5'
+                            )}
+                        >
                             <TableCell className="text-card-foreground text-xs py-2">{new Date(sale.date).toLocaleDateString()}</TableCell>
                             <TableCell className="text-card-foreground text-xs py-2">{sale.billNumber}</TableCell>
                             <TableCell className="text-card-foreground text-xs py-2">{sale.customerName || 'N/A'}</TableCell>
                             <TableCell className="text-card-foreground text-xs py-2">{sale.createdBy?.username || 'N/A'}</TableCell>
                             <TableCell className="text-right text-card-foreground text-xs py-2">
-                              Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}
+                            Rs. {(sale.creditOutstandingAmount ?? 0).toFixed(2)}
                             </TableCell>
                             <TableCell className="text-center py-2">
-                              <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
+                            <Badge variant={getStatusBadgeVariant(sale.creditPaymentStatus)} className="text-xs">
                                 {sale.creditPaymentStatus ? sale.creditPaymentStatus.replace('_', ' ') : 'N/A'}
-                              </Badge>
+                            </Badge>
                             </TableCell>
-                          </TableRow>
+                        </TableRow>
                         ))}
-                      </TableBody>
+                    </TableBody>
                     </Table>
-                  )}
+                )}
                 </ScrollArea>
-              </CardContent>
+            </CardContent>
 
-              <CardFooter className="p-2 border-t border-border/50">
+            <CardFooter className="p-2 border-t border-border/50">
                 <div className="flex justify-between items-center w-full">
-                  <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
-                  <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
-                  <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
+                    <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoadingSales} variant="outline" size="sm">Previous</Button>
+                    <span className="text-xs text-muted-foreground">Page {currentPage} of {maxPage}</span>
+                    <Button onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))} disabled={currentPage === maxPage || isLoadingSales} variant="outline" size="sm">Next</Button>
                 </div>
-              </CardFooter>
-
-
-            </CardHeader>
-
+            </CardFooter>
           </Card>
         </div>
 
@@ -697,6 +688,3 @@ export default function CreditManagementPage() {
     </>
   );
 }
-
-
-
