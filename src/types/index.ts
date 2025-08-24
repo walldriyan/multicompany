@@ -2,6 +2,7 @@
 
 
 
+
 export interface BuyGetRule {
     buyProductId: string;
     buyQuantity: number;
@@ -80,6 +81,9 @@ export interface SaleItem extends Product {
   price: number; // Actual price for this item in the sale (could be batch-specific)
   selectedBatchId?: string | null;
   selectedBatchNumber?: string | null;
+  // New fields for custom discounts
+  customDiscountType?: 'percentage' | 'fixed' | null;
+  customDiscountValue?: number | null;
 }
 
 
@@ -135,7 +139,8 @@ export interface AppliedRuleInfo {
     | 'campaign_default_specific_unit_price'
     | 'campaign_global_cart_price'
     | 'campaign_global_cart_quantity'
-    | 'buy_get_free';
+    | 'buy_get_free'
+    | 'custom_item_discount'; // Added for custom discounts
   productIdAffected?: string; 
   appliedOnce?: boolean; 
 }
@@ -154,6 +159,9 @@ export interface SaleRecordItem {
   costPriceAtSale: number;
   batchId?: string | null; // NEW: Track which batch was sold
   batchNumber?: string | null; // NEW: Store batch number for display
+  // New fields for custom discounts
+  customDiscountType?: 'percentage' | 'fixed' | null;
+  customDiscountValue?: number | null;
 }
 
 
@@ -588,5 +596,3 @@ export interface ComprehensiveReport {
   newOrUpdatedProducts: Product[];
   newOrUpdatedParties: Party[];
 }
-
-    

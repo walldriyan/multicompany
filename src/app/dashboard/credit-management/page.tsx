@@ -425,7 +425,7 @@ export default function CreditManagementPage() {
                             </div>
                             <div className="flex items-center text-primary text-xl font-medium">
                               <ArrowUpRight className="w-4 h-4 mr-1" />
-                              OF  Rs. {billFinancials.netBillAmount.toFixed(2)}
+                              OF  Rs. {billFinancials.netBillAmount.toFixed(2)} BILL.
                             </div>
                           </div>
 
