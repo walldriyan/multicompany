@@ -125,7 +125,9 @@ export const AppliedRuleInfoSchema = z.object({
     'campaign_global_cart_price',
     'campaign_global_cart_quantity',
     // New Buy & Get rule
-    'buy_get_free'
+    'buy_get_free',
+    // New type for custom discounts
+    'custom_item_discount',
   ]),
   productIdAffected: z.string().optional(),
   appliedOnce: z.boolean().optional(),
@@ -166,6 +168,8 @@ export const SaleRecordItemSchema = z.object({
   costPriceAtSale: z.number(), // Added for profit calculation
   batchId: z.string().optional().nullable(),
   batchNumber: z.string().optional().nullable(),
+  customDiscountType: z.enum(['percentage', 'fixed']).optional().nullable(),
+  customDiscountValue: z.number().optional().nullable(),
 });
 export type SaleRecordItemInput = z.infer<typeof SaleRecordItemSchema>;
 

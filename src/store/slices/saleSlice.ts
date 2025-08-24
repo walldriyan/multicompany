@@ -196,6 +196,22 @@ export const saleSlice = createSlice({
         }
       }
     },
+    applyCustomDiscount: (state, action: PayloadAction<{ saleItemId: string; type: 'percentage' | 'fixed'; value: number }>) => {
+      const { saleItemId, type, value } = action.payload;
+      const itemIndex = state.saleItems.findIndex(item => item.saleItemId === saleItemId);
+      if (itemIndex !== -1) {
+        state.saleItems[itemIndex].customDiscountType = type;
+        state.saleItems[itemIndex].customDiscountValue = value;
+      }
+    },
+    removeCustomDiscount: (state, action: PayloadAction<{ saleItemId: string }>) => {
+      const { saleItemId } = action.payload;
+      const itemIndex = state.saleItems.findIndex(item => item.saleItemId === saleItemId);
+      if (itemIndex !== -1) {
+        state.saleItems[itemIndex].customDiscountType = null;
+        state.saleItems[itemIndex].customDiscountValue = null;
+      }
+    },
   },
 });
 
@@ -204,7 +220,7 @@ export const {
   _internalAddDiscountSet, _internalUpdateDiscountSet, _internalDeleteDiscountSet, _internalSetTaxRate,
   addProductToSale, updateItemQuantity, removeItemFromSale, clearSale,
   _internalUpdateMultipleProductStock, _internalAddNewProduct, _internalUpdateProduct, _internalDeleteProduct,
-  setActiveDiscountSetId,
+  setActiveDiscountSetId, applyCustomDiscount, removeCustomDiscount,
 } = saleSlice.actions;
 
 export const selectAllProducts = (state: RootState) => state.sale.allProducts;

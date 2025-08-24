@@ -42,9 +42,12 @@ export function SaleSummary({
   const itemLevelDiscounts = appliedDiscountSummary.filter(d => 
     (d.ruleType.startsWith('product_config_') || 
     d.ruleType.startsWith('campaign_default_')) &&
-    d.ruleType !== 'buy_get_free'
+    d.ruleType !== 'buy_get_free' &&
+    d.ruleType !== 'custom_item_discount'
   );
   
+  const customDiscounts = appliedDiscountSummary.filter(d => d.ruleType === 'custom_item_discount');
+
   const buyGetDiscounts = appliedDiscountSummary.filter(d => d.ruleType === 'buy_get_free');
 
   const cartLevelDiscounts = appliedDiscountSummary.filter(d => d.ruleType.startsWith('campaign_global_'));
@@ -79,6 +82,18 @@ export function SaleSummary({
                     View Applied Discount Details
                     </AccordionTrigger>
                     <AccordionContent className="pt-1 pb-2 px-3 space-y-3">
+                    
+                    {customDiscounts.length > 0 && (
+                        <div className="space-y-1">
+                            <div className="text-xs font-semibold text-muted-foreground flex items-center"><Tag className="mr-2 h-4 w-4 text-primary"/>Custom Item Discounts</div>
+                            {customDiscounts.map((discount, index) => (
+                                <div key={`custom-${discount.productIdAffected}-${index}`} className="flex justify-between items-center text-primary text-xs pl-2">
+                                <span>{discount.sourceRuleName}</span>
+                                <span>-Rs. {discount.totalCalculatedDiscount.toFixed(2)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     
                     {itemLevelDiscounts.length > 0 && (
                         <div className="space-y-1">
