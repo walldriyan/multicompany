@@ -88,7 +88,7 @@ export function calculateDiscountsForItems(
   const detailedAppliedDiscountSummary: AppliedRuleInfo[] = [];
 
 
-  if (!activeCampaign || !activeCampaign.isActive || saleItems.length === 0) {
+  if (saleItems.length === 0) {
     return {
       itemDiscounts: itemLevelDiscountsMap,
       cartDiscountsAppliedDetails: globalCartRulesAppliedDetails,
@@ -101,15 +101,48 @@ export function calculateDiscountsForItems(
   // A temporary map to track remaining quantities for "Buy & Get" offers.
   const tempItemQuantities = new Map(saleItems.map(item => [item.id, item.quantity]));
 
-  // 1. Evaluate Item-Level Discounts (Percentage/Fixed)
+  // 1. Evaluate Item-Level Discounts (Custom and Campaign)
   saleItems.forEach(saleItem => {
     const productDetails = allProducts.find(p => p.id === saleItem.id);
     if (!productDetails) return;
 
-    // *** FIX: Use saleItem.price which reflects the batch-specific selling price ***
     const itemOriginalLineValue = saleItem.price * saleItem.quantity;
     let totalDiscountForThisLine = 0;
     
+    // --- START: CUSTOM DISCOUNT CHECK ---
+    if (saleItem.customDiscountValue && saleItem.customDiscountValue > 0) {
+        if (saleItem.customDiscountType === 'fixed') {
+            totalDiscountForThisLine = saleItem.customDiscountValue * saleItem.quantity;
+        } else { // percentage
+            totalDiscountForThisLine = itemOriginalLineValue * (saleItem.customDiscountValue / 100);
+        }
+        
+        totalDiscountForThisLine = Math.max(0, Math.min(totalDiscountForThisLine, itemOriginalLineValue));
+        
+        if (totalDiscountForThisLine > 0) {
+            detailedAppliedDiscountSummary.push({
+                discountCampaignName: "Custom",
+                sourceRuleName: "Custom Item Discount",
+                totalCalculatedDiscount: totalDiscountForThisLine,
+                ruleType: 'custom_item_discount',
+                productIdAffected: saleItem.id,
+                appliedOnce: false,
+            });
+             itemLevelDiscountsMap.set(saleItem.id, {
+                ruleName: "Custom Discount", ruleCampaignName: "Custom", 
+                perUnitEquivalentAmount: saleItem.quantity > 0 ? totalDiscountForThisLine / saleItem.quantity : 0,
+                totalCalculatedDiscountForLine: totalDiscountForThisLine,
+                ruleType: 'custom_item_discount', appliedOnce: false
+            });
+            totalItemDiscountSum += totalDiscountForThisLine;
+        }
+        // If a custom discount is applied, we skip campaign rules for this item.
+        return; 
+    }
+    // --- END: CUSTOM DISCOUNT CHECK ---
+
+    if (!activeCampaign || !activeCampaign.isActive) return; // Skip campaign rules if none active
+
     const productConfigInCampaign = activeCampaign.productConfigurations?.find(
       pc => pc.productId === saleItem.id && pc.isActiveForProductInCampaign
     );
@@ -132,10 +165,8 @@ export function calculateDiscountsForItems(
       );
     }
 
-    // New logic: Stack all applicable discounts, don't just pick the best.
     rulesToConsiderForItem.forEach(ruleEntry => {
       if (ruleEntry.config && ruleEntry.config.isEnabled) {
-        // *** FIX: Use saleItem.price which is batch-specific ***
         const discountFromThisRule = evaluateRule(ruleEntry.config, saleItem.price, saleItem.quantity, itemOriginalLineValue, ruleEntry.context);
         if (discountFromThisRule > 0) {
             totalDiscountForThisLine += discountFromThisRule;
@@ -158,16 +189,30 @@ export function calculateDiscountsForItems(
         ruleCampaignName: activeCampaign.name,
         perUnitEquivalentAmount: perUnitEquivalent,
         totalCalculatedDiscountForLine: totalDiscountForThisLine,
-        ruleType: 'product_config_line_item_value', // This needs refinement if we want to show multiple rule types
-        appliedOnce: false, // This needs refinement
+        ruleType: 'product_config_line_item_value', 
+        appliedOnce: false,
       });
       totalItemDiscountSum += totalDiscountForThisLine;
     }
   });
 
-  // 2. Evaluate "Buy & Get" Rules
+  if (!activeCampaign || !activeCampaign.isActive) {
+    return {
+      itemDiscounts: itemLevelDiscountsMap,
+      cartDiscountsAppliedDetails: [],
+      totalItemDiscountAmount: totalItemDiscountSum,
+      totalCartDiscountAmount: 0,
+      fullAppliedDiscountSummary: detailedAppliedDiscountSummary,
+    };
+  }
+
+  // 2. Evaluate "Buy & Get" Rules (Only if no custom discount is applied to the 'get' item)
   if (activeCampaign.buyGetRulesJson && activeCampaign.buyGetRulesJson.length > 0) {
       activeCampaign.buyGetRulesJson.forEach(rule => {
+          // Check if the 'get' product already has a custom discount. If so, skip this BOGO rule for it.
+          const getSaleItem = saleItems.find(i => i.id === rule.getProductId);
+          if (getSaleItem?.customDiscountValue) return;
+
           const buyProductQtyInCart = tempItemQuantities.get(rule.buyProductId) || 0;
 
           if (buyProductQtyInCart >= rule.buyQuantity) {
@@ -184,11 +229,10 @@ export function calculateDiscountsForItems(
 
                   let discountPerUnit;
                   if (rule.discountType === 'percentage') {
-                    // *** FIX: Find the correct item in cart to get its actual selling price ***
                     const getItemInCart = saleItems.find(i => i.id === rule.getProductId);
                     const sellingPriceForDiscount = getItemInCart ? getItemInCart.price : getProductDetails.sellingPrice;
                     discountPerUnit = sellingPriceForDiscount * (rule.discountValue / 100);
-                  } else { // fixed
+                  } else { 
                     discountPerUnit = rule.discountValue;
                   }
                   
@@ -223,7 +267,6 @@ export function calculateDiscountsForItems(
 
   // 3. Apply Global Cart-Level Discounts
   const subtotalAfterAllItemDiscounts = saleItems.reduce((sum, saleItem) => {
-    // *** FIX: Use saleItem.price which is batch-specific ***
     const itemOriginalPrice = saleItem.price;
     const itemDiscountForLine = itemLevelDiscountsMap.get(saleItem.id)?.totalCalculatedDiscountForLine || 0;
     return sum + (itemOriginalPrice * saleItem.quantity) - itemDiscountForLine;
@@ -235,7 +278,6 @@ export function calculateDiscountsForItems(
     { config: activeCampaign.globalCartQuantityRuleJson, type: 'campaign_global_cart_quantity' as AppliedRuleInfo['ruleType'] },
   ];
 
-  // Logic to stack cart-level discounts
   globalCartRulesToProcess.forEach(cartRuleEntry => {
     if (cartRuleEntry.config && cartRuleEntry.config.isEnabled) {
       const cartRule = cartRuleEntry.config;
