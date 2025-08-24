@@ -29,6 +29,8 @@ import {
   initializeTaxRate,
   initializeAllProducts,
   _internalUpdateMultipleProductStock,
+  applyCustomDiscount,
+  removeCustomDiscount,
 } from '@/store/slices/saleSlice';
 import { selectCurrentUser, selectAuthStatus, clearUser, setUser } from '@/store/slices/authSlice';
 
@@ -47,6 +49,7 @@ import { CurrentSaleItemsTable } from "@/components/pos/CurrentSaleItemsTable";
 import { SettingsDialog } from "@/components/pos/SettingsDialog";
 import { DiscountInfoDialog } from "@/components/pos/DiscountInfoDialog";
 import { PaymentDialog, PaymentFormContent } from "@/components/pos/PaymentDialog";
+import { ApplyCustomDiscountDialog } from './ApplyCustomDiscountDialog';
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft, DoorClosed } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -125,6 +128,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const [isMounting, setIsMounting] = useState(true);
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
   const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
+  const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] = useState(false);
+  const [itemForCustomDiscount, setItemForCustomDiscount] = useState<SaleItem | null>(null);
   
   useEffect(() => {
     setIsClient(true);
@@ -325,8 +330,17 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
         const productDetails = currentAllProducts.find(p => p.id === item.id);
         const originalItemPrice = item.price; 
         const itemDiscountDetails = currentItemDiscountsMap.get(item.id);
-        const totalDiscountAppliedToThisLine = itemDiscountDetails?.totalCalculatedDiscountForLine ?? 0;
-        let effectivePricePaidPerUnitValue = originalItemPrice - (item.quantity > 0 ? totalDiscountAppliedToThisLine / item.quantity : 0);
+
+        let totalDiscountAppliedToThisLine = itemDiscountDetails?.totalCalculatedDiscountForLine ?? 0;
+        let effectivePricePaidPerUnitValue = originalItemPrice;
+        
+        if (item.customDiscountValue) {
+            totalDiscountAppliedToThisLine = item.customDiscountType === 'fixed'
+                ? item.customDiscountValue * item.quantity
+                : item.price * item.quantity * (item.customDiscountValue / 100);
+        }
+
+        effectivePricePaidPerUnitValue = originalItemPrice - (item.quantity > 0 ? totalDiscountAppliedToThisLine / item.quantity : 0);
         effectivePricePaidPerUnitValue = Math.max(0, effectivePricePaidPerUnitValue);
 
         const unitsToStore: UnitDefinition = {
@@ -343,6 +357,8 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             costPriceAtSale: item.costPrice || 0,
             batchId: item.selectedBatchId,
             batchNumber: item.selectedBatchNumber,
+            customDiscountType: item.customDiscountType,
+            customDiscountValue: item.customDiscountValue,
         };
      });
     
@@ -441,7 +457,6 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
       productSearchRef.current?.focusSearchInput();
   };
 
-
   const handleActiveDiscountSetChange = (setId: string) => {
     dispatch(setActiveDiscountSetId(setId === "none" ? null : setId));
   };
@@ -514,6 +529,19 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
     }
   };
 
+  const handleOpenCustomDiscountDialog = (item: SaleItem) => {
+    setItemForCustomDiscount(item);
+    setIsCustomDiscountDialogOpen(true);
+  };
+
+  const handleApplyCustomDiscount = (itemId: string, type: 'percentage' | 'fixed', value: number) => {
+    dispatch(applyCustomDiscount({ saleItemId: itemId, type, value }));
+  };
+
+  const handleRemoveCustomDiscount = (itemId: string) => {
+    dispatch(removeCustomDiscount({ saleItemId: itemId }));
+  };
+
   // Conditional returns are now at the end
   if (authStatus === 'loading' || !currentUser || (isMounting && isClient)) {
     return (
@@ -576,6 +604,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
              items={saleItems}
              onQuantityChange={handleQuantityChange}
              onRemoveItem={handleRemoveItem}
+             onOpenCustomDiscountDialog={handleOpenCustomDiscountDialog}
            />
         </div>
       </div>
@@ -764,6 +793,13 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             onPaymentSuccess={handlePaymentSuccess}
         />
       )}
+      <ApplyCustomDiscountDialog
+        isOpen={isCustomDiscountDialogOpen}
+        onOpenChange={setIsCustomDiscountDialogOpen}
+        item={itemForCustomDiscount}
+        onApplyDiscount={handleApplyCustomDiscount}
+        onRemoveDiscount={handleRemoveCustomDiscount}
+      />
     </div>
   );
 }

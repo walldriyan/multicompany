@@ -13,7 +13,7 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import { Plus, Minus, Trash2, Search as SearchIcon } from 'lucide-react'; 
+import { Plus, Minus, Trash2, Search as SearchIcon, Tag } from 'lucide-react'; 
 import { useSelector } from 'react-redux';
 import { selectCalculatedDiscounts } from '@/store/slices/saleSlice';
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
@@ -22,9 +22,10 @@ interface CurrentSaleItemsTableProps {
   items: SaleItem[];
   onQuantityChange: (itemId: string, newQuantity: number) => void;
   onRemoveItem: (itemId: string) => void;
+  onOpenCustomDiscountDialog: (item: SaleItem) => void; // New prop
 }
 
-export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }: CurrentSaleItemsTableProps) {
+export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, onOpenCustomDiscountDialog }: CurrentSaleItemsTableProps) {
   const { itemDiscounts: calculatedItemDiscountsMap } = useSelector(selectCalculatedDiscounts);
 
   if (!items || items.length === 0) {
@@ -54,16 +55,31 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
     onQuantityChange(item.saleItemId, item.quantity - 1);
   };
 
-  const getDiscountDisplayForItem = (itemId: string) => {
-    const discountInfo = calculatedItemDiscountsMap.get(itemId);
-    const item = items.find(i => i.id === itemId);
-    if (discountInfo && discountInfo.totalCalculatedDiscountForLine > 0 && item) {
-      if (discountInfo.appliedOnce && discountInfo.totalCalculatedDiscountForLine > 0) {
-          return `${discountInfo.ruleName} (-Rs. ${discountInfo.totalCalculatedDiscountForLine.toFixed(2)} total for line)`;
-      }
-      return `${discountInfo.ruleName} (-Rs. ${discountInfo.perUnitEquivalentAmount.toFixed(2)} per ${item.units.baseUnit})`;
+  const getDiscountDisplayForItem = (item: SaleItem) => {
+    if (item.customDiscountValue) {
+      const type = item.customDiscountType === 'percentage' ? '%' : ' Rs.';
+      return {
+        text: `Custom: ${item.customDiscountValue}${type}`,
+        isCustom: true
+      };
     }
-    return 'No Item Discount';
+    const discountInfo = calculatedItemDiscountsMap.get(item.id);
+    if (discountInfo && discountInfo.totalCalculatedDiscountForLine > 0) {
+      if (discountInfo.appliedOnce && discountInfo.totalCalculatedDiscountForLine > 0) {
+        return {
+          text: `${discountInfo.ruleName} (-Rs. ${discountInfo.totalCalculatedDiscountForLine.toFixed(2)} total)`,
+          isCustom: false
+        };
+      }
+      return {
+        text: `${discountInfo.ruleName} (-Rs. ${discountInfo.perUnitEquivalentAmount.toFixed(2)} per ${item.units.baseUnit})`,
+        isCustom: false
+      };
+    }
+    return {
+      text: 'No Item Discount',
+      isCustom: false
+    };
   };
 
 
@@ -83,12 +99,18 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
         <TableBody>
           {items.map((item) => {
             const itemDiscountInfo = calculatedItemDiscountsMap.get(item.id);
-            const perUnitEquivalentDiscountAmount = itemDiscountInfo?.perUnitEquivalentAmount || 0;
+            const perUnitEquivalentDiscountAmount = item.customDiscountType === 'fixed' 
+                ? (item.customDiscountValue || 0)
+                : item.customDiscountType === 'percentage'
+                ? (item.price * (item.customDiscountValue || 0) / 100)
+                : (itemDiscountInfo?.perUnitEquivalentAmount || 0);
+
             const originalUnitPrice = item.price ?? 0;
             const discountedPricePerBaseUnit = originalUnitPrice - perUnitEquivalentDiscountAmount;
             const lineTotal = discountedPricePerBaseUnit * item.quantity;
             const lineTotalWithoutDiscount = originalUnitPrice * item.quantity;
             const { displayQuantity, displayUnit } = getDisplayQuantityAndUnit(item.quantity, item.units);
+            const discountDisplay = getDiscountDisplayForItem(item);
 
             return (
             <TableRow key={item.saleItemId} className="hover:bg-muted/20">
@@ -103,8 +125,16 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
               <TableCell className="text-right text-foreground align-middle">
                 Rs. {originalUnitPrice.toFixed(2)} <span className="text-xs text-muted-foreground">/{item.units.baseUnit}</span>
               </TableCell>
-              <TableCell className="text-foreground align-middle text-xs" title={getDiscountDisplayForItem(item.id)}>
-                {getDiscountDisplayForItem(item.id)}
+              <TableCell className="text-foreground align-middle text-xs">
+                 <Button 
+                    variant="link" 
+                    className={`p-0 h-auto text-xs font-normal justify-start ${discountDisplay.isCustom ? 'text-primary' : 'text-foreground'}`}
+                    onClick={() => onOpenCustomDiscountDialog(item)}
+                    title="Click to apply a custom discount"
+                >
+                    <Tag className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{discountDisplay.text}</span>
+                </Button>
               </TableCell>
               <TableCell className="text-center align-middle">
                 <div className="flex flex-col items-center justify-center">
@@ -137,7 +167,7 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem }:
                 </div>
               </TableCell>
               <TableCell className="text-right text-foreground align-middle">
-                {itemDiscountInfo && itemDiscountInfo.totalCalculatedDiscountForLine > 0 ? (
+                {itemDiscountInfo || item.customDiscountValue ? (
                   <>
                     <div className="font-medium">
                       Rs. {lineTotal.toFixed(2)}
