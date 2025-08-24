@@ -236,6 +236,9 @@ export async function processFullReturnWithRecalculationAction(
           barcode: productInfo?.barcode, code: productInfo?.code,
           sellingPrice: batchInfo?.sellingPrice || productInfo?.sellingPrice || item.priceAtSale,
           saleItemId: `sale-item-${item.productId}`, // dummy id
+          // **BUG FIX**: Pass the original custom discount info for recalculation
+          customDiscountType: item.customDiscountType,
+          customDiscountValue: item.customDiscountValue,
         };
       });
 
