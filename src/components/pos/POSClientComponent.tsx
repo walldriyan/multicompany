@@ -40,7 +40,8 @@ import { logoutAction } from '@/app/actions/authActions';
 import { getAllProductsAction } from '@/app/actions/productActions'; // Import the action to fetch products
 import type { Product, SaleItem, DiscountSet, AppliedRuleInfo, SpecificDiscountRuleConfig, PaymentMethod, SaleRecordType, SaleStatus, SaleRecordItemInput, SaleRecordInput, UnitDefinition, CreditPaymentStatus, ProductBatch } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ProductSearch, type ProductSearchHandle } from "@/components/pos/ProductSearch";
@@ -51,7 +52,7 @@ import { DiscountInfoDialog } from "@/components/pos/DiscountInfoDialog";
 import { PaymentDialog, PaymentFormContent } from "@/components/pos/PaymentDialog";
 import { ApplyCustomDiscountDialog } from './ApplyCustomDiscountDialog';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft, DoorClosed } from "lucide-react";
+import { PlusCircle, CreditCard, DollarSign, ShoppingBag, Settings as SettingsIcon, ArchiveRestore, LayoutDashboard, LogOut, CheckSquare, XCircle, ArrowLeft, DoorClosed, Tag, ChevronsUpDown, Check } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import BarcodeReader from 'react-barcode-reader';
@@ -59,6 +60,7 @@ import { CreditPaymentStatusEnumSchema } from '@/lib/zodSchemas';
 import { store } from '@/store/store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { cn } from '@/lib/utils';
 
 type CheckoutMode = 'popup' | 'inline';
 
@@ -130,6 +132,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
   const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
   const [isCustomDiscountDialogOpen, setIsCustomDiscountDialogOpen] = useState(false);
   const [itemForCustomDiscount, setItemForCustomDiscount] = useState<SaleItem | null>(null);
+  const [isDiscountPopoverOpen, setIsDiscountPopoverOpen] = useState(false);
   
   useEffect(() => {
     setIsClient(true);
@@ -459,6 +462,7 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
 
   const handleActiveDiscountSetChange = (setId: string) => {
     dispatch(setActiveDiscountSetId(setId === "none" ? null : setId));
+    setIsDiscountPopoverOpen(false);
   };
 
   const handleOpenDiscountInfoDialog = useCallback((ruleInfo: AppliedRuleInfo) => {
@@ -682,17 +686,49 @@ export function POSClientComponent({ serverState }: POSClientComponentProps) {
             <div className="px-4 space-y-3">
                 <div className="space-y-2">
                     <Label htmlFor="active-discount-set" className="text-sm font-medium">Active Discount Set</Label>
-                    <Select value={activeDiscountSetId || "none"} onValueChange={handleActiveDiscountSetChange}>
-                        <SelectTrigger id="active-discount-set" className="w-full bg-input border-border focus:ring-primary text-card-foreground">
-                            <SelectValue placeholder="Select a discount set..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">No Discount Set Applied</SelectItem>
-                            {discountSets.map(ds => (
-                                <SelectItem key={ds.id} value={ds.id}>{ds.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={isDiscountPopoverOpen} onOpenChange={setIsDiscountPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={isDiscountPopoverOpen}
+                                className="w-full justify-between bg-input border-border"
+                            >
+                                <span className="truncate">
+                                    {activeDiscountSetId
+                                    ? discountSets.find((ds) => ds.id === activeDiscountSetId)?.name
+                                    : "No Discount Set Applied"}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                <CommandInput placeholder="Search discount set..." />
+                                <CommandList>
+                                    <CommandEmpty>No discount set found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <CommandItem onSelect={() => handleActiveDiscountSetChange("none")}>
+                                            <Check className={cn("mr-2 h-4 w-4", !activeDiscountSetId ? "opacity-100" : "opacity-0")} />
+                                            <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+                                            No Discount Set
+                                        </CommandItem>
+                                        {discountSets.map((ds) => (
+                                            <CommandItem
+                                            key={ds.id}
+                                            value={ds.name}
+                                            onSelect={() => handleActiveDiscountSetChange(ds.id)}
+                                            >
+                                            <Check className={cn("mr-2 h-4 w-4", activeDiscountSetId === ds.id ? "opacity-100" : "opacity-0")}/>
+                                            <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+                                            {ds.name}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
             </div>
             <Separator className="bg-border my-4" />
