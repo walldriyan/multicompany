@@ -32,6 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface ItemToReturnEntry extends SaleRecordItem {
@@ -706,7 +707,27 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                 <div className="flex justify-between items-start w-full">
                                     <div className="text-left">
                                       <span className="text-gray-400 text-sm">Final Balance Due</span>
-                                      <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
+                                      <div className="flex items-center gap-2">
+                                         <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
+                                         <TooltipProvider delayDuration={100}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs text-xs bg-card border-border text-foreground" side="right">
+                                                    <p className="font-bold mb-1">ගණනය කළ ආකාරය:</p>
+                                                    <div className="space-y-0.5">
+                                                        <p>යාවත්කාලීන වූ බිලේ එකතුව: රු. {billFinancials.netBillAmount.toFixed(2)}</p>
+                                                        <p>මේ වන තෙක් ගෙවූ මුළු මුදල: රු. {billFinancials.totalPaidByCustomer.toFixed(2)}</p>
+                                                        <p>ආපසු බැර වූ (Refund) මුදල: රු. {billFinancials.totalRefunded.toFixed(2)}</p>
+                                                        <Separator className="my-1 bg-border/50" />
+                                                        <p className="font-bold">ගෙවිය යුතු අවසන් ශේෂය:</p>
+                                                        <p>රු. {billFinancials.netBillAmount.toFixed(2)} - රු. {billFinancials.totalPaidByCustomer.toFixed(2)} + රු. {billFinancials.totalRefunded.toFixed(2)} = රු. {billFinancials.finalBalance.toFixed(2)}</p>
+                                                    </div>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                         </TooltipProvider>
+                                      </div>
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
                                       <div className="flex items-center text-green-400 text-sm font-medium"><ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</div>

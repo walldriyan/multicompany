@@ -58,8 +58,9 @@ export function ReturnReceiptPrintContent({
     0
   );
 
-  const totalInstallmentsPaid = (originalSale.paymentInstallments || []).reduce((sum, inst) => sum + inst.amountPaid, 0);
-  const currentOutstandingBalance = adjustedSale.totalAmount - totalInstallmentsPaid + totalAllLoggedReturnsAmount;
+  const totalPaidByCustomer = originalSale.amountPaidByCustomer || 0;
+  const currentOutstandingBalance = adjustedSale.totalAmount - totalPaidByCustomer + totalAllLoggedReturnsAmount;
+
 
   return (
     <>
@@ -225,8 +226,8 @@ export function ReturnReceiptPrintContent({
               <p className="section-title font-bold">Credit Account Summary:</p>
               <div className="totals-section">
                 <div><span>Net Bill Amount:</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
-                <div><span>Total Installments Paid:</span><span className="value">Rs. {totalInstallmentsPaid.toFixed(2)}</span></div>
-                <div><span>Total Refunded to Date:</span><span className="value">-Rs. {totalAllLoggedReturnsAmount.toFixed(2)}</span></div>
+                <div><span>Total Paid by Customer:</span><span className="value">Rs. {totalPaidByCustomer.toFixed(2)}</span></div>
+                <div><span>Total Refunded (Credited Back):</span><span className="value">-Rs. {totalAllLoggedReturnsAmount.toFixed(2)}</span></div>
                 <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {currentOutstandingBalance.toFixed(2)}</span></div>
                 {originalSale.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{currentOutstandingBalance <= 0.01 ? 'FULLY_PAID' : 'PARTIALLY_PAID'}</span></div>}
               </div>
