@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { SaleRecord, ReturnedItemDetail, UnitDefinition } from '@/types';
+import type { SaleRecord, ReturnedItemDetail, UnitDefinition, PaymentInstallment } from '@/types';
 
 interface ReturnReceiptPrintContentProps {
   originalSale: SaleRecord;
@@ -18,7 +18,7 @@ export function ReturnReceiptPrintContent({
   const companyAddress = "123 Main Street, Colombo, Sri Lanka";
   const companyPhone = "+94 11 234 5678";
 
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleString();
+  const formatDate = (dateString: string | null | undefined) => dateString ? new Date(dateString).toLocaleString() : 'N/A';
 
   const renderFinancialSummaryForPrint = (sale: SaleRecord, title: string) => {
     return (
@@ -49,9 +49,13 @@ export function ReturnReceiptPrintContent({
     0
   );
 
-  const getUnitText = (units: UnitDefinition | undefined) => {
+  const getUnitText = (units: UnitDefinition | undefined | null) => {
     return units?.baseUnit || '';
   }
+
+  const totalInstallmentsPaid = (originalSale.paymentInstallments || []).reduce((sum, inst) => sum + inst.amountPaid, 0);
+  const currentOutstandingBalance = adjustedSale.totalAmount - (totalInstallmentsPaid - totalAllLoggedReturnsAmount);
+
 
   return (
     <>
@@ -131,7 +135,7 @@ export function ReturnReceiptPrintContent({
             </div>
           </div>
       )}
-      <hr className="separator" />
+      {(returnTransaction && (adjustedSale.returnedItemsLog && adjustedSale.returnedItemsLog.length > 0)) && <hr className="separator" />}
 
       {/* Full Return History Section */}
       {(adjustedSale.returnedItemsLog && adjustedSale.returnedItemsLog.length > 0) && (
@@ -148,7 +152,7 @@ export function ReturnReceiptPrintContent({
                 <th className="text-right">Total Line Refund</th>
               </tr>
             </thead>
-            <tbody>{adjustedSale.returnedItemsLog.map((logEntry: ReturnedItemDetail, index: number) => (
+            <tbody>{(adjustedSale.returnedItemsLog as ReturnedItemDetail[]).filter(log => !log.isUndone).map((logEntry, index) => (
               <tr key={`log-${index}-${logEntry.itemId}-${logEntry.returnTransactionId}`}>
                 <td className="item-name">{new Date(logEntry.returnDate).toLocaleDateString()}</td>
                 <td className="item-name text-xs">{logEntry.returnTransactionId}</td>
@@ -161,7 +165,7 @@ export function ReturnReceiptPrintContent({
           </table>
           <div className="totals-section">
             <div className="font-bold">
-              <span>Total Refunded (All Logged Returns for this Bill):</span>
+              <span>Total Refunded (All Active Returns for this Bill):</span>
               <span className="text-right">Rs. {totalAllLoggedReturnsAmount.toFixed(2)}</span>
             </div>
           </div>
@@ -209,6 +213,32 @@ export function ReturnReceiptPrintContent({
           <p className="text-center">(All items from original bill have been returned)</p>
         )}
       </div>
+      
+      {originalSale.isCreditSale && (
+          <>
+            <hr className="separator" />
+            <div className="section-break">
+              <p className="section-title font-bold">Credit Account Summary:</p>
+              <div className="totals-section">
+                <div><span>Total Amount Credited (Bill Total):</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
+                <div><span>Total Installments Paid:</span><span className="value">Rs. {totalInstallmentsPaid.toFixed(2)}</span></div>
+                <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {currentOutstandingBalance.toFixed(2)}</span></div>
+                {originalSale.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{originalSale.creditPaymentStatus.replace('_', ' ')}</span></div>}
+              </div>
+            </div>
+            
+            {(originalSale.paymentInstallments && originalSale.paymentInstallments.length > 0) && (
+              <>
+                <p className="section-title font-bold" style={{marginTop: '5px'}}>Payment Installment History:</p>
+                <table className="sub-table">
+                  <thead><tr><th className="text-left">Date</th><th className="text-right">Amount Paid</th><th className="text-left">Method</th></tr></thead>
+                  <tbody>{(originalSale.paymentInstallments as PaymentInstallment[]).map(inst => (<tr key={inst.id}><td>{formatDate(inst.paymentDate)}</td><td className="text-right">Rs. {inst.amountPaid.toFixed(2)}</td><td>{inst.method}</td></tr>))}</tbody>
+                </table>
+              </>
+            )}
+          </>
+      )}
+
       <hr className="separator" />
       <p className="message">Thank You.</p>
     </>
