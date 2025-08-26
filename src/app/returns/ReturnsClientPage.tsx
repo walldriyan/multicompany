@@ -11,8 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag, AlertTriangle, ArrowUpRight, TrendingDown } from "lucide-react";
-import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput } from '@/types';
+import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag, AlertTriangle, ArrowUpRight, TrendingDown, Landmark, WalletCards, Banknote } from "lucide-react";
+import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput, PaymentInstallment } from '@/types';
 import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, saveSaleRecordAction } from '@/app/actions/saleActions';
 import { processFullReturnWithRecalculationAction } from '@/app/actions/returnActions';
 import { getDiscountSetsAction, getTaxRateAction } from '@/app/actions/settingsActions';
@@ -506,8 +506,6 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
         return;
     }
     
-    // If a return was just processed, use that specific return transaction for the 'Items Returned' section.
-    // Otherwise, this can be null if just printing a bill.
     const returnTransaction = lastProcessedReturn?.returnTransactionRecord ?? null;
 
     setIsReturnReceiptVisible(true);
@@ -568,29 +566,35 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     const netBillAmount = latestAdjustedOrOriginal.totalAmount;
     const totalDiscount = (latestAdjustedOrOriginal.totalItemDiscountAmount || 0) + (latestAdjustedOrOriginal.totalCartDiscountAmount || 0);
 
+    // This is the total cash/card collected against the original sale, regardless of refunds. It doesn't change.
     const totalPaidByCustomer = pristineOriginalSale.amountPaidByCustomer || 0;
+
+    // This is the total value of all items returned (sum of their refund amounts).
     const totalRefunded = (latestAdjustedOrOriginal.returnedItemsLog || []).filter(log => !log.isUndone).reduce((sum, entry) => sum + entry.totalRefundForThisReturnEntry, 0);
 
+    // This is the net cash the business holds from the customer for this transaction.
     const netAmountPaidByCustomer = totalPaidByCustomer - totalRefunded;
+
+    // The final outstanding balance is the NEW bill total minus the NET amount paid.
     const finalBalance = netBillAmount - netAmountPaidByCustomer;
 
     return {
       netBillAmount, totalDiscount,
-      totalPaidByCustomer, totalRefunded, netAmountPaidByCustomer, finalBalance
+      totalPaidByCustomer, totalRefunded, netAmountPaidByCustomer, finalBalance,
+      installments: pristineOriginalSale.paymentInstallments || [],
     };
   }, []);
 
   const billFinancials = useMemo(() => calculateBillFinancials(foundSaleState), [foundSaleState, calculateBillFinancials]);
 
 
-  const renderFinancialSummary = (saleRecord: SaleRecord | null, title: string, isAdjustedSummary: boolean = false) => {
+  const renderFinancialSummaryForPrint = (saleRecord: SaleRecord | null, title: string, isAdjustedSummary: boolean = false) => {
     if (!saleRecord) return null;
     const subtotalOriginalFromRecord = saleRecord.subtotalOriginal || 0;
     const totalItemDiscountFromRecord = saleRecord.totalItemDiscountAmount || 0;
     const totalCartDiscountFromRecord = saleRecord.totalCartDiscountAmount || 0;
     const netSubtotalFromRecord = saleRecord.netSubtotal || 0;
     
-    // Correctly use the taxAmount from the record, as it's pre-calculated on the server
     const taxAmountForDisplay = saleRecord.taxAmount || 0;
     const finalTotalForDisplay = saleRecord.totalAmount || 0;
 
@@ -690,7 +694,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                         </Button>
                     </CardHeader>
                     <CardContent className="p-0">
-                       <Accordion type="single" collapsible defaultValue="summary" className="w-full">
+                       <Accordion type="multiple" defaultValue={['summary', 'installments']} className="w-full">
                           <AccordionItem value="summary" className="border-b-0">
                             <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
                                 <div className="flex justify-between items-start w-full">
@@ -699,10 +703,8 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                       <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
-                                      <div className="flex items-center text-green-400 text-sm font-medium">
-                                        <ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.netAmountPaidByCustomer.toFixed(2)}
-                                      </div>
-                                       <div className="flex items-center text-primary text-xl font-medium">OF Rs. {billFinancials.netBillAmount.toFixed(2)} BILL</div>
+                                      <div className="flex items-center text-green-400 text-sm font-medium"><ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.netAmountPaidByCustomer.toFixed(2)}</div>
+                                      <div className="flex items-center text-primary text-xl font-medium">OF Rs. {billFinancials.netBillAmount.toFixed(2)} BILL</div>
                                     </div>
                                 </div>
                             </AccordionTrigger>
@@ -711,9 +713,26 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   <div className="flex justify-between"><span>Payment Method:</span> <span>{pristineOriginalSaleForDisplay.paymentMethod}</span></div>
                                   <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(pristineOriginalSaleForDisplay.date).toLocaleDateString()}</span></div>
                                   <div className="flex justify-between"><span>Customer:</span> <span>{pristineOriginalSaleForDisplay.customerName || 'N/A'}</span></div>
+                                  {billFinancials.totalRefunded > 0 && <div className="flex justify-between text-orange-400"><span>Total Refunded to Customer:</span> <span>Rs. {billFinancials.totalRefunded.toFixed(2)}</span></div>}
                                 </div>
                             </AccordionContent>
                           </AccordionItem>
+                          {pristineOriginalSaleForDisplay.isCreditSale && billFinancials.installments.length > 0 && (
+                            <AccordionItem value="installments" className="border-b-0 pt-2 mt-2 border-t border-border/30">
+                               <AccordionTrigger className="py-1 text-sm font-medium text-muted-foreground hover:no-underline">View Payment Installment History ({billFinancials.installments.length})</AccordionTrigger>
+                               <AccordionContent>
+                                 <Table className="text-xs">
+                                   <TableHeader><TableRow className="border-b-border/30"><TableHead className="h-6 text-muted-foreground">Date</TableHead><TableHead className="text-right h-6 text-muted-foreground">Amount Paid</TableHead><TableHead className="h-6 text-muted-foreground">Method</TableHead></TableRow></TableHeader>
+                                   <TableBody>
+                                    {billFinancials.installments.map(inst => (
+                                      <TableRow key={inst.id} className="border-b-border/30"><TableCell>{new Date(inst.paymentDate).toLocaleDateString()}</TableCell><TableCell className="text-right">Rs. {inst.amountPaid.toFixed(2)}</TableCell><TableCell>{inst.method}</TableCell></TableRow>
+                                    ))}
+                                    <TableRow className="bg-muted/30 font-semibold"><TableCell>Total Paid</TableCell><TableCell className="text-right" colSpan={2}>Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</TableCell></TableRow>
+                                   </TableBody>
+                                 </Table>
+                               </AccordionContent>
+                            </AccordionItem>
+                          )}
                        </Accordion>
                     </CardContent>
                 </Card>
@@ -736,7 +755,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   <Table className="text-xs my-1"><TableHeader><TableRow className="border-b-blue-700/40 hover:bg-blue-900/40"><TableHead className="h-6 text-blue-400">Item</TableHead><TableHead className="h-6 text-center text-blue-400">Qty</TableHead><TableHead className="h-6 text-right text-blue-400">Unit Price</TableHead><TableHead className="h-6 text-right text-sky-400">Line Disc.</TableHead><TableHead className="h-6 text-right text-blue-400">Eff. Price/Unit</TableHead><TableHead className="h-6 text-right text-blue-400">Line Total</TableHead></TableRow></TableHeader>
                                     <TableBody>{pristineOriginalSaleForDisplay.items.map(item => { const lineDiscountOriginal = item.totalDiscountOnLine; const lineTotalNetOriginal = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`orig-${item.productId}`} className="border-b-blue-700/40 hover:bg-blue-900/40"><TableCell className="py-1 text-blue-300">{item.name}</TableCell><TableCell className="py-1 text-center text-blue-300">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-sky-400">Rs. {lineDiscountOriginal.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {lineTotalNetOriginal.toFixed(2)}</TableCell></TableRow>);
                                         })}</TableBody></Table>
-                                <p className="font-medium mt-1 text-blue-200">Original Financial Summary:</p>{renderFinancialSummary(pristineOriginalSaleForDisplay, "Original Purchase")}
+                                <p className="font-medium mt-1 text-blue-200">Original Financial Summary:</p>{renderFinancialSummaryForPrint(pristineOriginalSaleForDisplay, "Original Purchase")}
                                 {pristineOriginalSaleForDisplay.appliedDiscountSummary && pristineOriginalSaleForDisplay.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-blue-200">Original Discounts Applied (Summary):</p>{pristineOriginalSaleForDisplay.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`orig_disc_sum_${index}`} className="text-sky-400 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}{discount.productIdAffected && <span className="text-xs text-blue-500 ml-1">(For: {pristineOriginalSaleForDisplay?.items.find(i => i.productId === discount.productIdAffected)?.name.substring(0,15) || discount.productIdAffected.substring(0,10)}...)</span>}</div>))}</>)}
                             </div>
                         ) : (<p className="text-sm text-muted-foreground p-3">Original bill details will load here once a bill is selected.</p>)}
@@ -758,7 +777,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   {latestAdjustedSaleForDisplay.items.length === 0 && <TableRow className="border-b-green-800/50 hover:bg-green-900/40"><TableCell colSpan={6} className="text-center py-2 text-green-600">All items from this bill have been returned.</TableCell></TableRow>}
                                   </TableBody>
                               </Table>
-                              <p className="font-medium mt-1 text-green-200">Active Bill Financial Summary:</p>{renderFinancialSummary(latestAdjustedSaleForDisplay, "Active Bill", true)}
+                              <p className="font-medium mt-1 text-green-200">Active Bill Financial Summary:</p>{renderFinancialSummaryForPrint(latestAdjustedSaleForDisplay, "Active Bill", true)}
                               {latestAdjustedSaleForDisplay.appliedDiscountSummary && latestAdjustedSaleForDisplay.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-green-200">Re-evaluated Item Discounts (Summary):</p>{latestAdjustedSaleForDisplay.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`adj_disc_sum_${index}`} className="text-green-500 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}</div>))}</>)}
                           </div>
                       ) : (<p className="text-sm text-muted-foreground p-3">Current active bill details will load here.</p>)}
