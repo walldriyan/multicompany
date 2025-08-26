@@ -54,12 +54,14 @@ export function ReturnReceiptPrintContent({
   };
   
   const totalAllLoggedReturnsAmount = (adjustedSale.returnedItemsLog || []).reduce(
-    (sum, logEntry) => sum + logEntry.totalRefundForThisReturnEntry,
+    (sum, logEntry) => !logEntry.isUndone ? sum + logEntry.totalRefundForThisReturnEntry : sum,
     0
   );
-
-  const totalPaidByCustomer = originalSale.amountPaidByCustomer || 0;
-  const currentOutstandingBalance = adjustedSale.totalAmount - totalPaidByCustomer + totalAllLoggedReturnsAmount;
+  
+  const totalPaidByCustomerOnOriginalBill = originalSale.amountPaidByCustomer || 0;
+  
+  // This is the final, correct calculation for the customer's balance.
+  const finalBalance = adjustedSale.totalAmount - totalPaidByCustomerOnOriginalBill;
 
 
   return (
@@ -225,11 +227,12 @@ export function ReturnReceiptPrintContent({
             <div className="section-break">
               <p className="section-title font-bold">Credit Account Summary:</p>
               <div className="totals-section">
-                <div><span>Net Bill Amount:</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
-                <div><span>Total Paid by Customer:</span><span className="value">Rs. {totalPaidByCustomer.toFixed(2)}</span></div>
-                <div><span>Total Refunded (Credited Back):</span><span className="value">-Rs. {totalAllLoggedReturnsAmount.toFixed(2)}</span></div>
-                <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {currentOutstandingBalance.toFixed(2)}</span></div>
-                {originalSale.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{currentOutstandingBalance <= 0.01 ? 'FULLY_PAID' : 'PARTIALLY_PAID'}</span></div>}
+                <div><span>Net Bill Amount (Adjusted):</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
+                <div><span>Total Paid by Customer (Original Sale):</span><span className="value">Rs. {totalPaidByCustomerOnOriginalBill.toFixed(2)}</span></div>
+                <div className="font-bold">
+                    <span>{finalBalance >= 0 ? "Final Balance (Due from Customer):" : "Final Balance (Refund to Customer):"}</span>
+                    <span className="value">Rs. {Math.abs(finalBalance).toFixed(2)}</span>
+                </div>
               </div>
             </div>
             
