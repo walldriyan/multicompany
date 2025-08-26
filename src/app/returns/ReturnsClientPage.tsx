@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -260,7 +259,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             setAccordionValue(newAccordionValue);
 
         } else {
-            toast({ title: "Sale Context Not Found", description: result.error || `No sale context found for bill ${searchTermTrimmed}. Ensure the bill number is correct.`, variant: "destructive" });
+            toast({ title: "Sale Context Not Found", description: result.error || `No sale context found for bill ${searchTermTrimmed}.`, variant: "destructive" });
             resetPageState(true); 
         }
     } catch (error) {
@@ -496,10 +495,18 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
 
 
   const handlePrintCombinedReceipt = () => {
-    if (!lastProcessedReturn?.returnTransactionRecord || !foundSaleState.pristineOriginalSale || !lastProcessedReturn.currentAdjustedSaleAfterReturn) {
-        toast({ title: "Error", description: "Not enough data to print combined receipt. Ensure a return has been processed.", variant: "destructive" });
+    const originalSale = foundSaleState.pristineOriginalSale;
+    const adjustedSale = foundSaleState.latestAdjustedOrOriginal || originalSale;
+
+    if (!originalSale || !adjustedSale) {
+        toast({ title: "Error", description: "Not enough data to print the receipt. Please select a valid bill.", variant: "destructive" });
         return;
     }
+    
+    // If a return was just processed, use that specific return transaction for the 'Items Returned' section.
+    // Otherwise, this can be null if just printing a bill.
+    const returnTransaction = lastProcessedReturn?.returnTransactionRecord ?? null;
+
     setIsReturnReceiptVisible(true);
     setTimeout(() => {
       const printContentHolder = document.getElementById('printable-return-receipt-content-holder');
@@ -521,7 +528,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
       const iframeDoc = iframe.contentWindow?.document;
       if (iframeDoc) {
         const printHtml = `
-          <html><head><title>Combined Transaction Receipt - ${foundSaleState.pristineOriginalSale?.billNumber ?? 'N/A'}</title>
+          <html><head><title>Combined Transaction Receipt - ${originalSale?.billNumber ?? 'N/A'}</title>
               <style>
                   body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
                   .receipt-container { width: 280px; margin: 0 auto; padding: 5px; } table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
@@ -742,9 +749,10 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
               </Card>
 
               
-                {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && (<div className="mt-4 p-3 border border-dashed border-primary/50 rounded-md bg-primary/10 flex-shrink-0"><h4 className="text-md font-medium text-primary mb-2 flex items-center"><FileText className="mr-2 h-5 w-5" /> Last Return Transaction Details</h4><p className="text-xs text-muted-foreground">Return Txn Bill No: <span className="font-semibold text-foreground">{lastProcessedReturn.returnTransactionRecord.billNumber}</span></p><p className="text-xs text-muted-foreground">Total Refunded (This Txn): <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.returnTransactionRecord.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Current Adjusted Bill ({lastProcessedReturn.currentAdjustedSaleAfterReturn.billNumber}) Total: <span className="font-semibold text-foreground">Rs. {lastProcessedReturn.currentAdjustedSaleAfterReturn.totalAmount?.toFixed(2)}</span></p><p className="text-xs text-muted-foreground">Original Sale Bill ({pristineOriginalSaleForDisplay?.billNumber}) Status: <span className="font-semibold text-foreground">{latestAdjustedSaleForDisplay?.status.replace(/_/g, ' ')}</span></p></div>)}
-                 <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
-                    {lastProcessedReturn && lastProcessedReturn.returnTransactionRecord && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<Button variant="outline" onClick={handlePrintCombinedReceipt} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"><Printer className="mr-2 h-4 w-4" /> Print Combined Receipt</Button>)}
+                <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
+                    <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
+                        <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
+                    </Button>
                     <Button type="button" onClick={handleProcessReturn} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
                 </div>
             </div>
@@ -752,7 +760,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             {!pristineOriginalSaleForDisplay && !isLoading && !isFetchingHistory && (!billNumberSearch || searchSuggestions.length === 0) && (<div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-muted-foreground"><PackageOpen className="h-16 w-16 mb-3 text-primary" /><p className="text-lg">Search for a bill or select from the list to begin.</p><p className="text-sm">Loaded sale details will appear here.</p></div>)}
           </fieldset>
         </div>
-      {isReturnReceiptVisible && lastProcessedReturn && pristineOriginalSaleForDisplay && lastProcessedReturn.currentAdjustedSaleAfterReturn && (<div id="printable-return-receipt-content-holder" style={{ display: 'none' }}><ReturnReceiptPrintContent originalSale={pristineOriginalSaleForDisplay} adjustedSale={lastProcessedReturn.currentAdjustedSaleAfterReturn} returnTransaction={lastProcessedReturn.returnTransactionRecord}/></div>)}
+      {isReturnReceiptVisible && foundSaleState.pristineOriginalSale && foundSaleState.latestAdjustedOrOriginal && (<div id="printable-return-receipt-content-holder" style={{ display: 'none' }}><ReturnReceiptPrintContent originalSale={foundSaleState.pristineOriginalSale} adjustedSale={foundSaleState.latestAdjustedOrOriginal} returnTransaction={lastProcessedReturn?.returnTransactionRecord ?? null}/></div>)}
       {itemToUndo && (
         <AlertDialog open={undoConfirmationOpen} onOpenChange={setUndoConfirmationOpen}>
             <AlertDialogContent>

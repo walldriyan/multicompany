@@ -6,7 +6,7 @@ import type { SaleRecord, ReturnedItemDetail, UnitDefinition } from '@/types';
 interface ReturnReceiptPrintContentProps {
   originalSale: SaleRecord;
   adjustedSale: SaleRecord;
-  returnTransaction: SaleRecord;
+  returnTransaction: SaleRecord | null;
 }
 
 export function ReturnReceiptPrintContent({
@@ -61,7 +61,7 @@ export function ReturnReceiptPrintContent({
         <p>{companyPhone}</p>
       </div>
       <hr className="separator" />
-      <h4 className="section-title text-center font-bold">COMBINED SALE & RETURN RECEIPT</h4>
+      <h4 className="section-title text-center font-bold">SALE &amp; RETURN RECEIPT</h4>
       {originalSale.customerName && <p className="text-center">Customer: {originalSale.customerName}</p>}
       <hr className="separator" />
 
@@ -101,34 +101,36 @@ export function ReturnReceiptPrintContent({
       <hr className="separator" />
 
       {/* Return Transaction Section (Current Transaction) */}
-      <div className="section-break">
-        <p className="section-title font-bold">Items Returned (This Specific Transaction)</p>
-        <div className="header-info">
-          <p>Return Txn No: {returnTransaction.billNumber}</p>
-          <p>Return Date: {formatDate(returnTransaction.date)}</p>
-        </div>
-        <table className="sub-table">
-          <thead>
-            <tr>
-              <th className="text-left item-name">Item</th>
-              <th className="text-right">Qty Rtn</th>
-              <th className="text-right">Refund/Unit</th>
-              <th className="text-right">Total Refund</th>
-            </tr>
-          </thead>
-          <tbody>{returnTransaction.items.map(item => (
-            <tr key={`ret-txn-${item.productId}`}>
-              <td className="item-name">{item.name}</td>
-              <td className="text-right">{`${item.quantity} ${getUnitText(item.units)}`.trim()}</td>
-              <td className="text-right">{(item.effectivePricePaidPerUnit).toFixed(2)}</td>
-              <td className="text-right">{(item.effectivePricePaidPerUnit * item.quantity).toFixed(2)}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-         <div className="totals-section">
-             <div className="font-bold"><span>Total Refund (This Transaction):</span><span className="text-right">Rs. {returnTransaction.totalAmount.toFixed(2)}</span></div>
-        </div>
-      </div>
+      {returnTransaction && (
+          <div className="section-break">
+            <p className="section-title font-bold">Items Returned (This Specific Transaction)</p>
+            <div className="header-info">
+              <p>Return Txn No: {returnTransaction.billNumber}</p>
+              <p>Return Date: {formatDate(returnTransaction.date)}</p>
+            </div>
+            <table className="sub-table">
+              <thead>
+                <tr>
+                  <th className="text-left item-name">Item</th>
+                  <th className="text-right">Qty Rtn</th>
+                  <th className="text-right">Refund/Unit</th>
+                  <th className="text-right">Total Refund</th>
+                </tr>
+              </thead>
+              <tbody>{returnTransaction.items.map(item => (
+                <tr key={`ret-txn-${item.productId}`}>
+                  <td className="item-name">{item.name}</td>
+                  <td className="text-right">{`${item.quantity} ${getUnitText(item.units)}`.trim()}</td>
+                  <td className="text-right">{(item.effectivePricePaidPerUnit).toFixed(2)}</td>
+                  <td className="text-right">{(item.effectivePricePaidPerUnit * item.quantity).toFixed(2)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+            <div className="totals-section">
+                <div className="font-bold"><span>Total Refund (This Transaction):</span><span className="text-right">Rs. {returnTransaction.totalAmount.toFixed(2)}</span></div>
+            </div>
+          </div>
+      )}
       <hr className="separator" />
 
       {/* Full Return History Section */}
