@@ -399,6 +399,8 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             units: item.units,
             priceAtSale: item.priceAtSale,
             originalBatchId: item.batchId,
+            customDiscountType: item.customDiscountType,
+            customDiscountValue: item.customDiscountValue,
         }));
 
     if (itemsToActuallyReturn.length === 0) {
@@ -530,8 +532,9 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
         const printHtml = `
           <html><head><title>Combined Transaction Receipt - ${originalSale?.billNumber ?? 'N/A'}</title>
               <style>
+                  @page { size: auto; margin: 5px; }
                   body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
-                  .receipt-container { width: 280px; margin: 0; padding: 0; height: fit-content; }
+                  .receipt-container { width: 100%; margin: 0; padding: 0; height: fit-content; }
                   table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
                   th, td { padding: 1px 2px; vertical-align: top; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
                   .font-bold { font-weight: bold; } .header-info p, .section-title { margin: 2px 0; font-size: 8pt; }
@@ -656,7 +659,8 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             {isLoading && !pristineOriginalSaleForDisplay && (<div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground"><Search className="h-12 w-12 mb-3 animate-pulse" /><p>Searching for sale...</p></div>)}
             
             <div className="flex-1 flex flex-col space-y-2 pt-0">
-              <div className="flex-shrink-0 mb-2">
+              <div className="flex justify-between items-center flex-shrink-0 mb-2">
+                 <h2 className="text-lg font-semibold text-card-foreground">Transaction Details</h2>
                  <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
                     <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
                 </Button>
