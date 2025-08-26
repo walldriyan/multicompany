@@ -530,8 +530,9 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
         const printHtml = `
           <html><head><title>Combined Transaction Receipt - ${originalSale?.billNumber ?? 'N/A'}</title>
               <style>
-                  body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; }
-                  .receipt-container { width: 280px; margin: 0 auto; padding: 5px; } table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
+                  body { margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 8pt; background-color: white; color: black; height: fit-content; }
+                  .receipt-container { width: 280px; margin: 0; padding: 0; height: fit-content; }
+                  table { width: 100%; border-collapse: collapse; font-size: 7pt; margin-bottom: 3px; }
                   th, td { padding: 1px 2px; vertical-align: top; } .text-left { text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; }
                   .font-bold { font-weight: bold; } .header-info p, .section-title { margin: 2px 0; font-size: 8pt; }
                   .item-name { word-break: break-all; max-width: 100px; } hr.separator { border: none; border-top: 1px dashed black; margin: 2px 0; color: black; background-color: black; }
@@ -539,7 +540,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                   .section-break { margin-top: 5px; margin-bottom: 5px; } .sub-table th { font-size: 6.5pt; padding: 1px; } .sub-table td { font-size: 6.5pt; padding: 1px; }
                   @media print {
                       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; }
-                      .receipt-container { margin: 0; padding:0; width: 100%; } table { font-size: 7pt !important; } .sub-table th, .sub-table td { font-size: 6.5pt !important; }
+                      .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; } table { font-size: 7pt !important; } .sub-table th, .sub-table td { font-size: 6.5pt !important; }
                   }
               </style></head><body><div class="receipt-container">${printContents}</div></body></html>`;
         iframeDoc.open(); iframeDoc.write(printHtml); iframeDoc.close();
@@ -550,6 +551,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
       setIsReturnReceiptVisible(false);
     }, 150);
   };
+
 
   const pristineOriginalSaleForDisplay = foundSaleState.pristineOriginalSale; 
   const latestAdjustedSaleForDisplay = foundSaleState.latestAdjustedOrOriginal; 
@@ -654,6 +656,12 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             {isLoading && !pristineOriginalSaleForDisplay && (<div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground"><Search className="h-12 w-12 mb-3 animate-pulse" /><p>Searching for sale...</p></div>)}
             
             <div className="flex-1 flex flex-col space-y-2 pt-0">
+              <div className="flex-shrink-0 mb-2">
+                 <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
+                    <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
+                </Button>
+              </div>
+
               <Accordion type="multiple" value={accordionValue} onValueChange={setAccordionValue} className="w-full text-xs mb-2 border border-border rounded-md bg-card p-1">
                 
                 <AccordionItem value="original-sale-details" className="border-b border-blue-800/50">
@@ -688,7 +696,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                               <p><strong className="text-green-200">Bill No:</strong> {latestAdjustedSaleForDisplay.billNumber} <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-green-700 text-green-100">{latestAdjustedSaleForDisplay.status.replace(/_/g, ' ')}</span></p>
                               <p><strong className="text-green-200">Last Update Date:</strong> {new Date(latestAdjustedSaleForDisplay.date).toLocaleString()}</p>
                               <p className="font-medium mt-1 text-green-200">Items (Active Bill):</p>
-                              <Table className="text-xs my-1"><TableHeader><TableRow className="border-b-green-800/50 hover:bg-green-900/40 bg-green-900/30"><TableHead className="h-6 text-green-300">Item</TableHead><TableHead className="h-6 text-center text-green-300">Qty Kept</TableHead><TableHead className="h-6 text-right text-green-300">Unit Price (Orig)</TableHead><TableHead className="h-6 text-right text-green-500">Line Disc. (Re-eval)</TableHead><TableHead className="h-6 text-right text-green-300">Eff. Price/Unit (Re-eval)</TableHead><TableHead className="h-6 text-right text-green-300">Line Total (Net)</TableHead></TableRow></TableHeader>
+                              <Table className="text-xs my-1"><TableHeader><TableRow className="border-b-green-800/50 hover:bg-green-900/40 bg-green-900/30"><TableHead className="h-6 text-green-300">Item</TableHead><TableHead className="h-6 text-center text-green-300">Qty Kept</TableHead><TableHead className="h-6 text-right text-green-300">Unit Price</TableHead><TableHead className="h-6 text-right text-green-500">Line Disc.</TableHead><TableHead className="h-6 text-right text-green-300">Eff. Price/Unit</TableHead><TableHead className="h-6 text-right text-green-300">Line Total</TableHead></TableRow></TableHeader>
                                   <TableBody>{latestAdjustedSaleForDisplay.items.map(item => { const lineDiscountReevaluated = item.totalDiscountOnLine || 0; const lineTotalNetReevaluated = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`adj-${item.productId}`} className="border-b-green-800/50 hover:bg-green-900/40"><TableCell className="py-1 text-green-400">{item.name}</TableCell><TableCell className="py-1 text-center text-green-400">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="py-1 text-right text-green-400">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-green-500">Rs. {lineDiscountReevaluated.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-green-400">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-green-400">Rs. {lineTotalNetReevaluated.toFixed(2)}</TableCell></TableRow>);})}
                                   {latestAdjustedSaleForDisplay.items.length === 0 && <TableRow className="border-b-green-800/50 hover:bg-green-900/40"><TableCell colSpan={6} className="text-center py-2 text-green-600">All items from this bill have been returned.</TableCell></TableRow>}
                                   </TableBody>
@@ -708,7 +716,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                       {(saleForReturnLogDisplay?.returnedItemsLog && Array.isArray(saleForReturnLogDisplay.returnedItemsLog) && (saleForReturnLogDisplay.returnedItemsLog as ReturnedItemDetail[]).filter(log => !log.isUndone).length > 0) ? (
                           <div className="p-2 space-y-1 rounded-md bg-red-950 border border-red-800">
                               <Table className="text-xs">
-                                  <TableHeader><TableRow className="border-b-red-700 hover:bg-red-800/70"><TableHead className="text-red-200 h-8">Return Date</TableHead><TableHead className="text-red-200 h-8">Return Txn ID</TableHead><TableHead className="text-red-200 h-8">Item</TableHead><TableHead className="text-center text-red-200 h-8">Qty Rtn.</TableHead><TableHead className="text-right text-red-200 h-8">Unit Price (Orig)</TableHead><TableHead className="text-right text-red-200 h-8">Refund/Unit</TableHead><TableHead className="text-right text-red-200 h-8">Total Refund</TableHead><TableHead className="text-center text-red-200 h-8">Actions</TableHead></TableRow></TableHeader>
+                                  <TableHeader><TableRow className="border-b-red-700 hover:bg-red-800/70"><TableHead className="text-red-200 h-8">Return Date</TableHead><TableHead className="text-red-200 h-8">Return Txn ID</TableHead><TableHead className="text-red-200 h-8">Item</TableHead><TableHead className="text-center text-red-200 h-8">Qty Rtn.</TableHead><TableHead className="text-right text-red-200 h-8">Unit Price</TableHead><TableHead className="text-right text-red-200 h-8">Refund/Unit</TableHead><TableHead className="text-right text-red-200 h-8">Total Refund</TableHead><TableHead className="text-center text-red-200 h-8">Actions</TableHead></TableRow></TableHeader>
                                   <TableBody>{(saleForReturnLogDisplay?.returnedItemsLog || []).map((logEntry, index) => {
                                         if (logEntry.isUndone) return null;
                                         const originalItemDetails = pristineOriginalSaleForDisplay?.items.find(i => i.productId === logEntry.itemId && i.batchId === logEntry.originalBatchId);
@@ -730,7 +738,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
                   <ScrollArea className="flex-shrink-0 border border-orange-700 rounded-md bg-orange-950/50 min-h-[150px]">
-                      <Table><TableHeader><TableRow className="bg-orange-800/60 sticky top-0 z-[1] hover:bg-orange-800/70 border-b-orange-700"><TableHead className="text-orange-200 py-1.5">Item</TableHead><TableHead className="text-center text-orange-200 py-1.5">Qty in Bill</TableHead><TableHead className="text-right text-orange-200 py-1.5">Effective Price/Unit Paid</TableHead><TableHead className="text-right text-orange-300 font-medium py-1.5">Line Total (Net)</TableHead><TableHead className="w-32 text-center text-orange-200 py-1.5">Qty to Return</TableHead></TableRow></TableHeader>
+                      <Table><TableHeader><TableRow className="bg-orange-800/60 sticky top-0 z-[1] hover:bg-orange-800/70 border-b-orange-700"><TableHead className="text-orange-200 py-1.5">Item</TableHead><TableHead className="text-center text-orange-200 py-1.5">Qty in Bill</TableHead><TableHead className="text-right text-orange-200 py-1.5">Price/Unit Paid</TableHead><TableHead className="text-right text-orange-300 font-medium py-1.5">Line Total (Net)</TableHead><TableHead className="w-32 text-center text-orange-200 py-1.5">Qty to Return</TableHead></TableRow></TableHeader>
                         <TableBody>{itemsToReturnUiList.length > 0 ? itemsToReturnUiList.map(item => {
                             const lineTotalNetInBill = (item.effectivePricePaidPerUnit || 0) * item.quantity;
                             return (
@@ -749,10 +757,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
               </Card>
 
               
-                <div className="flex justify-between items-center mt-auto pt-3 flex-shrink-0">
-                    <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
-                        <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
-                    </Button>
+                <div className="flex justify-end items-center mt-auto pt-3 flex-shrink-0">
                     <Button type="button" onClick={handleProcessReturn} disabled={isLoading || !pristineOriginalSaleForDisplay || itemsToReturnUiList.every(item => item.returnQuantity === 0) || itemsToReturnUiList.length === 0} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 ml-auto"><Undo className="mr-2 h-4 w-4" /> {isLoading ? "Processing..." : "Process Current Return"}</Button>
                 </div>
             </div>
