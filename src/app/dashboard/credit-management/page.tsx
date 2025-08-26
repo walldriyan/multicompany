@@ -332,23 +332,26 @@ export default function CreditManagementPage() {
   };
 
   const calculateBillFinancials = useCallback((group: { activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null } | null) => {
-    if (!group || !group.activeBillForDisplay || !group.pristineOriginalSale) return null;
-
-    const { activeBillForDisplay, pristineOriginalSale } = group;
-
+    if (!group || !group.activeBillForDisplay) return null;
+  
+    const { activeBillForDisplay } = group;
+  
     const netBillAmount = activeBillForDisplay.totalAmount;
     
-    // The total amount paid by the customer is the sum of the initial payment and all subsequent installments.
-    // The `amountPaidByCustomer` on the record should be the source of truth, as it's updated by the server.
+    // The `amountPaidByCustomer` from the active sale record is the single source of truth 
+    // for all payments made against this credit sale (initial + installments).
     const totalPaidByCustomer = activeBillForDisplay.amountPaidByCustomer || 0;
-
+  
     const finalBalance = netBillAmount - totalPaidByCustomer;
-
+  
+    // Find the initial payment from the installments list if needed for display.
+    const initialPayment = activeBillForDisplay.paymentInstallments?.find(inst => inst.notes?.includes("Initial payment"))?.amountPaid || 0;
+  
     return {
       netBillAmount,
       totalPaidByCustomer,
       finalBalance,
-      initialPayment: pristineOriginalSale.paymentMethod === 'credit' ? (pristineOriginalSale.amountPaidByCustomer || 0) : 0,
+      initialPayment: initialPayment,
       installments: activeBillForDisplay.paymentInstallments || [],
     };
   }, []);
