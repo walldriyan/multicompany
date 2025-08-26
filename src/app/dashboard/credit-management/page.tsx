@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -338,17 +339,18 @@ export default function CreditManagementPage() {
   
     const netBillAmount = activeBillForDisplay.totalAmount;
     const totalPaidByCustomer = activeBillForDisplay.amountPaidByCustomer || 0;
-    const finalBalance = netBillAmount - totalPaidByCustomer;
-  
+    const finalBalance = activeBillForDisplay.creditOutstandingAmount ?? (netBillAmount - totalPaidByCustomer);
+
     const initialPaymentRecord = (activeBillForDisplay.paymentInstallments || []).find(inst => inst.notes?.includes("Initial payment"));
     const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : 0;
+    const subsequentInstallments = (activeBillForDisplay.paymentInstallments || []).filter(inst => !inst.notes?.includes("Initial payment"));
   
     return {
       netBillAmount,
       totalPaidByCustomer,
       finalBalance,
       initialPayment: initialPayment,
-      installments: activeBillForDisplay.paymentInstallments || [],
+      installments: subsequentInstallments,
     };
   }, []);
 
@@ -458,6 +460,13 @@ export default function CreditManagementPage() {
                                       </TableRow>
                                   </TableHeader>
                                   <TableBody>
+                                    {billFinancials.initialPayment > 0 && (
+                                       <TableRow className="border-b-border/30 bg-muted/10 italic">
+                                          <TableCell>{new Date(selectedGroup?.activeBillForDisplay?.date).toLocaleDateString()}</TableCell>
+                                          <TableCell className="text-right">Rs. {billFinancials.initialPayment.toFixed(2)}</TableCell>
+                                          <TableCell>Initial Payment</TableCell>
+                                      </TableRow>
+                                    )}
                                     {billFinancials.installments.map(inst => (
                                       <TableRow key={inst.id} className="border-b-border/30">
                                           <TableCell>{new Date(inst.paymentDate).toLocaleDateString()}</TableCell>
