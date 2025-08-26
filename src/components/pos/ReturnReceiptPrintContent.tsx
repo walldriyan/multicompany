@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { SaleRecord, ReturnedItemDetail, UnitDefinition, PaymentInstallment } from '@/types';
@@ -20,21 +21,29 @@ export function ReturnReceiptPrintContent({
 
   const formatDate = (dateString: string | null | undefined) => dateString ? new Date(dateString).toLocaleString() : 'N/A';
 
+  const getUnitText = (units: UnitDefinition | undefined | null) => {
+    return units?.baseUnit || '';
+  }
+
   const renderFinancialSummaryForPrint = (sale: SaleRecord, title: string) => {
+    const subtotalOriginalFromRecord = sale.subtotalOriginal || 0;
+    const totalItemDiscountFromRecord = sale.totalItemDiscountAmount || 0;
+    const totalCartDiscountFromRecord = sale.totalCartDiscountAmount || 0;
+    const netSubtotalFromRecord = sale.netSubtotal || 0;
+    const taxAmountForDisplay = sale.taxAmount || 0;
+    const finalTotalForDisplay = sale.totalAmount || 0;
+
     return (
       <>
         <div className="font-bold">{title}</div>
-        <div><span>Subtotal (Original Prices):</span><span className="text-right">Rs. {sale.subtotalOriginal.toFixed(2)}</span></div>
-        {sale.totalItemDiscountAmount > 0 && (
-          <div><span>Total Item Discounts:</span><span className="text-right">-Rs. {sale.totalItemDiscountAmount.toFixed(2)}</span></div>
+        <div><span>Subtotal (Original Prices):</span><span className="text-right">Rs. {subtotalOriginalFromRecord.toFixed(2)}</span></div>
+        {(totalItemDiscountFromRecord > 0 || totalCartDiscountFromRecord > 0) && (
+          <div><span>Total Discounts:</span><span className="text-right">-Rs. {(totalItemDiscountFromRecord + totalCartDiscountFromRecord).toFixed(2)}</span></div>
         )}
-        {sale.totalCartDiscountAmount > 0 && (
-          <div><span>Total Cart Discount:</span><span className="text-right">-Rs. {sale.totalCartDiscountAmount.toFixed(2)}</span></div>
-        )}
-        <div><span>Net Subtotal:</span><span className="text-right">Rs. {sale.netSubtotal.toFixed(2)}</span></div>
-        <div><span>Tax ({ (sale.taxRate * 100).toFixed(sale.taxRate === 0 ? 0 : (sale.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span className="text-right">Rs. {sale.taxAmount.toFixed(2)}</span></div>
-        <div className="font-bold"><span>{sale.recordType === 'RETURN_TRANSACTION' ? 'Total Refunded' : 'TOTAL'}:</span><span className="text-right">Rs. {sale.totalAmount.toFixed(2)}</span></div>
-        {sale.paymentMethod !== 'REFUND' && sale.amountPaidByCustomer !== undefined && sale.amountPaidByCustomer !== null && (
+        <div><span>Net Subtotal:</span><span className="text-right">Rs. {netSubtotalFromRecord.toFixed(2)}</span></div>
+        <div><span>Tax ({ (sale.taxRate * 100).toFixed(sale.taxRate === 0 ? 0 : (sale.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span className="text-right">Rs. {taxAmountForDisplay.toFixed(2)}</span></div>
+        <div className="font-bold"><span>{sale.recordType === 'RETURN_TRANSACTION' ? 'Total Refunded' : 'TOTAL'}:</span><span className="text-right">Rs. {finalTotalForDisplay.toFixed(2)}</span></div>
+         {sale.paymentMethod !== 'REFUND' && sale.amountPaidByCustomer !== undefined && sale.amountPaidByCustomer !== null && (
             <div><span>Amount Paid ({sale.paymentMethod}):</span><span className="text-right">Rs. {sale.amountPaidByCustomer.toFixed(2)}</span></div>
         )}
         {sale.paymentMethod === 'cash' && sale.changeDueToCustomer !== undefined && sale.changeDueToCustomer !== null && sale.changeDueToCustomer > 0 && (
@@ -43,19 +52,14 @@ export function ReturnReceiptPrintContent({
       </>
     );
   };
-
+  
   const totalAllLoggedReturnsAmount = (adjustedSale.returnedItemsLog || []).reduce(
     (sum, logEntry) => sum + logEntry.totalRefundForThisReturnEntry,
     0
   );
 
-  const getUnitText = (units: UnitDefinition | undefined | null) => {
-    return units?.baseUnit || '';
-  }
-
   const totalInstallmentsPaid = (originalSale.paymentInstallments || []).reduce((sum, inst) => sum + inst.amountPaid, 0);
-  const currentOutstandingBalance = adjustedSale.totalAmount - (totalInstallmentsPaid - totalAllLoggedReturnsAmount);
-
+  const currentOutstandingBalance = adjustedSale.totalAmount - totalInstallmentsPaid + totalAllLoggedReturnsAmount;
 
   return (
     <>
@@ -220,10 +224,11 @@ export function ReturnReceiptPrintContent({
             <div className="section-break">
               <p className="section-title font-bold">Credit Account Summary:</p>
               <div className="totals-section">
-                <div><span>Total Amount Credited (Bill Total):</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
+                <div><span>Net Bill Amount:</span><span className="value">Rs. {adjustedSale.totalAmount.toFixed(2)}</span></div>
                 <div><span>Total Installments Paid:</span><span className="value">Rs. {totalInstallmentsPaid.toFixed(2)}</span></div>
+                <div><span>Total Refunded to Date:</span><span className="value">-Rs. {totalAllLoggedReturnsAmount.toFixed(2)}</span></div>
                 <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {currentOutstandingBalance.toFixed(2)}</span></div>
-                {originalSale.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{originalSale.creditPaymentStatus.replace('_', ' ')}</span></div>}
+                {originalSale.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{currentOutstandingBalance <= 0.01 ? 'FULLY_PAID' : 'PARTIALLY_PAID'}</span></div>}
               </div>
             </div>
             

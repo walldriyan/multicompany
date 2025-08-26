@@ -564,23 +564,22 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     const { latestAdjustedOrOriginal, pristineOriginalSale } = foundSale;
     
     const netBillAmount = latestAdjustedOrOriginal.totalAmount;
-    const totalDiscount = (latestAdjustedOrOriginal.totalItemDiscountAmount || 0) + (latestAdjustedOrOriginal.totalCartDiscountAmount || 0);
-
+    
     // This is the total cash/card collected against the original sale, regardless of refunds. It doesn't change.
     const totalPaidByCustomer = pristineOriginalSale.amountPaidByCustomer || 0;
 
     // This is the total value of all items returned (sum of their refund amounts).
     const totalRefunded = (latestAdjustedOrOriginal.returnedItemsLog || []).filter(log => !log.isUndone).reduce((sum, entry) => sum + entry.totalRefundForThisReturnEntry, 0);
 
-    // This is the net cash the business holds from the customer for this transaction.
-    const netAmountPaidByCustomer = totalPaidByCustomer - totalRefunded;
-
-    // The final outstanding balance is the NEW bill total minus the NET amount paid.
-    const finalBalance = netBillAmount - netAmountPaidByCustomer;
+    // The final outstanding balance is the NEW bill total, minus payments, plus refunds.
+    const finalBalance = netBillAmount - totalPaidByCustomer + totalRefunded;
 
     return {
-      netBillAmount, totalDiscount,
-      totalPaidByCustomer, totalRefunded, netAmountPaidByCustomer, finalBalance,
+      netBillAmount,
+      totalDiscount: (latestAdjustedOrOriginal.totalItemDiscountAmount || 0) + (latestAdjustedOrOriginal.totalCartDiscountAmount || 0),
+      totalPaidByCustomer,
+      totalRefunded,
+      finalBalance,
       installments: pristineOriginalSale.paymentInstallments || [],
     };
   }, []);
@@ -694,7 +693,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                         </Button>
                     </CardHeader>
                     <CardContent className="p-0">
-                       <Accordion type="multiple" defaultValue={['summary', 'installments']} className="w-full">
+                       <Accordion type="multiple" defaultValue={['summary']} className="w-full">
                           <AccordionItem value="summary" className="border-b-0">
                             <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
                                 <div className="flex justify-between items-start w-full">
@@ -703,7 +702,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                       <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
-                                      <div className="flex items-center text-green-400 text-sm font-medium"><ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.netAmountPaidByCustomer.toFixed(2)}</div>
+                                      <div className="flex items-center text-green-400 text-sm font-medium"><ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</div>
                                       <div className="flex items-center text-primary text-xl font-medium">OF Rs. {billFinancials.netBillAmount.toFixed(2)} BILL</div>
                                     </div>
                                 </div>
