@@ -334,17 +334,20 @@ export default function CreditManagementPage() {
 
   const calculateBillFinancials = useCallback((group: { activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null } | null) => {
     if (!group || !group.activeBillForDisplay) return null;
-  
-    const { activeBillForDisplay } = group;
-  
+
+    const { activeBillForDisplay, pristineOriginalSale } = group;
+
     const netBillAmount = activeBillForDisplay.totalAmount;
-    const totalPaidByCustomer = activeBillForDisplay.amountPaidByCustomer || 0;
-    const finalBalance = activeBillForDisplay.creditOutstandingAmount ?? (netBillAmount - totalPaidByCustomer);
+    // Use the amountPaidByCustomer from the *original* sale, as this is the total cash/card collected against this bill number.
+    const totalPaidByCustomer = pristineOriginalSale?.amountPaidByCustomer || activeBillForDisplay.amountPaidByCustomer || 0;
+
+    // Correctly calculate the final balance due.
+    const finalBalance = netBillAmount - totalPaidByCustomer;
 
     const initialPaymentRecord = (activeBillForDisplay.paymentInstallments || []).find(inst => inst.notes?.includes("Initial payment"));
-    const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : 0;
+    const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : (pristineOriginalSale?.amountPaidByCustomer || 0);
     const subsequentInstallments = (activeBillForDisplay.paymentInstallments || []).filter(inst => !inst.notes?.includes("Initial payment"));
-  
+
     return {
       netBillAmount,
       totalPaidByCustomer,
@@ -385,9 +388,14 @@ export default function CreditManagementPage() {
             <ReceiptText className="mr-3 h-7 w-7" />
             Credit Management
           </h1>
-          <Button onClick={() => fetchCreditSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSales ? 'animate-spin' : ''}`} /> Refresh List
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => fetchCreditSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSales ? 'animate-spin' : ''}`} /> Refresh List
+            </Button>
+             <Button onClick={handlePrintFullBill} variant="outline" disabled={!selectedGroup?.activeBillForDisplay || isPrintingBill} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
+                <Printer className="mr-2 h-4 w-4" /> {isPrintingBill ? 'Printing...' : 'Print Full Bill Details'}
+            </Button>
+          </div>
         </header>
 
         {isSuperAdminWithoutCompany && (

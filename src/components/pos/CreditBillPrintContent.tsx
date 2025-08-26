@@ -102,7 +102,7 @@ export function CreditBillPrintContent({
       </div>
       
 
-      {subsequentInstallments.length > 0 && (
+      {(installments || []).length > 0 && (
         <>
           <hr className="separator" />
           <p className="section-title font-bold">Payment Installment History:</p>
@@ -116,7 +116,7 @@ export function CreditBillPrintContent({
               </tr>
             </thead>
             <tbody>
-              {subsequentInstallments.map(inst => (
+              {installments.map(inst => (
                 <tr key={inst.id}>
                   <td>{formatDate(inst.paymentDate)}</td>
                   <td className="text-right">Rs. {inst.amountPaid.toFixed(2)}</td>
