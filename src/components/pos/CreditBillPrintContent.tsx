@@ -28,11 +28,14 @@ export function CreditBillPrintContent({
   const companyPhone = companyPhoneProp || "+94 11 234 5678";
   const formatDate = (dateString: string | null | undefined) => dateString ? new Date(dateString).toLocaleString() : 'N/A';
   
-  const initialPayment = installments.find(inst => inst.notes?.includes("Initial payment"))?.amountPaid || 0;
-  const subsequentInstallments = installments.filter(inst => !inst.notes?.includes("Initial payment"));
+  const initialPaymentRecord = (installments || []).find(inst => inst.notes?.includes("Initial payment"));
+  const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : 0;
+  
+  const subsequentInstallments = (installments || []).filter(inst => !inst.notes?.includes("Initial payment"));
   const totalSubsequentInstallmentsPaid = subsequentInstallments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+
   const totalPaidByCustomer = saleRecord.amountPaidByCustomer || 0;
-  const finalBalance = saleRecord.totalAmount - totalPaidByCustomer;
+  const finalBalance = saleRecord.creditOutstandingAmount ?? (saleRecord.totalAmount - totalPaidByCustomer);
 
 
   return (

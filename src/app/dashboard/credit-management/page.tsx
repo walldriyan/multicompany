@@ -337,15 +337,11 @@ export default function CreditManagementPage() {
     const { activeBillForDisplay } = group;
   
     const netBillAmount = activeBillForDisplay.totalAmount;
-    
-    // The `amountPaidByCustomer` from the active sale record is the single source of truth 
-    // for all payments made against this credit sale (initial + installments).
     const totalPaidByCustomer = activeBillForDisplay.amountPaidByCustomer || 0;
-  
     const finalBalance = netBillAmount - totalPaidByCustomer;
   
-    // Find the initial payment from the installments list if needed for display.
-    const initialPayment = activeBillForDisplay.paymentInstallments?.find(inst => inst.notes?.includes("Initial payment"))?.amountPaid || 0;
+    const initialPaymentRecord = (activeBillForDisplay.paymentInstallments || []).find(inst => inst.notes?.includes("Initial payment"));
+    const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : 0;
   
     return {
       netBillAmount,
