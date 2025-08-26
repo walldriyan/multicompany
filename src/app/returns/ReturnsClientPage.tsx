@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -33,6 +32,7 @@ import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 
 interface ItemToReturnEntry extends SaleRecordItem {
@@ -55,6 +55,38 @@ interface ReturnsClientPageProps {
   initialSales: SaleRecord[];
   initialTotalCount: number;
 }
+
+const renderFinancialSummaryForPrint = (sale: SaleRecord, title: string, isAdjusted = false) => {
+    const subtotalOriginalFromRecord = sale.subtotalOriginal || 0;
+    const totalItemDiscountFromRecord = sale.totalItemDiscountAmount || 0;
+    const totalCartDiscountFromRecord = sale.totalCartDiscountAmount || 0;
+    const netSubtotalFromRecord = sale.netSubtotal || 0;
+    const taxAmountForDisplay = sale.taxAmount || 0;
+    const finalTotalForDisplay = sale.totalAmount || 0;
+
+    return (
+      <div className="text-xs space-y-1 mt-1">
+        <div className="font-medium text-foreground">{title}</div>
+        <div className="flex justify-between"><span>Subtotal ({isAdjusted ? 'Active Bill, Orig. Prices' : 'Original Prices'}):</span><span>Rs. {subtotalOriginalFromRecord.toFixed(2)}</span></div>
+        {(totalItemDiscountFromRecord > 0) && (
+          <div className="flex justify-between"><span>Total Item Disc. ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalItemDiscountFromRecord.toFixed(2)}</span></div>
+        )}
+        {(totalCartDiscountFromRecord > 0) && (
+          <div className="flex justify-between"><span>Cart Discount ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalCartDiscountFromRecord.toFixed(2)}</span></div>
+        )}
+        <div className="flex justify-between"><span>Net Subtotal (After relevant discounts):</span><span>Rs. {netSubtotalFromRecord.toFixed(2)}</span></div>
+        <div className="flex justify-between"><span>Tax ({ (sale.taxRate * 100).toFixed(sale.taxRate === 0 ? 0 : (sale.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span>Rs. {taxAmountForDisplay.toFixed(2)}</span></div>
+        <Separator className="my-1 bg-border/40" />
+        <div className="font-bold flex justify-between"><span>Total ({isAdjusted ? 'Net Bill' : 'Original Bill'}):</span><span>Rs. {finalTotalForDisplay.toFixed(2)}</span></div>
+        {sale.paymentMethod !== 'REFUND' && sale.amountPaidByCustomer !== undefined && sale.amountPaidByCustomer !== null && (
+          <div className="flex justify-between"><span>Amount Paid ({sale.paymentMethod}):</span><span>Rs. {(sale.amountPaidByCustomer || 0).toFixed(2)}</span></div>
+        )}
+         {sale.paymentMethod === 'cash' && sale.changeDueToCustomer !== undefined && sale.changeDueToCustomer !== null && sale.changeDueToCustomer > 0 && (
+          <div className="flex justify-between"><span>Change Given:</span><span>Rs. {sale.changeDueToCustomer.toFixed(2)}</span></div>
+        )}
+      </div>
+    );
+  };
 
 
 export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsClientPageProps) {
@@ -102,38 +134,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
   
   const hasUpdateSalePermission = can('update', 'Sale');
 
-  const renderFinancialSummaryForPrint = (sale: SaleRecord, title: string, isAdjusted = false) => {
-    const subtotalOriginalFromRecord = sale.subtotalOriginal || 0;
-    const totalItemDiscountFromRecord = sale.totalItemDiscountAmount || 0;
-    const totalCartDiscountFromRecord = sale.totalCartDiscountAmount || 0;
-    const netSubtotalFromRecord = sale.netSubtotal || 0;
-    const taxAmountForDisplay = sale.taxAmount || 0;
-    const finalTotalForDisplay = sale.totalAmount || 0;
-
-    return (
-      <div className="text-xs space-y-1 mt-1">
-        <div className="font-medium text-foreground">{title}</div>
-        <div className="flex justify-between"><span>Subtotal ({isAdjusted ? 'Active Bill, Orig. Prices' : 'Original Prices'}):</span><span>Rs. {subtotalOriginalFromRecord.toFixed(2)}</span></div>
-        {(totalItemDiscountFromRecord > 0) && (
-          <div className="flex justify-between"><span>Total Item Disc. ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalItemDiscountFromRecord.toFixed(2)}</span></div>
-        )}
-        {(totalCartDiscountFromRecord > 0) && (
-          <div className="flex justify-between"><span>Cart Discount ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalCartDiscountFromRecord.toFixed(2)}</span></div>
-        )}
-        <div className="flex justify-between"><span>Net Subtotal (After relevant discounts):</span><span>Rs. {netSubtotalFromRecord.toFixed(2)}</span></div>
-        <div className="flex justify-between"><span>Tax ({ (sale.taxRate * 100).toFixed(sale.taxRate === 0 ? 0 : (sale.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span>Rs. {taxAmountForDisplay.toFixed(2)}</span></div>
-        <Separator className="my-1 bg-border/40" />
-        <div className="font-bold flex justify-between"><span>Total ({isAdjusted ? 'Net Bill' : 'Original Bill'}):</span><span>Rs. {finalTotalForDisplay.toFixed(2)}</span></div>
-        {sale.paymentMethod !== 'REFUND' && sale.amountPaidByCustomer !== undefined && sale.amountPaidByCustomer !== null && (
-          <div className="flex justify-between"><span>Amount Paid ({sale.paymentMethod}):</span><span>Rs. {(sale.amountPaidByCustomer || 0).toFixed(2)}</span></div>
-        )}
-         {sale.paymentMethod === 'cash' && sale.changeDueToCustomer !== undefined && sale.changeDueToCustomer !== null && sale.changeDueToCustomer > 0 && (
-          <div className="flex justify-between"><span>Change Given:</span><span>Rs. {sale.changeDueToCustomer.toFixed(2)}</span></div>
-        )}
-      </div>
-    );
-  };
-
+  
   useEffect(() => {
     const loadInitialData = async () => {
         if (!currentUser?.id || isSuperAdminWithoutCompany) return;
@@ -603,11 +604,11 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     
     // This is the total cash/card collected against the original sale, regardless of refunds. It doesn't change.
     const totalPaidByCustomer = pristineOriginalSale.amountPaidByCustomer || 0;
-
+    
     // This is the total value of all items returned (sum of their refund amounts).
     const totalRefunded = (latestAdjustedOrOriginal.returnedItemsLog || []).filter(log => !log.isUndone).reduce((sum, entry) => sum + entry.totalRefundForThisReturnEntry, 0);
 
-    const finalBalance = netBillAmount - totalPaidByCustomer + totalRefunded;
+    const finalBalance = latestAdjustedOrOriginal.totalAmount - totalPaidByCustomer;
 
     return {
       netBillAmount,
@@ -706,9 +707,11 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                             <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
                                 <div className="flex justify-between items-start w-full">
                                     <div className="text-left">
-                                      <span className="text-gray-400 text-sm">Final Balance Due</span>
+                                      <span className={cn("text-gray-400 text-sm", billFinancials.finalBalance < 0 && "text-green-400")}>
+                                        {billFinancials.finalBalance < 0 ? "Refund to Customer" : "Final Balance Due"}
+                                      </span>
                                       <div className="flex items-center gap-2">
-                                         <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
+                                         <h2 className={cn("text-4xl font-bold", billFinancials.finalBalance < 0 ? 'text-green-400' : 'text-red-400')}>Rs. {Math.abs(billFinancials.finalBalance).toFixed(2)}</h2>
                                          <TooltipProvider delayDuration={100}>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -719,10 +722,9 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                                     <div className="space-y-0.5">
                                                         <p>යාවත්කාලීන වූ බිලේ එකතුව: රු. {billFinancials.netBillAmount.toFixed(2)}</p>
                                                         <p>මේ වන තෙක් ගෙවූ මුළු මුදල: රු. {billFinancials.totalPaidByCustomer.toFixed(2)}</p>
-                                                        <p>ආපසු බැර වූ (Refund) මුදල: රු. {billFinancials.totalRefunded.toFixed(2)}</p>
                                                         <Separator className="my-1 bg-border/50" />
                                                         <p className="font-bold">ගෙවිය යුතු අවසන් ශේෂය:</p>
-                                                        <p>රු. {billFinancials.netBillAmount.toFixed(2)} - රු. {billFinancials.totalPaidByCustomer.toFixed(2)} + රු. {billFinancials.totalRefunded.toFixed(2)} = රු. {billFinancials.finalBalance.toFixed(2)}</p>
+                                                        <p>රු. {billFinancials.netBillAmount.toFixed(2)} - රු. {billFinancials.totalPaidByCustomer.toFixed(2)} = රු. {billFinancials.finalBalance.toFixed(2)}</p>
                                                     </div>
                                                 </TooltipContent>
                                             </Tooltip>
@@ -740,7 +742,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   <div className="flex justify-between"><span>Payment Method:</span> <span>{foundSaleState.pristineOriginalSale.paymentMethod}</span></div>
                                   <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(foundSaleState.pristineOriginalSale.date).toLocaleDateString()}</span></div>
                                   <div className="flex justify-between"><span>Customer:</span> <span>{foundSaleState.pristineOriginalSale.customerName || 'N/A'}</span></div>
-                                  {billFinancials.totalRefunded > 0 && <div className="flex justify-between text-orange-400"><span>Total Refunded to Customer:</span> <span>Rs. {billFinancials.totalRefunded.toFixed(2)}</span></div>}
+                                  {billFinancials.totalRefunded > 0 && <div className="flex justify-between text-orange-400"><span>Total Refunded (Credited Back):</span> <span>Rs. {billFinancials.totalRefunded.toFixed(2)}</span></div>}
                                 </div>
                             </AccordionContent>
                           </AccordionItem>
@@ -780,7 +782,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   <Table className="text-xs my-1"><TableHeader><TableRow className="border-b-blue-700/40 hover:bg-blue-900/40"><TableHead className="h-6 text-blue-400">Item</TableHead><TableHead className="h-6 text-center text-blue-400">Qty</TableHead><TableHead className="h-6 text-right text-blue-400">Unit Price</TableHead><TableHead className="h-6 text-right text-sky-400">Line Disc.</TableHead><TableHead className="h-6 text-right text-blue-400">Eff. Price/Unit</TableHead><TableHead className="h-6 text-right text-blue-400">Line Total</TableHead></TableRow></TableHeader>
                                     <TableBody>{foundSaleState.pristineOriginalSale.items.map(item => { const lineDiscountOriginal = item.totalDiscountOnLine; const lineTotalNetOriginal = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`orig-${item.productId}`} className="border-b-blue-700/40 hover:bg-blue-900/40"><TableCell className="py-1 text-blue-300">{item.name}</TableCell><TableCell className="py-1 text-center text-blue-300">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-sky-400">Rs. {lineDiscountOriginal.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {lineTotalNetOriginal.toFixed(2)}</TableCell></TableRow>);
                                         })}</TableBody></Table>
-                                {renderFinancialSummaryForPrint(foundSaleState.pristineOriginalSale, "Original Financial Summary:")}
+                                {renderFinancialSummaryForPrint(foundSaleState.pristineOriginalSale, "Original Purchase")}
                                 {foundSaleState.pristineOriginalSale.appliedDiscountSummary && foundSaleState.pristineOriginalSale.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-blue-200">Original Discounts Applied (Summary):</p>{foundSaleState.pristineOriginalSale.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`orig_disc_sum_${index}`} className="text-sky-400 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}{discount.productIdAffected && <span className="text-xs text-blue-500 ml-1">(For: {foundSaleState.pristineOriginalSale?.items.find(i => i.productId === discount.productIdAffected)?.name.substring(0,15) || discount.productIdAffected.substring(0,10)}...)</span>}</div>))}</>)}
                             </div>
                         ) : (<p className="text-sm text-muted-foreground p-3">Original bill details will load here once a bill is selected.</p>)}
@@ -802,7 +804,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   {foundSaleState.latestAdjustedOrOriginal.items.length === 0 && <TableRow className="border-b-green-800/50 hover:bg-green-900/40"><TableCell colSpan={6} className="text-center py-2 text-green-600">All items from this bill have been returned.</TableCell></TableRow>}
                                   </TableBody>
                               </Table>
-                              {renderFinancialSummaryForPrint(foundSaleState.latestAdjustedOrOriginal, "Active Bill Financial Summary:", true)}
+                              {renderFinancialSummaryForPrint(foundSaleState.latestAdjustedOrOriginal, "Adjusted Bill Summary:", true)}
                               {foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary && foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-green-200">Re-evaluated Item Discounts (Summary):</p>{foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`adj_disc_sum_${index}`} className="text-green-500 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}</div>))}</>)}
                           </div>
                       ) : (<p className="text-sm text-muted-foreground p-3">Current active bill details will load here.</p>)}
