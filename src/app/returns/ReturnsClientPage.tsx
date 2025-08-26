@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -10,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag, AlertTriangle } from "lucide-react";
+import { Search, Undo, PackageOpen, ListChecks, Check, ArrowLeft, Printer, History, FileText, Copy, CheckSquare, FileDiff, Info, Sigma, Undo2, ChevronLeft, ChevronRight, FileArchive, X, ShoppingBag, AlertTriangle, ArrowUpRight, TrendingDown } from "lucide-react";
 import type { SaleRecord, SaleRecordItem, SaleStatus, AppliedRuleInfo, ReturnedItemDetail, SaleRecordType, PaymentMethod, SpecificDiscountRuleConfig, DiscountSet, UnitDefinition, Product, SaleItem, ReturnedItemDetailInput } from '@/types';
 import { getSaleContextByBillNumberAction, getAllSaleRecordsAction, undoReturnItemAction, saveSaleRecordAction } from '@/app/actions/saleActions';
 import { processFullReturnWithRecalculationAction } from '@/app/actions/returnActions';
@@ -26,7 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReturnReceiptPrintContent } from '@/components/pos/ReturnReceiptPrintContent';
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getDisplayQuantityAndUnit } from '@/lib/unitUtils';
 import { calculateDiscountsForItems } from '@/lib/discountUtils';
@@ -560,6 +561,27 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
   const latestAdjustedSaleForDisplay = foundSaleState.latestAdjustedOrOriginal; 
   const saleForReturnLogDisplay = latestAdjustedSaleForDisplay; 
 
+  const calculateBillFinancials = useCallback((foundSale: FoundSaleContextState | null) => {
+    if (!foundSale?.latestAdjustedOrOriginal || !foundSale?.pristineOriginalSale) return null;
+    const { latestAdjustedOrOriginal, pristineOriginalSale } = foundSale;
+    
+    const netBillAmount = latestAdjustedOrOriginal.totalAmount;
+    const totalDiscount = (latestAdjustedOrOriginal.totalItemDiscountAmount || 0) + (latestAdjustedOrOriginal.totalCartDiscountAmount || 0);
+
+    const totalPaidByCustomer = pristineOriginalSale.amountPaidByCustomer || 0;
+    const totalRefunded = (latestAdjustedOrOriginal.returnedItemsLog || []).filter(log => !log.isUndone).reduce((sum, entry) => sum + entry.totalRefundForThisReturnEntry, 0);
+
+    const netAmountPaidByCustomer = totalPaidByCustomer - totalRefunded;
+    const finalBalance = netBillAmount - netAmountPaidByCustomer;
+
+    return {
+      netBillAmount, totalDiscount,
+      totalPaidByCustomer, totalRefunded, netAmountPaidByCustomer, finalBalance
+    };
+  }, []);
+
+  const billFinancials = useMemo(() => calculateBillFinancials(foundSaleState), [foundSaleState, calculateBillFinancials]);
+
 
   const renderFinancialSummary = (saleRecord: SaleRecord | null, title: string, isAdjustedSummary: boolean = false) => {
     if (!saleRecord) return null;
@@ -659,12 +681,43 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
             {isLoading && !pristineOriginalSaleForDisplay && (<div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground"><Search className="h-12 w-12 mb-3 animate-pulse" /><p>Searching for sale...</p></div>)}
             
             <div className="flex-1 flex flex-col space-y-2 pt-0">
-              <div className="flex justify-between items-center flex-shrink-0 mb-2">
-                 <h2 className="text-lg font-semibold text-card-foreground">Transaction Details</h2>
-                 <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
-                    <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
-                </Button>
-              </div>
+               {billFinancials && pristineOriginalSaleForDisplay && (
+                <Card className="p-4 bg-muted/20 border-border/40 mb-2">
+                    <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
+                        <CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary" />Financial Status</CardTitle>
+                        <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!pristineOriginalSaleForDisplay} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white h-8 text-xs">
+                          <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
+                        </Button>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                       <Accordion type="single" collapsible defaultValue="summary" className="w-full">
+                          <AccordionItem value="summary" className="border-b-0">
+                            <AccordionTrigger className="p-0 hover:no-underline text-base font-semibold flex-col items-start !space-y-2">
+                                <div className="flex justify-between items-start w-full">
+                                    <div className="text-left">
+                                      <span className="text-gray-400 text-sm">Final Balance Due</span>
+                                      <h2 className="text-4xl text-red-400 font-bold">Rs. {billFinancials.finalBalance.toFixed(2)}</h2>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <div className="flex items-center text-green-400 text-sm font-medium">
+                                        <ArrowUpRight className="w-4 h-4 mr-1" /> Paid: Rs. {billFinancials.netAmountPaidByCustomer.toFixed(2)}
+                                      </div>
+                                       <div className="flex items-center text-primary text-xl font-medium">OF Rs. {billFinancials.netBillAmount.toFixed(2)} BILL</div>
+                                    </div>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-3 mt-2 border-t border-border/50">
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between"><span>Payment Method:</span> <span>{pristineOriginalSaleForDisplay.paymentMethod}</span></div>
+                                  <div className="flex justify-between"><span>Date of Original Sale:</span> <span>{new Date(pristineOriginalSaleForDisplay.date).toLocaleDateString()}</span></div>
+                                  <div className="flex justify-between"><span>Customer:</span> <span>{pristineOriginalSaleForDisplay.customerName || 'N/A'}</span></div>
+                                </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                       </Accordion>
+                    </CardContent>
+                </Card>
+               )}
 
               <Accordion type="multiple" value={accordionValue} onValueChange={setAccordionValue} className="w-full text-xs mb-2 border border-border rounded-md bg-card p-1">
                 
