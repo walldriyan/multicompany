@@ -101,6 +101,37 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
   
   const hasUpdateSalePermission = can('update', 'Sale');
 
+  const renderFinancialSummaryForPrint = (sale: SaleRecord, title: string, isAdjusted = false) => {
+    const subtotalOriginalFromRecord = sale.subtotalOriginal || 0;
+    const totalItemDiscountFromRecord = sale.totalItemDiscountAmount || 0;
+    const totalCartDiscountFromRecord = sale.totalCartDiscountAmount || 0;
+    const netSubtotalFromRecord = sale.netSubtotal || 0;
+    const taxAmountForDisplay = sale.taxAmount || 0;
+    const finalTotalForDisplay = sale.totalAmount || 0;
+
+    return (
+      <div className="text-xs space-y-1 mt-1">
+        <div className="font-medium text-foreground">{title}</div>
+        <div className="flex justify-between"><span>Subtotal ({isAdjusted ? 'Active Bill, Orig. Prices' : 'Original Prices'}):</span><span>Rs. {subtotalOriginalFromRecord.toFixed(2)}</span></div>
+        {(totalItemDiscountFromRecord > 0) && (
+          <div className="flex justify-between"><span>Total Item Disc. ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalItemDiscountFromRecord.toFixed(2)}</span></div>
+        )}
+        {(totalCartDiscountFromRecord > 0) && (
+          <div className="flex justify-between"><span>Cart Discount ({isAdjusted ? 'Re-evaluated' : 'Original'}):</span><span className="text-red-400">-Rs. {totalCartDiscountFromRecord.toFixed(2)}</span></div>
+        )}
+        <div className="flex justify-between"><span>Net Subtotal (After relevant discounts):</span><span>Rs. {netSubtotalFromRecord.toFixed(2)}</span></div>
+        <div className="flex justify-between"><span>Tax ({ (sale.taxRate * 100).toFixed(sale.taxRate === 0 ? 0 : (sale.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span>Rs. {taxAmountForDisplay.toFixed(2)}</span></div>
+        <Separator className="my-1 bg-border/40" />
+        <div className="font-bold flex justify-between"><span>Total ({isAdjusted ? 'Net Bill' : 'Original Bill'}):</span><span>Rs. {finalTotalForDisplay.toFixed(2)}</span></div>
+        {sale.paymentMethod !== 'REFUND' && sale.amountPaidByCustomer !== undefined && sale.amountPaidByCustomer !== null && (
+          <div className="flex justify-between"><span>Amount Paid ({sale.paymentMethod}):</span><span>Rs. {(sale.amountPaidByCustomer || 0).toFixed(2)}</span></div>
+        )}
+         {sale.paymentMethod === 'cash' && sale.changeDueToCustomer !== undefined && sale.changeDueToCustomer !== null && sale.changeDueToCustomer > 0 && (
+          <div className="flex justify-between"><span>Change Given:</span><span>Rs. {sale.changeDueToCustomer.toFixed(2)}</span></div>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -376,6 +407,13 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     return itemInCurrentSale.quantity;
   };
 
+  const totalExpectedRefundForNewTransaction = useMemo(() => {
+    return itemsToReturnUiList.reduce((sum, item) => {
+      const effectivePrice = item.effectivePricePaidPerUnit || 0;
+      return sum + (effectivePrice * item.returnQuantity);
+    }, 0);
+  }, [itemsToReturnUiList]);
+
 
   const handleProcessReturn = async () => {
     if (!currentUser?.id) {
@@ -568,7 +606,6 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     // This is the total value of all items returned (sum of their refund amounts).
     const totalRefunded = (latestAdjustedOrOriginal.returnedItemsLog || []).filter(log => !log.isUndone).reduce((sum, entry) => sum + entry.totalRefundForThisReturnEntry, 0);
 
-    // The final outstanding balance is the NEW bill total, minus payments made on the original bill, plus refunds given back.
     const finalBalance = netBillAmount - totalPaidByCustomer + totalRefunded;
 
     return {
@@ -658,7 +695,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                 <Card className="p-4 bg-muted/20 border-border/40 mb-2">
                     <CardHeader className="p-0 pb-3 flex flex-row items-start justify-between">
                         <CardTitle className="text-base font-medium text-foreground flex items-center"><Sigma className="mr-2 h-4 w-4 text-primary" />Financial Status</CardTitle>
-                        <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!foundSaleState.pristineOriginalSale} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white h-8 text-xs">
+                         <Button variant="outline" onClick={handlePrintCombinedReceipt} disabled={!foundSaleState.pristineOriginalSale} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white h-8 text-xs">
                            <Printer className="mr-2 h-4 w-4" /> Print Full Bill Details
                         </Button>
                     </CardHeader>
@@ -722,7 +759,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   <Table className="text-xs my-1"><TableHeader><TableRow className="border-b-blue-700/40 hover:bg-blue-900/40"><TableHead className="h-6 text-blue-400">Item</TableHead><TableHead className="h-6 text-center text-blue-400">Qty</TableHead><TableHead className="h-6 text-right text-blue-400">Unit Price</TableHead><TableHead className="h-6 text-right text-sky-400">Line Disc.</TableHead><TableHead className="h-6 text-right text-blue-400">Eff. Price/Unit</TableHead><TableHead className="h-6 text-right text-blue-400">Line Total</TableHead></TableRow></TableHeader>
                                     <TableBody>{foundSaleState.pristineOriginalSale.items.map(item => { const lineDiscountOriginal = item.totalDiscountOnLine; const lineTotalNetOriginal = item.effectivePricePaidPerUnit * item.quantity; return (<TableRow key={`orig-${item.productId}`} className="border-b-blue-700/40 hover:bg-blue-900/40"><TableCell className="py-1 text-blue-300">{item.name}</TableCell><TableCell className="py-1 text-center text-blue-300">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.priceAtSale.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-sky-400">Rs. {lineDiscountOriginal.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {item.effectivePricePaidPerUnit.toFixed(2)}</TableCell><TableCell className="py-1 text-right text-blue-300">Rs. {lineTotalNetOriginal.toFixed(2)}</TableCell></TableRow>);
                                         })}</TableBody></Table>
-                                <p className="font-medium mt-1 text-blue-200">Original Financial Summary:</p>{renderFinancialSummaryForPrint(foundSaleState.pristineOriginalSale, "Original Purchase")}
+                                {renderFinancialSummaryForPrint(foundSaleState.pristineOriginalSale, "Original Financial Summary:")}
                                 {foundSaleState.pristineOriginalSale.appliedDiscountSummary && foundSaleState.pristineOriginalSale.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-blue-200">Original Discounts Applied (Summary):</p>{foundSaleState.pristineOriginalSale.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`orig_disc_sum_${index}`} className="text-sky-400 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}{discount.productIdAffected && <span className="text-xs text-blue-500 ml-1">(For: {foundSaleState.pristineOriginalSale?.items.find(i => i.productId === discount.productIdAffected)?.name.substring(0,15) || discount.productIdAffected.substring(0,10)}...)</span>}</div>))}</>)}
                             </div>
                         ) : (<p className="text-sm text-muted-foreground p-3">Original bill details will load here once a bill is selected.</p>)}
@@ -744,7 +781,7 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                                   {foundSaleState.latestAdjustedOrOriginal.items.length === 0 && <TableRow className="border-b-green-800/50 hover:bg-green-900/40"><TableCell colSpan={6} className="text-center py-2 text-green-600">All items from this bill have been returned.</TableCell></TableRow>}
                                   </TableBody>
                               </Table>
-                              <p className="font-medium mt-1 text-green-200">Active Bill Financial Summary:</p>{renderFinancialSummaryForPrint(foundSaleState.latestAdjustedOrOriginal, "Active Bill", true)}
+                              {renderFinancialSummaryForPrint(foundSaleState.latestAdjustedOrOriginal, "Active Bill Financial Summary:", true)}
                               {foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary && foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).length > 0 && (<><p className="font-medium mt-1 text-green-200">Re-evaluated Item Discounts (Summary):</p>{foundSaleState.latestAdjustedOrOriginal.appliedDiscountSummary.filter(d => d.totalCalculatedDiscount > 0).map((discount, index) => (<div key={`adj_disc_sum_${index}`} className="text-green-500 text-xs ml-2"><Info className="inline-block h-3 w-3 mr-1" />{discount.sourceRuleName} ({discount.discountCampaignName} - {discount.ruleType.replace(/_/g, ' ').replace('product config ', 'Prod. ').replace('campaign default ', 'Def. ')}{discount.appliedOnce ? ", once" : ""}): -Rs. {discount.totalCalculatedDiscount.toFixed(2)}</div>))}</>)}
                           </div>
                       ) : (<p className="text-sm text-muted-foreground p-3">Current active bill details will load here.</p>)}
