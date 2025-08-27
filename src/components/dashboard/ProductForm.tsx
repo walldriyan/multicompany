@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, Controller, FormProvider, useFieldArray } from 'react-hook-form';
@@ -25,6 +26,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { useSelector } from 'react-redux';
 import { selectAllProducts } from '@/store/slices/saleSlice';
+import { deleteProductBatchAction } from '@/app/actions/productActions';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProductFormProps {
   product?: ProductType | null;
@@ -94,6 +97,7 @@ export function ProductForm({
   const [currentStep, setCurrentStep] = useState(0);
   const allProductsFromStore = useSelector(selectAllProducts);
   const [selectedBatchIdForUpdate, setSelectedBatchIdForUpdate] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
@@ -299,6 +303,21 @@ export function ProductForm({
         setSelectedBatchIdForUpdate(batchId); // Track the selected batch for update
     } else {
         setSelectedBatchIdForUpdate(null);
+    }
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    const result = await deleteProductBatchAction(batchId);
+    if (result.success) {
+      toast({ title: 'Success', description: 'Batch deleted successfully.' });
+      // We need a way to refresh the product data from the parent
+      // For now, we just remove it locally from the `product` prop for UI update.
+      // This is a temporary solution until a full refresh mechanism is implemented.
+      if (product && product.batches) {
+        product.batches = product.batches.filter(b => b.id !== batchId);
+      }
+    } else {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' });
     }
   };
 
@@ -746,6 +765,7 @@ export function ProductForm({
                                     <TableHead className="text-right">Quantity</TableHead>
                                     <TableHead className="text-right">Cost Price</TableHead>
                                     <TableHead className="text-right">Selling Price</TableHead>
+                                    <TableHead className="text-center">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -759,11 +779,23 @@ export function ProductForm({
                                             <TableCell className="text-right text-xs">{batch.quantity}</TableCell>
                                             <TableCell className="text-right text-xs">Rs. {batch.costPrice.toFixed(2)}</TableCell>
                                             <TableCell className="text-right text-xs">Rs. {batch.sellingPrice.toFixed(2)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDeleteBatch(batch.id)}
+                                                    disabled={batch.quantity > 0}
+                                                    title={batch.quantity > 0 ? "Cannot delete batch with stock" : "Delete empty batch"}
+                                                    className="h-7 w-7 text-destructive"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-muted-foreground text-xs py-4">
+                                        <TableCell colSpan={8} className="text-center text-muted-foreground text-xs py-4">
                                             No batch history found for this product.
                                         </TableCell>
                                     </TableRow>

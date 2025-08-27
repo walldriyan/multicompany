@@ -214,11 +214,11 @@ export async function getAllProductsAction(userId: string): Promise<{
     if (!user?.companyId) {
         // Super admin without a company can see all products, for setup purposes.
         if (user?.role?.name === 'Admin') {
-             const allProductsFromDB = await prisma.product.findMany({
+             const allProductsFromDb = await prisma.product.findMany({
                  orderBy: { name: 'asc' },
                  include: { productDiscountConfigurations: true, batches: { include: { purchaseBillItem: { include: { purchaseBill: { include: { createdBy: { select: { username: true } } } } } } } } }
              });
-             return { success: true, data: allProductsFromDB.map(mapPrismaProductToType) };
+             return { success: true, data: allProductsFromDb.map(mapPrismaProductToType) };
         }
        return { success: true, data: [] }; // Return empty array if non-admin user has no company
     }
@@ -507,5 +507,28 @@ export async function updateProductStockAction(
   } catch (error: any) {
      console.error(`Error in updateProductStockAction for product ${productId}:`, error);
      return { success: false, error: error.message || "Failed to update stock." };
+  }
+}
+
+export async function deleteProductBatchAction(batchId: string): Promise<{ success: boolean, error?: string }> {
+  if (!batchId) {
+    return { success: false, error: 'Batch ID is required for deletion.' };
+  }
+  try {
+    const batch = await prisma.productBatch.findUnique({ where: { id: batchId } });
+    if (!batch) {
+      return { success: false, error: 'Batch not found.' };
+    }
+    if (batch.quantity > 0) {
+      return { success: false, error: 'Cannot delete a batch that still has stock.' };
+    }
+    await prisma.productBatch.delete({ where: { id: batchId } });
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error deleting batch ID ${batchId}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return { success: false, error: 'Batch to delete not found.' };
+    }
+    return { success: false, error: 'Failed to delete product batch.' };
   }
 }
