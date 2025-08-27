@@ -85,7 +85,7 @@ const formSteps = [
 ];
 
 export function ProductForm({
-  product,
+  product: initialProduct,
   onSubmit,
   onCancel,
   isLoading: isProductFormLoading,
@@ -98,6 +98,13 @@ export function ProductForm({
   const allProductsFromStore = useSelector(selectAllProducts);
   const [selectedBatchIdForUpdate, setSelectedBatchIdForUpdate] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Local state for the product to allow modifications within the form
+  const [product, setProduct] = useState(initialProduct);
+
+  useEffect(() => {
+    setProduct(initialProduct);
+  }, [initialProduct]);
 
   const methods = useForm<ProductFormData>({
     resolver: zodResolver(ProductFormDataSchema),
@@ -310,11 +317,14 @@ export function ProductForm({
     const result = await deleteProductBatchAction(batchId);
     if (result.success) {
       toast({ title: 'Success', description: 'Batch deleted successfully.' });
-      // We need a way to refresh the product data from the parent
-      // For now, we just remove it locally from the `product` prop for UI update.
-      // This is a temporary solution until a full refresh mechanism is implemented.
       if (product && product.batches) {
-        product.batches = product.batches.filter(b => b.id !== batchId);
+        setProduct(prevProduct => {
+            if (!prevProduct || !prevProduct.batches) return prevProduct;
+            return {
+                ...prevProduct,
+                batches: prevProduct.batches.filter(b => b.id !== batchId),
+            };
+        });
       }
     } else {
       toast({ title: 'Error', description: result.error, variant: 'destructive' });
