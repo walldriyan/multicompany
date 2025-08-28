@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { SaleRecord, PaymentInstallment, UnitDefinition } from '@/types';
@@ -27,8 +28,14 @@ export function CreditBillPrintContent({
   const companyAddress = companyAddressProp || "123 Main Street, Colombo, Sri Lanka";
   const companyPhone = companyPhoneProp || "+94 11 234 5678";
   const formatDate = (dateString: string | null | undefined) => dateString ? new Date(dateString).toLocaleString() : 'N/A';
+  
+  const initialPayment = (saleRecord.paymentInstallments || []).find(inst => inst.notes?.includes("Initial payment"))?.amountPaid || 0;
+  const subsequentInstallments = (saleRecord.paymentInstallments || []).filter(inst => !inst.notes?.includes("Initial payment"));
+  const totalSubsequentInstallmentsPaid = subsequentInstallments.reduce((sum, inst) => sum + inst.amountPaid, 0);
 
-  const totalInstallmentsPaid = installments.reduce((sum, inst) => sum + inst.amountPaid, 0);
+  const totalPaidByCustomer = saleRecord.amountPaidByCustomer || 0;
+  const finalBalance = saleRecord.creditOutstandingAmount ?? (saleRecord.totalAmount - totalPaidByCustomer);
+
 
   return (
     <>
@@ -81,25 +88,21 @@ export function CreditBillPrintContent({
         <div><span>Net Subtotal:</span><span className="value">Rs. {saleRecord.netSubtotal.toFixed(2)}</span></div>
         <div><span>Tax ({ (saleRecord.taxRate * 100).toFixed(saleRecord.taxRate === 0 ? 0 : (saleRecord.taxRate * 100 % 1 === 0 ? 0 : 2)) }%) :</span><span className="value">Rs. {saleRecord.taxAmount.toFixed(2)}</span></div>
         <div className="font-bold"><span>Original Bill Total:</span><span className="value">Rs. {saleRecord.totalAmount.toFixed(2)}</span></div>
-         {saleRecord.paymentMethod !== "credit" && saleRecord.amountPaidByCustomer !== undefined && saleRecord.amountPaidByCustomer !== null && (
-          <div><span>Amount Paid ({saleRecord.paymentMethod}):</span><span className="value">Rs. {saleRecord.amountPaidByCustomer.toFixed(2)}</span></div>
-        )}
-        {saleRecord.paymentMethod === "cash" && saleRecord.changeDueToCustomer !== undefined && saleRecord.changeDueToCustomer !== null && saleRecord.changeDueToCustomer > 0 &&(
-          <div><span>Change Given:</span><span className="value">Rs. {saleRecord.changeDueToCustomer.toFixed(2)}</span></div>
-        )}
       </div>
       <hr className="separator" />
 
       <p className="section-title font-bold">Credit Account Summary:</p>
       <div className="totals-section">
         <div><span>Total Amount Credited (Bill Total):</span><span className="value">Rs. {saleRecord.totalAmount.toFixed(2)}</span></div>
-        <div><span>Total Installments Paid:</span><span className="value">Rs. {totalInstallmentsPaid.toFixed(2)}</span></div>
-        <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {(saleRecord.creditOutstandingAmount ?? 0).toFixed(2)}</span></div>
+        {initialPayment > 0 && <div><span>Initial Payment (at sale):</span><span className="value">-Rs. {initialPayment.toFixed(2)}</span></div>}
+        {totalSubsequentInstallmentsPaid > 0 && <div><span>Subsequent Installments Paid:</span><span className="value">-Rs. {totalSubsequentInstallmentsPaid.toFixed(2)}</span></div>}
+        <div className="font-bold border-t border-dashed border-black"><span>Total Paid To Date:</span><span className="value">-Rs. {totalPaidByCustomer.toFixed(2)}</span></div>
+        <div className="font-bold"><span>Current Outstanding Balance:</span><span className="value">Rs. {finalBalance.toFixed(2)}</span></div>
         {saleRecord.creditPaymentStatus && <div><span>Credit Status:</span><span className="value">{saleRecord.creditPaymentStatus.replace('_', ' ')}</span></div>}
       </div>
       
 
-      {installments.length > 0 && (
+      {(installments || []).length > 0 && (
         <>
           <hr className="separator" />
           <p className="section-title font-bold">Payment Installment History:</p>

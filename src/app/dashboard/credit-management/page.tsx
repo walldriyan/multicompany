@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -17,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpCircle, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp, TrendingDown, ShoppingBag, ArrowUpRight, CurrencyIcon, CopySlash, CopySlashIcon, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, ReceiptText, DollarSign, ListChecks, Info, CheckCircle, Hourglass, Printer, CalendarIcon, Filter, X, User, ChevronsUpDown, AlertTriangle, Banknote, Landmark, WalletCards, ArrowUpRight, ArrowDownCircle, ListFilter, ChevronLeft, ChevronRight, FileArchive, Sigma, Repeat, FileText, TrendingUp, TrendingDown, ShoppingBag, ArrowUpRight as ArrowUpRightIcon, CurrencyIcon, CopySlash, CopySlashIcon, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -288,10 +289,11 @@ export default function CreditManagementPage() {
                   .totals-section .value { text-align: right; }
                   .thank-you { margin-top: 5px; text-align: center; font-size: 8pt; }
                   .section-break { margin-top: 5px; margin-bottom: 5px; }
+                  .sub-table th { font-size: 6.5pt; padding: 1px; } .sub-table td { font-size: 6.5pt; padding: 1px; }
                   @media print {
                       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt !important; color: black !important; background-color: white !important; height: auto !important; }
                       .receipt-container { margin: 0; padding:0; width: 100%; height: fit-content !important; }
-                      table { font-size: 7pt !important; }
+                      table { font-size: 7pt !important; } .sub-table th, .sub-table td { font-size: 6.5pt !important; }
                   }
               </style>
           </head>
@@ -331,20 +333,27 @@ export default function CreditManagementPage() {
   };
 
   const calculateBillFinancials = useCallback((group: { activeBillForDisplay: SaleRecord, pristineOriginalSale: SaleRecord | null } | null) => {
-    if (!group || !group.activeBillForDisplay || !group.pristineOriginalSale) return null;
+    if (!group || !group.activeBillForDisplay) return null;
 
     const { activeBillForDisplay, pristineOriginalSale } = group;
 
     const netBillAmount = activeBillForDisplay.totalAmount;
+    // Use the amountPaidByCustomer from the *original* sale, as this is the total cash/card collected against this bill number.
+    const totalPaidByCustomer = pristineOriginalSale?.amountPaidByCustomer || activeBillForDisplay.amountPaidByCustomer || 0;
 
-    const totalPaidByCustomer = activeBillForDisplay.amountPaidByCustomer || 0;
-
+    // Correctly calculate the final balance due.
     const finalBalance = netBillAmount - totalPaidByCustomer;
+
+    const initialPaymentRecord = (activeBillForDisplay.paymentInstallments || []).find(inst => inst.notes?.includes("Initial payment"));
+    const initialPayment = initialPaymentRecord ? initialPaymentRecord.amountPaid : (pristineOriginalSale?.amountPaidByCustomer || 0);
+    const subsequentInstallments = (activeBillForDisplay.paymentInstallments || []).filter(inst => !inst.notes?.includes("Initial payment"));
 
     return {
       netBillAmount,
       totalPaidByCustomer,
       finalBalance,
+      initialPayment: initialPayment,
+      installments: subsequentInstallments,
     };
   }, []);
 
@@ -379,9 +388,14 @@ export default function CreditManagementPage() {
             <ReceiptText className="mr-3 h-7 w-7" />
             Credit Management
           </h1>
-          <Button onClick={() => fetchCreditSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSales ? 'animate-spin' : ''}`} /> Refresh List
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => fetchCreditSales()} variant="outline" disabled={isLoadingSales} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSales ? 'animate-spin' : ''}`} /> Refresh List
+            </Button>
+             <Button onClick={handlePrintFullBill} variant="outline" disabled={!selectedGroup?.activeBillForDisplay || isPrintingBill} className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white">
+                <Printer className="mr-2 h-4 w-4" /> {isPrintingBill ? 'Printing...' : 'Print Full Bill Details'}
+            </Button>
+          </div>
         </header>
 
         {isSuperAdminWithoutCompany && (
@@ -420,11 +434,11 @@ export default function CreditManagementPage() {
                           <div className="flex items-end gap-2">
 
                             <div className="flex items-center text-green-400 text-sm font-medium">
-                              <ArrowUpRight className="w-4 h-4 mr-1" />
+                              <ArrowUpRightIcon className="w-4 h-4 mr-1" />
                               Paid: Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}
                             </div>
                             <div className="flex items-center text-primary text-xl font-medium">
-                              <ArrowUpRight className="w-4 h-4 mr-1" />
+                              <ArrowUpRightIcon className="w-4 h-4 mr-1" />
                               OF  Rs. {billFinancials.netBillAmount.toFixed(2)} BILL.
                             </div>
                           </div>
@@ -439,6 +453,44 @@ export default function CreditManagementPage() {
                         </div>
                       </AccordionContent>
                     </AccordionItem>
+                    {billFinancials.installments.length > 0 && (
+                      <AccordionItem value="installments" className="border-b-0 pt-2 mt-2 border-t border-border/30">
+                          <AccordionTrigger className="py-1 text-sm font-medium text-muted-foreground hover:no-underline">
+                              View Payment Installment History ({billFinancials.installments.length})
+                          </AccordionTrigger>
+                          <AccordionContent>
+                              <Table className="text-xs">
+                                  <TableHeader>
+                                      <TableRow className="border-b-border/30">
+                                          <TableHead className="h-6 text-muted-foreground">Date</TableHead>
+                                          <TableHead className="text-right h-6 text-muted-foreground">Amount Paid</TableHead>
+                                          <TableHead className="h-6 text-muted-foreground">Method</TableHead>
+                                      </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {billFinancials.initialPayment > 0 && (
+                                       <TableRow className="border-b-border/30 bg-muted/10 italic">
+                                          <TableCell>{new Date(selectedGroup?.activeBillForDisplay?.date).toLocaleDateString()}</TableCell>
+                                          <TableCell className="text-right">Rs. {billFinancials.initialPayment.toFixed(2)}</TableCell>
+                                          <TableCell>Initial Payment</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {billFinancials.installments.map(inst => (
+                                      <TableRow key={inst.id} className="border-b-border/30">
+                                          <TableCell>{new Date(inst.paymentDate).toLocaleDateString()}</TableCell>
+                                          <TableCell className="text-right">Rs. {inst.amountPaid.toFixed(2)}</TableCell>
+                                          <TableCell>{inst.method}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                    <TableRow className="bg-muted/30 font-semibold">
+                                        <TableCell>Total Paid</TableCell>
+                                        <TableCell className="text-right" colSpan={2}>Rs. {billFinancials.totalPaidByCustomer.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                  </TableBody>
+                              </Table>
+                          </AccordionContent>
+                      </AccordionItem>
+                    )}
                   </Accordion>
                 </CardContent>
               </Card>

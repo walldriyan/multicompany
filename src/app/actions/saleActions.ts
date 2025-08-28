@@ -104,6 +104,8 @@ function mapPrismaSaleToRecordType(record: any, _hasReturnsFlag?: boolean): Sale
           totalDiscountOnLine: typeof item.totalDiscountOnLine === 'number' ? item.totalDiscountOnLine : 0,
           batchId: item.batchId || null, 
           batchNumber: item.batchNumber || null,
+          customDiscountType: item.customDiscountType || null,
+          customDiscountValue: item.customDiscountValue || null,
         };
       }),
       subtotalOriginal: typeof record.subtotalOriginal === 'number' ? record.subtotalOriginal : 0,
@@ -881,7 +883,9 @@ export async function undoReturnItemAction(
             barcode: productInfo?.barcode,
             code: productInfo?.code,
             sellingPrice: batchInfo?.sellingPrice || productInfo?.sellingPrice || item.priceAtSale,
-            saleItemId: `sale-item-${item.productId}`, 
+            saleItemId: `sale-item-${item.productId}`,
+            customDiscountType: item.customDiscountType,
+            customDiscountValue: item.customDiscountValue,
           };
         });
         
