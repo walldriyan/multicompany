@@ -98,9 +98,6 @@ export function calculateDiscountsForItems(
     };
   }
 
-  // A temporary map to track remaining quantities for "Buy & Get" offers.
-  const tempItemQuantities = new Map(saleItems.map(item => [item.id, item.quantity]));
-
   // 1. Evaluate Item-Level Discounts (Custom and Campaign)
   saleItems.forEach(saleItem => {
     const productDetails = allProducts.find(p => p.id === saleItem.id);
@@ -128,7 +125,7 @@ export function calculateDiscountsForItems(
                 productIdAffected: saleItem.id,
                 appliedOnce: false,
             });
-             itemLevelDiscountsMap.set(saleItem.id, {
+             itemLevelDiscountsMap.set(saleItem.saleItemId, {
                 ruleName: "Custom Discount", ruleCampaignName: "Custom", 
                 perUnitEquivalentAmount: saleItem.quantity > 0 ? totalDiscountForThisLine / saleItem.quantity : 0,
                 totalCalculatedDiscountForLine: totalDiscountForThisLine,
@@ -182,11 +179,12 @@ export function calculateDiscountsForItems(
       }
     });
     
-    // --- START: "Buy & Get" Rule Evaluation PER LINE ITEM ---
+    // --- START: "Buy & Get" Rule Evaluation PER LINE ITEM (CORRECTED LOGIC) ---
     if (activeCampaign.buyGetRulesJson) {
       activeCampaign.buyGetRulesJson.forEach(rule => {
-        // This rule applies only if the item is BOTH the "buy" and "get" item, and its quantity meets the condition
+        // This rule applies only if the item is BOTH the "buy" and "get" item, AND its quantity meets the condition.
         if (rule.buyProductId === saleItem.id && rule.getProductId === saleItem.id && saleItem.quantity >= rule.buyQuantity) {
+          
           const timesRuleApplies = rule.isRepeatable ? Math.floor(saleItem.quantity / rule.buyQuantity) : 1;
           const numberOfFreeItems = timesRuleApplies * rule.getQuantity;
           
@@ -196,6 +194,7 @@ export function calculateDiscountsForItems(
           if (actualFreeItems > 0) {
             let discountPerUnit = 0;
             if (rule.discountType === 'percentage') {
+              // Discount is on the "get" item, which is the same as the "buy" item here.
               discountPerUnit = saleItem.price * (rule.discountValue / 100);
             } else { // Fixed discount
               discountPerUnit = rule.discountValue;
@@ -207,7 +206,7 @@ export function calculateDiscountsForItems(
               totalDiscountForThisLine += discountFromThisRule;
               detailedAppliedDiscountSummary.push({
                 discountCampaignName: activeCampaign.name,
-                sourceRuleName: "Buy/Get Offer",
+                sourceRuleName: "Buy/Get Offer", // Using a generic name for now
                 totalCalculatedDiscount: discountFromThisRule,
                 ruleType: 'buy_get_free',
                 productIdAffected: saleItem.id,
@@ -223,7 +222,7 @@ export function calculateDiscountsForItems(
 
     if (totalDiscountForThisLine > 0) {
       const perUnitEquivalent = saleItem.quantity > 0 ? totalDiscountForThisLine / saleItem.quantity : 0;
-      itemLevelDiscountsMap.set(saleItem.id, {
+      itemLevelDiscountsMap.set(saleItem.saleItemId, {
         ruleName: detailedAppliedDiscountSummary.filter(d=>d.productIdAffected === saleItem.id).map(d=>d.sourceRuleName).join(', '),
         ruleCampaignName: activeCampaign.name,
         perUnitEquivalentAmount: perUnitEquivalent,
@@ -239,7 +238,7 @@ export function calculateDiscountsForItems(
   // 3. Apply Global Cart-Level Discounts
   const subtotalAfterAllItemDiscounts = saleItems.reduce((sum, saleItem) => {
     const itemOriginalLineValue = saleItem.price * saleItem.quantity;
-    const itemDiscountForLine = itemLevelDiscountsMap.get(saleItem.id)?.totalCalculatedDiscountForLine || 0;
+    const itemDiscountForLine = itemLevelDiscountsMap.get(saleItem.saleItemId)?.totalCalculatedDiscountForLine || 0;
     return sum + itemOriginalLineValue - itemDiscountForLine;
   }, 0);
   const totalCartQuantity = saleItems.reduce((sum, item) => sum + item.quantity, 0);

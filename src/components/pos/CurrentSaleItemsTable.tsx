@@ -56,14 +56,14 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, o
   };
 
   const getDiscountDisplayForItem = (item: SaleItem) => {
-    if (item.customDiscountValue) {
+    if (item.customDiscountValue && item.customDiscountValue > 0) {
       const type = item.customDiscountType === 'percentage' ? '%' : ' Rs.';
       return {
         text: `Custom: ${item.customDiscountValue}${type}`,
         isCustom: true
       };
     }
-    const discountInfo = calculatedItemDiscountsMap.get(item.id);
+    const discountInfo = calculatedItemDiscountsMap.get(item.saleItemId);
     if (discountInfo && discountInfo.totalCalculatedDiscountForLine > 0) {
         return {
           text: `${discountInfo.ruleName} (-Rs. ${discountInfo.perUnitEquivalentAmount.toFixed(2)} per ${item.units.baseUnit})`,
@@ -92,7 +92,7 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, o
         </TableHeader>
         <TableBody>
           {items.map((item) => {
-            const itemDiscountInfo = calculatedItemDiscountsMap.get(item.id);
+            const itemDiscountInfo = calculatedItemDiscountsMap.get(item.saleItemId);
             const lineTotalDiscount = itemDiscountInfo?.totalCalculatedDiscountForLine || 0;
             
             const originalUnitPrice = item.price ?? 0;
