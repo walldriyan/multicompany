@@ -764,7 +764,7 @@ export function ProductForm({
                   <CardDescription className="text-xs">History of stock additions for this product.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ScrollArea className="h-96">
+                    <div className="h-96 overflow-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -812,7 +812,7 @@ export function ProductForm({
                                 )}
                             </TableBody>
                         </Table>
-                    </ScrollArea>
+                    </div>
                 </CardContent>
             </Card>
           </TabsContent>
