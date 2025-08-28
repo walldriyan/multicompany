@@ -378,33 +378,36 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
     }
   };
 
-  const handleReturnQuantityChange = (itemId: string, newReturnQtyStr: string) => {
-    const saleForReturnLogic = foundSaleState.latestAdjustedOrOriginal;
-    if (!saleForReturnLogic) return;
-    const originalItem = saleForReturnLogic.items.find(i => i.productId === itemId);
-    if (!originalItem) return;
-    let newReturnQty = parseInt(newReturnQtyStr, 10);
-    if (isNaN(newReturnQty) || newReturnQty < 0) newReturnQty = 0;
-    const availableToReturnForThisItem = getAvailableToReturnQuantity(itemId, saleForReturnLogic);
-    if (newReturnQty > availableToReturnForThisItem) {
-      newReturnQty = availableToReturnForThisItem;
-      toast({
-          title: "Limit Exceeded",
-          description: `Cannot return more than ${availableToReturnForThisItem} units of ${originalItem.name}.`,
-          variant: "destructive",
-          duration: 2000
-      });
-    }
+  const handleReturnQuantityChange = (batchId: string | null | undefined, newReturnQtyStr: string) => {
+    if (!batchId) return;
+
     setItemsToReturnUiList(prevItems =>
-      prevItems.map(item =>
-        item.productId === itemId ? { ...item, returnQuantity: newReturnQty } : item
-      )
+      prevItems.map(item => {
+        if (item.batchId === batchId) {
+          let newReturnQty = parseInt(newReturnQtyStr, 10);
+          if (isNaN(newReturnQty) || newReturnQty < 0) newReturnQty = 0;
+          
+          const availableToReturn = getAvailableToReturnQuantity(batchId);
+          if (newReturnQty > availableToReturn) {
+            newReturnQty = availableToReturn;
+            toast({
+                title: "Limit Exceeded",
+                description: `Cannot return more than ${availableToReturn} units of ${item.name} from this batch.`,
+                variant: "destructive",
+                duration: 2000
+            });
+          }
+          return { ...item, returnQuantity: newReturnQty };
+        }
+        return item;
+      })
     );
   };
 
-  const getAvailableToReturnQuantity = (itemId: string, currentSaleState: SaleRecord | null): number => {
-    if (!currentSaleState) return 0;
-    const itemInCurrentSale = currentSaleState.items.find(i => i.productId === itemId);
+  const getAvailableToReturnQuantity = (batchId: string): number => {
+    const saleForReturnLogic = foundSaleState.latestAdjustedOrOriginal;
+    if (!saleForReturnLogic) return 0;
+    const itemInCurrentSale = saleForReturnLogic.items.find(i => i.batchId === batchId);
     if (!itemInCurrentSale) return 0;
     return itemInCurrentSale.quantity;
   };
@@ -845,12 +848,12 @@ export function ReturnsClientPage({ initialSales, initialTotalCount }: ReturnsCl
                         <TableBody>{itemsToReturnUiList.length > 0 ? itemsToReturnUiList.map((item, index) => {
                             const lineTotalNetInBill = (item.effectivePricePaidPerUnit || 0) * item.quantity;
                             return (
-                            <TableRow key={`ret-item-${item.productId}-${index}`} className={`hover:bg-orange-900/60 border-b-orange-800/50 ${item.quantity === 0 ? 'opacity-60' : ''}`}>
-                                <TableCell className="text-orange-300 py-1">{item.name}</TableCell>
+                            <TableRow key={`ret-item-${item.productId}-${item.batchId || index}`} className={`hover:bg-orange-900/60 border-b-orange-800/50 ${item.quantity === 0 ? 'opacity-60' : ''}`}>
+                                <TableCell className="text-orange-300 py-1">{item.name} {item.batchNumber && <span className="text-xs text-orange-400/70">(Batch: {item.batchNumber})</span>}</TableCell>
                                 <TableCell className="text-center text-orange-300 py-1">{`${item.quantity} ${item.units.baseUnit}`.trim()}</TableCell>
                                 <TableCell className="text-right text-orange-300 py-1">Rs. {(item.effectivePricePaidPerUnit || 0).toFixed(2)}</TableCell>
                                 <TableCell className="text-right text-orange-300 font-medium py-1">Rs. {lineTotalNetInBill.toFixed(2)}</TableCell>
-                                <TableCell className="text-center py-1"><Input type="number" min="0" max={item.quantity} value={item.returnQuantity.toString()} onChange={(e) => handleReturnQuantityChange(item.productId, e.target.value)} className="w-20 h-8 bg-orange-950 border-orange-600 focus:ring-orange-500 text-orange-200 text-center p-1 text-sm" disabled={isLoading || item.quantity === 0}/></TableCell>
+                                <TableCell className="text-center py-1"><Input type="number" min="0" max={item.quantity} value={item.returnQuantity.toString()} onChange={(e) => handleReturnQuantityChange(item.batchId, e.target.value)} className="w-20 h-8 bg-orange-950 border-orange-600 focus:ring-orange-500 text-orange-200 text-center p-1 text-sm" disabled={isLoading || item.quantity === 0}/></TableCell>
                             </TableRow>
                             );
                           }) : (<TableRow className="border-b-orange-800/50"><TableCell colSpan={7} className="text-center py-4 text-orange-500/70">{foundSaleState.latestAdjustedOrOriginal ? 'No items available for return in the current bill state.' : 'Load a sale to see items.'}</TableCell></TableRow>)}</TableBody></Table>
