@@ -181,6 +181,45 @@ export function calculateDiscountsForItems(
         }
       }
     });
+    
+    // --- START: "Buy & Get" Rule Evaluation PER LINE ITEM ---
+    if (activeCampaign.buyGetRulesJson) {
+      activeCampaign.buyGetRulesJson.forEach(rule => {
+        // This rule applies only if the item is BOTH the "buy" and "get" item, and its quantity meets the condition
+        if (rule.buyProductId === saleItem.id && rule.getProductId === saleItem.id && saleItem.quantity >= rule.buyQuantity) {
+          const timesRuleApplies = rule.isRepeatable ? Math.floor(saleItem.quantity / rule.buyQuantity) : 1;
+          const numberOfFreeItems = timesRuleApplies * rule.getQuantity;
+          
+          // Ensure we don't give more free items than are being purchased in this line
+          const actualFreeItems = Math.min(saleItem.quantity, numberOfFreeItems);
+          
+          if (actualFreeItems > 0) {
+            let discountPerUnit = 0;
+            if (rule.discountType === 'percentage') {
+              discountPerUnit = saleItem.price * (rule.discountValue / 100);
+            } else { // Fixed discount
+              discountPerUnit = rule.discountValue;
+            }
+            
+            const discountFromThisRule = discountPerUnit * actualFreeItems;
+            
+            if (discountFromThisRule > 0) {
+              totalDiscountForThisLine += discountFromThisRule;
+              detailedAppliedDiscountSummary.push({
+                discountCampaignName: activeCampaign.name,
+                sourceRuleName: "Buy/Get Offer",
+                totalCalculatedDiscount: discountFromThisRule,
+                ruleType: 'buy_get_free',
+                productIdAffected: saleItem.id,
+                appliedOnce: !rule.isRepeatable
+              });
+            }
+          }
+        }
+      });
+    }
+    // --- END: "Buy & Get" Rule Evaluation ---
+
 
     if (totalDiscountForThisLine > 0) {
       const perUnitEquivalent = saleItem.quantity > 0 ? totalDiscountForThisLine / saleItem.quantity : 0;
@@ -189,128 +228,62 @@ export function calculateDiscountsForItems(
         ruleCampaignName: activeCampaign.name,
         perUnitEquivalentAmount: perUnitEquivalent,
         totalCalculatedDiscountForLine: totalDiscountForThisLine,
-        ruleType: 'product_config_line_item_value', 
-        appliedOnce: false,
+        ruleType: 'product_config_line_item_value', // This type might need refinement if multiple rule types apply
+        appliedOnce: false, // This is a summary, individual rule's appliedOnce is in detailed summary
       });
       totalItemDiscountSum += totalDiscountForThisLine;
     }
   });
 
-  if (!activeCampaign || !activeCampaign.isActive) {
-    return {
-      itemDiscounts: itemLevelDiscountsMap,
-      cartDiscountsAppliedDetails: [],
-      totalItemDiscountAmount: totalItemDiscountSum,
-      totalCartDiscountAmount: 0,
-      fullAppliedDiscountSummary: detailedAppliedDiscountSummary,
-    };
-  }
-
-  // 2. Evaluate "Buy & Get" Rules (Only if no custom discount is applied to the 'get' item)
-  if (activeCampaign.buyGetRulesJson && activeCampaign.buyGetRulesJson.length > 0) {
-      activeCampaign.buyGetRulesJson.forEach(rule => {
-          // Check if the 'get' product already has a custom discount. If so, skip this BOGO rule for it.
-          const getSaleItem = saleItems.find(i => i.id === rule.getProductId);
-          if (getSaleItem?.customDiscountValue) return;
-
-          const buyProductQtyInCart = tempItemQuantities.get(rule.buyProductId) || 0;
-
-          if (buyProductQtyInCart >= rule.buyQuantity) {
-              const getProductQtyInCart = tempItemQuantities.get(rule.getProductId) || 0;
-              if (getProductQtyInCart <= 0) return;
-
-              const timesRuleCanApply = rule.isRepeatable ? Math.floor(buyProductQtyInCart / rule.buyQuantity) : 1;
-              const maxDiscountableQty = timesRuleCanApply * rule.getQuantity;
-              const actualDiscountableQty = Math.min(getProductQtyInCart, maxDiscountableQty);
-
-              if (actualDiscountableQty > 0) {
-                  const getProductDetails = allProducts.find(p => p.id === rule.getProductId);
-                  if (!getProductDetails) return;
-
-                  let discountPerUnit;
-                  if (rule.discountType === 'percentage') {
-                    const getItemInCart = saleItems.find(i => i.id === rule.getProductId);
-                    const sellingPriceForDiscount = getItemInCart ? getItemInCart.price : getProductDetails.sellingPrice;
-                    discountPerUnit = sellingPriceForDiscount * (rule.discountValue / 100);
-                  } else { 
-                    discountPerUnit = rule.discountValue;
-                  }
-                  
-                  const totalDiscountFromThisRule = discountPerUnit * actualDiscountableQty;
-                  
-                  totalItemDiscountSum += totalDiscountFromThisRule;
-                  
-                  const existingDiscount = itemLevelDiscountsMap.get(rule.getProductId) || {
-                      ruleName: '', ruleCampaignName: activeCampaign.name, perUnitEquivalentAmount: 0,
-                      totalCalculatedDiscountForLine: 0, ruleType: 'buy_get_free', appliedOnce: false
-                  };
-
-                  existingDiscount.totalCalculatedDiscountForLine += totalDiscountFromThisRule;
-                  existingDiscount.ruleName = (existingDiscount.ruleName ? existingDiscount.ruleName + ', ' : '') + `Buy ${rule.buyQuantity} Get ${rule.getQuantity}`;
-                  existingDiscount.perUnitEquivalentAmount = existingDiscount.totalCalculatedDiscountForLine / getProductQtyInCart;
-
-                  itemLevelDiscountsMap.set(rule.getProductId, existingDiscount);
-                  
-                  detailedAppliedDiscountSummary.push({
-                      discountCampaignName: activeCampaign.name,
-                      sourceRuleName: `Buy ${rule.buyQuantity} of ${allProducts.find(p=>p.id===rule.buyProductId)?.name || 'item'} Get ${rule.getQuantity} of ${getProductDetails.name}`,
-                      totalCalculatedDiscount: totalDiscountFromThisRule,
-                      ruleType: 'buy_get_free',
-                      productIdAffected: rule.getProductId,
-                      appliedOnce: !rule.isRepeatable,
-                  });
-              }
-          }
-      });
-  }
-
 
   // 3. Apply Global Cart-Level Discounts
   const subtotalAfterAllItemDiscounts = saleItems.reduce((sum, saleItem) => {
-    const itemOriginalPrice = saleItem.price;
+    const itemOriginalLineValue = saleItem.price * saleItem.quantity;
     const itemDiscountForLine = itemLevelDiscountsMap.get(saleItem.id)?.totalCalculatedDiscountForLine || 0;
-    return sum + (itemOriginalPrice * saleItem.quantity) - itemDiscountForLine;
+    return sum + itemOriginalLineValue - itemDiscountForLine;
   }, 0);
   const totalCartQuantity = saleItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  const globalCartRulesToProcess = [
-    { config: activeCampaign.globalCartPriceRuleJson, type: 'campaign_global_cart_price' as AppliedRuleInfo['ruleType'] },
-    { config: activeCampaign.globalCartQuantityRuleJson, type: 'campaign_global_cart_quantity' as AppliedRuleInfo['ruleType'] },
-  ];
+  if (activeCampaign && activeCampaign.isActive) {
+    const globalCartRulesToProcess = [
+      { config: activeCampaign.globalCartPriceRuleJson, type: 'campaign_global_cart_price' as AppliedRuleInfo['ruleType'] },
+      { config: activeCampaign.globalCartQuantityRuleJson, type: 'campaign_global_cart_quantity' as AppliedRuleInfo['ruleType'] },
+    ];
 
-  globalCartRulesToProcess.forEach(cartRuleEntry => {
-    if (cartRuleEntry.config && cartRuleEntry.config.isEnabled) {
-      const cartRule = cartRuleEntry.config;
-      let conditionMet = false;
-      let valueToTestCondition = 0;
+    globalCartRulesToProcess.forEach(cartRuleEntry => {
+      if (cartRuleEntry.config && cartRuleEntry.config.isEnabled) {
+        const cartRule = cartRuleEntry.config;
+        let conditionMet = false;
+        let valueToTestCondition = 0;
 
-      if (cartRuleEntry.type === 'campaign_global_cart_price') valueToTestCondition = subtotalAfterAllItemDiscounts;
-      else if (cartRuleEntry.type === 'campaign_global_cart_quantity') valueToTestCondition = totalCartQuantity;
+        if (cartRuleEntry.type === 'campaign_global_cart_price') valueToTestCondition = subtotalAfterAllItemDiscounts;
+        else if (cartRuleEntry.type === 'campaign_global_cart_quantity') valueToTestCondition = totalCartQuantity;
 
-      conditionMet = (valueToTestCondition >= (cartRule.conditionMin ?? 0)) && (valueToTestCondition <= (cartRule.conditionMax ?? Infinity));
+        conditionMet = (valueToTestCondition >= (cartRule.conditionMin ?? 0)) && (valueToTestCondition <= (cartRule.conditionMax ?? Infinity));
 
-      if (conditionMet) {
-        let cartDiscountAmountApplied: number;
-        if (cartRule.type === 'fixed') cartDiscountAmountApplied = cartRule.value;
-        else cartDiscountAmountApplied = subtotalAfterAllItemDiscounts * (cartRule.value / 100);
+        if (conditionMet) {
+          let cartDiscountAmountApplied: number;
+          if (cartRule.type === 'fixed') cartDiscountAmountApplied = cartRule.value;
+          else cartDiscountAmountApplied = subtotalAfterAllItemDiscounts * (cartRule.value / 100);
 
-        cartDiscountAmountApplied = Math.max(0, Math.min(cartDiscountAmountApplied, subtotalAfterAllItemDiscounts));
+          cartDiscountAmountApplied = Math.max(0, Math.min(cartDiscountAmountApplied, subtotalAfterAllItemDiscounts));
 
-        if (cartDiscountAmountApplied > 0) {
-            const cartRuleInfo: AppliedRuleInfo = {
-                discountCampaignName: activeCampaign.name,
-                sourceRuleName: cartRule.name,
-                totalCalculatedDiscount: cartDiscountAmountApplied,
-                ruleType: cartRuleEntry.type,
-                appliedOnce: true,
-            };
-            totalGlobalCartDiscountSum += cartDiscountAmountApplied;
-            globalCartRulesAppliedDetails.push(cartRuleInfo);
-            detailedAppliedDiscountSummary.push(cartRuleInfo);
+          if (cartDiscountAmountApplied > 0) {
+              const cartRuleInfo: AppliedRuleInfo = {
+                  discountCampaignName: activeCampaign.name,
+                  sourceRuleName: cartRule.name,
+                  totalCalculatedDiscount: cartDiscountAmountApplied,
+                  ruleType: cartRuleEntry.type,
+                  appliedOnce: true,
+              };
+              totalGlobalCartDiscountSum += cartDiscountAmountApplied;
+              globalCartRulesAppliedDetails.push(cartRuleInfo);
+              detailedAppliedDiscountSummary.push(cartRuleInfo);
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   return {
     itemDiscounts: itemLevelDiscountsMap,

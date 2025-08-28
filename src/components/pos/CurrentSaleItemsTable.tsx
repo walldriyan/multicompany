@@ -65,16 +65,10 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, o
     }
     const discountInfo = calculatedItemDiscountsMap.get(item.id);
     if (discountInfo && discountInfo.totalCalculatedDiscountForLine > 0) {
-      if (discountInfo.appliedOnce && discountInfo.totalCalculatedDiscountForLine > 0) {
         return {
-          text: `${discountInfo.ruleName} (-Rs. ${discountInfo.totalCalculatedDiscountForLine.toFixed(2)} total)`,
+          text: `${discountInfo.ruleName} (-Rs. ${discountInfo.perUnitEquivalentAmount.toFixed(2)} per ${item.units.baseUnit})`,
           isCustom: false
         };
-      }
-      return {
-        text: `${discountInfo.ruleName} (-Rs. ${discountInfo.perUnitEquivalentAmount.toFixed(2)} per ${item.units.baseUnit})`,
-        isCustom: false
-      };
     }
     return {
       text: 'No Item Discount',
@@ -99,16 +93,12 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, o
         <TableBody>
           {items.map((item) => {
             const itemDiscountInfo = calculatedItemDiscountsMap.get(item.id);
-            const perUnitEquivalentDiscountAmount = item.customDiscountType === 'fixed' 
-                ? (item.customDiscountValue || 0)
-                : item.customDiscountType === 'percentage'
-                ? (item.price * (item.customDiscountValue || 0) / 100)
-                : (itemDiscountInfo?.perUnitEquivalentAmount || 0);
-
+            const lineTotalDiscount = itemDiscountInfo?.totalCalculatedDiscountForLine || 0;
+            
             const originalUnitPrice = item.price ?? 0;
-            const discountedPricePerBaseUnit = originalUnitPrice - perUnitEquivalentDiscountAmount;
-            const lineTotal = discountedPricePerBaseUnit * item.quantity;
             const lineTotalWithoutDiscount = originalUnitPrice * item.quantity;
+            const lineTotal = lineTotalWithoutDiscount - lineTotalDiscount;
+            
             const { displayQuantity, displayUnit } = getDisplayQuantityAndUnit(item.quantity, item.units);
             const discountDisplay = getDiscountDisplayForItem(item);
 
@@ -167,7 +157,7 @@ export function CurrentSaleItemsTable({ items, onQuantityChange, onRemoveItem, o
                 </div>
               </TableCell>
               <TableCell className="text-right text-foreground align-middle">
-                {itemDiscountInfo || item.customDiscountValue ? (
+                {lineTotalDiscount > 0 ? (
                   <>
                     <div className="font-medium">
                       Rs. {lineTotal.toFixed(2)}
