@@ -236,7 +236,10 @@ export default function CreditManagementPage() {
 
     if (result.success && result.data) {
       toast({ title: 'Payment Deleted', description: `Payment of Rs. ${installmentToDelete.amountPaid.toFixed(2)} has been removed.` });
-      await fetchCreditSales();
+      // Refresh the list of credit sales.
+      await fetchCreditSales(); 
+      
+      // Update the selected group and its installments to reflect the change immediately.
       setSelectedGroup(prev => prev ? { ...prev, activeBillForDisplay: result.data! } : null);
       await fetchInstallments(result.data);
     } else {
