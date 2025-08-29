@@ -198,9 +198,23 @@ export default function CreditManagementPage() {
     const result = await recordCreditPaymentAction(selectedSale.id, amount, paymentMethod, currentUser.id, paymentNotes);
     if (result.success && result.data) {
       toast({ title: 'Payment Recorded', description: `Payment of Rs. ${amount.toFixed(2)} for bill ${selectedSale.billNumber} recorded.` });
-      await fetchCreditSales();
-      setSelectedGroup(prev => prev ? { ...prev, activeBillForDisplay: result.data! } : null);
-      await fetchInstallments(result.data); // Refetch installments
+      // Correctly refresh the state
+      await fetchCreditSales(); 
+      // After fetching the list, find the updated bill and set it as selected
+      const updatedList = await getCreditSalesAction(currentUser.id, currentPage, ITEMS_PER_PAGE, activeFilters);
+      if (updatedList.success && updatedList.data) {
+          const updatedBillInList = updatedList.data.sales.find(s => s.id === result.data?.id);
+          if (updatedBillInList) {
+             setSelectedGroup({ activeBillForDisplay: updatedBillInList, pristineOriginalSale: updatedBillInList });
+             await fetchInstallments(updatedBillInList);
+          } else {
+             // If the bill is now paid, it might not be in the "OPEN" list anymore.
+             // We can just use the returned data.
+             setSelectedGroup({ activeBillForDisplay: result.data, pristineOriginalSale: result.data });
+             await fetchInstallments(result.data);
+          }
+      }
+      
       setPaymentAmount('');
       setPaymentNotes('');
     } else {
