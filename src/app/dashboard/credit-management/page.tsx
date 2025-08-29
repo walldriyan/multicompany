@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -236,12 +235,13 @@ export default function CreditManagementPage() {
 
     if (result.success && result.data) {
       toast({ title: 'Payment Deleted', description: `Payment of Rs. ${installmentToDelete.amountPaid.toFixed(2)} has been removed.` });
-      // Refresh the list of credit sales.
-      await fetchCreditSales(); 
       
-      // Update the selected group and its installments to reflect the change immediately.
+      // Update the selected group with the fresh data returned from the server
       setSelectedGroup(prev => prev ? { ...prev, activeBillForDisplay: result.data! } : null);
       await fetchInstallments(result.data);
+      
+      // Refresh the main list of credit sales
+      await fetchCreditSales();
     } else {
       toast({ title: 'Error Deleting Payment', description: result.error, variant: 'destructive' });
     }
